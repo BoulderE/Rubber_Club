@@ -156,5 +156,69 @@ def get_status():
         'paused': workout_state.is_paused
     })
 
+# Front end
+@app.route('/')
+def index():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>MediaPipe Flask Backend</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                line-height: 1.6;
+            }
+            h1 {
+                color: #5D5CDE;
+                margin-bottom: 20px;
+            }
+            ul {
+                background-color: #f8f9fa;
+                padding: 20px;
+                border-radius: 5px;
+            }
+            li {
+                margin-bottom: 10px;
+            }
+            code {
+                background-color: #e9ecef;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: monospace;
+            }
+            .endpoint {
+                font-weight: bold;
+            }
+            .method {
+                color: #0066cc;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>MediaPipe Flask 后端服务</h1>
+        <p>欢迎使用 MediaPipe 姿势分析 API。以下是可用的端点：</p>
+        <ul>
+            <li><span class="endpoint">/analyze</span> - 分析图片中的姿势 <span class="method">(POST)</span><br>
+                <small>上传图片文件，返回姿势分析结果</small>
+            </li>
+            <li><span class="endpoint">/control</span> - 控制运动状态 <span class="method">(POST)</span><br>
+                <small>接受 JSON 格式请求：<code>{"action": "pause|resume|reset"}</code></small>
+            </li>
+            <li><span class="endpoint">/status</span> - 获取当前状态 <span class="method">(GET)</span><br>
+                <small>返回当前锻炼状态的 JSON 数据</small>
+            </li>
+        </ul>
+        <p>您可以使用这个 API 进行胸部拉伸运动的姿势分析和跟踪。</p>
+        <p>
+            <a href="/status" style="color: #5D5CDE;">查看当前状态</a>
+        </p>
+    </body>
+    </html>
+    """
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
