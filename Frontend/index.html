@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubber Club</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <h1>Rubber Club</h1>
+    </header>
+    
+    <main>
+        <div class="card">
+            <h2>Nav</h2>
+            <ul class="nav-links">
+                <li><a href="real-time-analysis.html">Rubber Club</a></li>
+                <li><a href="javascript:void(0)" id="statusLink">Check Status</a></li>
+            </ul>
+        </div>
+        
+        <div class="card" id="statusCard" style="display: none;">
+            <h2>Current Status</h2>
+            <pre id="statusContent"></pre>
+        </div>
+    </main>
+    
+    <footer>
+        <p>Rubber Club &copy; 2025</p>
+    </footer>
+
+    <script src="js/api-client.js"></script>
+    <script>
+        document.getElementById('statusLink').addEventListener('click', async () => {
+            try {
+                const status = await apiClient.getStatus();
+                const statusCard = document.getElementById('statusCard');
+                const statusContent = document.getElementById('statusContent');
+                
+                statusContent.textContent = JSON.stringify(status, null, 2);
+                statusCard.style.display = 'block';
+            } catch (error) {
+                alert('Failed to fetch status: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>
