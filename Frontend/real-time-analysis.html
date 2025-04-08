@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rubber Club</title>
+    <style>
+        :root {
+            --primary-color: #5D5CDE;
+            --background-color: #ffffff;
+            --text-color: #333333;
+            --card-background: #f8f9fa;
+            --card-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary-color: #5D5CDE;
+                --background-color: #181818;
+                --text-color: #e4e4e4;
+                --card-background: #282828;
+                --card-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1, h2, h3 {
+            color: var(--primary-color);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--card-background);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        #webcam {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #4a49b7;
+        }
+
+        button:disabled {
+            background-color: #b5b5b5;
+            cursor: not-allowed;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #ff4757;
+            font-weight: bold;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .status-message {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .status-message.info {
+            background-color: rgba(93, 92, 222, 0.2);
+            color: var(--primary-color);
+        }
+
+        .status-message.error {
+            background-color: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+        }
+
+        .status-message.success {
+            background-color: rgba(46, 213, 115, 0.2);
+            color: #2ed573;
+        }
+
+        .gesture-info {
+            margin-top: 15px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Lateral Raise</h1>
+        
+        <div class="main-content">
+            <div class="card">
+                <h2>Cam view</h2>
+                <div class="video-container">
+                    <video id="webcam" autoplay playsinline></video>
+                    <canvas id="overlay"></canvas>
+                </div>
+                <div class="controls">
+                    <button id="startBtn">Begin</button>
+                    <button id="stopBtn" disabled>Pause</button>
+                </div>
+                <div id="statusMessage" class="status-message"></div>
+                <div class="gesture-info">
+                    <p><strong>Gesture:</strong></p>
+                    <ul>
+                        <li>Index up - Paused</li>
+                        <li>Thumb up - Resume</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Analysis</h2>
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">Count</div>
+                        <div id="countValue" class="stat-value">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Total Distance</div>
+                        <div id="distanceValue" class="stat-value">0.00</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Total Energy (J)</div>
+                        <div id="energyValue" class="stat-value">0.00</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Status</div>
+                        <div id="statusValue" class="stat-value">Ready</div>
+                    </div>
+                </div>
+                
+                <div id="overextensionWarning" class="warning">Overextension!</div>
+                
+                <div class="controls">
+                    <button id="pauseBtn">Pause</button>
+                    <button id="resumeBtn">Resume</button>
+                    <button id="resetBtn">Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API基础URL - 修改为您服务器的地址
+        const API_BASE_URL = 'http://10.44.149.48:5001';
+        
+        // DOM元素
+        const webcamEl = document.getElementById('webcam');
+        const overlayEl = document.getElementById('overlay');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resumeBtn = document.getElementById('resumeBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const countValueEl = document.getElementById('countValue');
+        const distanceValueEl = document.getElementById('distanceValue');
+        const energyValueEl = document.getElementById('energyValue');
+        const statusValueEl = document.getElementById('statusValue');
+        const overextensionWarningEl = document.getElementById('overextensionWarning');
+        const statusMessageEl = document.getElementById('statusMessage');
+        
+        // 绘图上下文
+        const ctx = overlayEl.getContext('2d');
+        
+        // 状态变量
+        let isAnalyzing = false;
+        let analyzeInterval = null;
+        const ANALYZE_INTERVAL_MS = 200; // 每200毫秒分析一帧
+        
+        // 初始化摄像头
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    },
+                    audio: false
+                });
+                
+                webcamEl.srcObject = stream;
+                
+                // 设置overlay canvas大小
+                webcamEl.addEventListener('loadedmetadata', () => {
+                    overlayEl.width = webcamEl.videoWidth;
+                    overlayEl.height = webcamEl.videoHeight;
+                });
+                
+                return true;
+            } catch (error) {
+                showStatus(`无法访问摄像头: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        // 捕获当前视频帧
+        async function captureFrame() {
+            // 确保视频已加载
+            if (webcamEl.readyState !== webcamEl.HAVE_ENOUGH_DATA) {
+                return null;
+            }
+            
+            // 创建临时canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = webcamEl.videoWidth;
+            canvas.height = webcamEl.videoHeight;
+            
+            // 绘制当前视频帧
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(webcamEl, 0, 0, canvas.width, canvas.height);
+            
+            // 将canvas转为blob
+            return new Promise(resolve => {
+                canvas.toBlob(blob => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.8);
+            });
+        }
+        
+        // 发送帧到后端分析
+        async function analyzeFrame() {
+            const frameBlob = await captureFrame();
+            if (!frameBlob) return;
+            
+            const formData = new FormData();
+            formData.append('file', frameBlob, 'frame.jpg');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/mediapipe/analyze-stream`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    showStatus('分析请求失败', 'error');
+                    return;
+                }
+                
+                const result = await response.json();
+                updateUI(result);
+                drawLandmarks(result.landmarks);
+                
+            } catch (error) {
+                showStatus(`分析错误: ${error.message}`, 'error');
+                console.error('Analysis error:', error);
+            }
+        }
+        
+        // 绘制姿势关键点
+        function drawLandmarks(landmarks) {
+            if (!landmarks) return;
+            
+            // 清除上一帧
+            ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+            
+            // 绘制关键点
+            const points = [
+                landmarks.right_shoulder,
+                landmarks.right_elbow,
+                landmarks.right_wrist
+            ];
+            
+            // 绘制点
+            ctx.fillStyle = '#5D5CDE';
+            for (const point of points) {
+                ctx.beginPath();
+                ctx.arc(
+                    point.x * overlayEl.width,
+                    point.y * overlayEl.height,
+                    6, 0, 2 * Math.PI
+                );
+                ctx.fill();
+            }
+            
+            // 绘制连线
+            ctx.strokeStyle = '#5D5CDE';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(
+                landmarks.right_shoulder.x * overlayEl.width,
+                landmarks.right_shoulder.y * overlayEl.height
+            );
+            ctx.lineTo(
+                landmarks.right_elbow.x * overlayEl.width,
+                landmarks.right_elbow.y * overlayEl.height
+            );
+            ctx.lineTo(
+                landmarks.right_wrist.x * overlayEl.width,
+                landmarks.right_wrist.y * overlayEl.height
+            );
+            ctx.stroke();
+        }
+        
+        // 更新UI显示
+        function updateUI(data) {
+            countValueEl.textContent = data.count;
+            distanceValueEl.textContent = data.distance.toFixed(2);
+            energyValueEl.textContent = data.energy.toFixed(2);
+            
+            if (data.paused) {
+                statusValueEl.textContent = '已暂停';
+            } else {
+                statusValueEl.textContent = '正在分析';
+            }
+            
+            // 显示/隐藏过度伸展警告
+            if (data.overextension) {
+                overextensionWarningEl.style.display = 'block';
+            } else {
+                overextensionWarningEl.style.display = 'none';
+            }
+            
+            // 如果检测到手势，显示提示
+            if (data.gesture_detected) {
+                if (data.gesture_detected === 'wait') {
+                    showStatus('检测到暂停手势', 'info');
+                } else if (data.gesture_detected === 'thumbs_up') {
+                    showStatus('检测到继续手势', 'success');
+                }
+            }
+        }
+        
+        // 显示状态消息
+        function showStatus(message, type = 'info') {
+            statusMessageEl.textContent = message;
+            statusMessageEl.classList.remove('info', 'error', 'success');
+            statusMessageEl.classList.add(type);
+            statusMessageEl.style.display = 'block';
+            
+            // 3秒后自动隐藏
+            setTimeout(() => {
+                statusMessageEl.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 开始分析
+        async function startAnalysis() {
+            if (isAnalyzing) return;
+            
+            if (!webcamEl.srcObject) {
+                const success = await initCamera();
+                if (!success) return;
+            }
+            
+            isAnalyzing = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            
+            // 定期发送帧进行分析
+            analyzeInterval = setInterval(analyzeFrame, ANALYZE_INTERVAL_MS);
+            showStatus('实时分析已开始', 'success');
+        }
+        
+        // 停止分析
+        function stopAnalysis() {
+            if (!isAnalyzing) return;
+            
+            clearInterval(analyzeInterval);
+            analyzeInterval = null;
+            
+            isAnalyzing = false;
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            
+            // 清除overlay
+            ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+            
+            showStatus('实时分析已停止', 'info');
+        }
+        
+        // 控制训练状态
+        async function controlWorkout(action) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/mediapipe/control`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action })
+                });
+                
+                if (!response.ok) {
+                    showStatus(`控制请求失败: ${action}`, 'error');
+                    return;
+                }
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    if (action === 'pause') {
+                        showStatus('训练已暂停', 'info');
+                        statusValueEl.textContent = '已暂停';
+                    } else if (action === 'resume') {
+                        showStatus('训练已恢复', 'success');
+                        statusValueEl.textContent = '正在分析';
+                    } else if (action === 'reset') {
+                        showStatus('训练已重置', 'info');
+                        // 立即获取最新状态
+                        fetchStatus();
+                    }
+                }
+            } catch (error) {
+                showStatus(`控制错误: ${error.message}`, 'error');
+            }
+        }
+        
+        // 获取当前状态
+        async function fetchStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/mediapipe/status`);
+                if (!response.ok) {
+                    showStatus('获取状态失败', 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                updateUI(data);
+            } catch (error) {
+                showStatus(`获取状态错误: ${error.message}`, 'error');
+            }
+        }
+        
+        // 事件监听
+        startBtn.addEventListener('click', startAnalysis);
+        stopBtn.addEventListener('click', stopAnalysis);
+        pauseBtn.addEventListener('click', () => controlWorkout('pause'));
+        resumeBtn.addEventListener('click', () => controlWorkout('resume'));
+        resetBtn.addEventListener('click', () => controlWorkout('reset'));
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 初始获取状态
+            await fetchStatus();
+            
+            // 提前初始化摄像头
+            initCamera().then(success => {
+                if (!success) {
+                    startBtn.disabled = true;
+                    showStatus('无法访问摄像头，请检查权限', 'error');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

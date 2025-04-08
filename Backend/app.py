@@ -1,8 +1,6 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
-import mediapipe as mp
-
-from api.routes import register_routes
+from api.routes import mediapipe_bp
 
 def create_app():
     """创建并配置Flask应用"""
@@ -10,7 +8,20 @@ def create_app():
     CORS(app)  # 启用跨域资源共享
     
     # 注册API路由
-    register_routes(app, mp)
+    app.register_blueprint(mediapipe_bp, url_prefix='/mediapipe')
+
+    @app.route('/')
+    def index():
+        return jsonify({
+            'name': 'MediaPipe 动作分析 API',
+            'version': '1.0',
+            'endpoints': [
+                '/mediapipe/analyze',
+                '/mediapipe/analyze-stream',
+                '/mediapipe/control',
+                '/mediapipe/status'
+            ]
+        })
     
     return app
 
