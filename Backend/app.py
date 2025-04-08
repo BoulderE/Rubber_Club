@@ -2,7 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 import mediapipe as mp
 
-from .api.routes import register_routes
+from api.routes import register_routes
 
 def create_app():
     """创建并配置Flask应用"""
