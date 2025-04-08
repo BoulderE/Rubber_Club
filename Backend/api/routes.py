@@ -5,15 +5,16 @@ import numpy as np
 import math
 import tempfile
 import os
+from collections import deque
 
 # 创建蓝图
 mediapipe_bp = Blueprint('mediapipe', __name__)
 
 # 初始化MediaPipe
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5)
+pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity = 0)
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5)
+hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5, model_complexity = 0)
 mp_drawing = mp.solutions.drawing_utils
 
 # 定义常量
@@ -40,48 +41,71 @@ class WorkoutState:
 # 创建全局状态实例
 workout_state = WorkoutState()
 
+class GestureDetector:
+    def __init__(self, buffer_size=5, threshold=0.8):
+        self.buffer = deque(maxlen=buffer_size)  # 滑动窗口
+        self.threshold = threshold
+
+    def detect_stable_gesture(self, gesture_function, landmarks):
+        gesture_detected = gesture_function(landmarks)
+        self.buffer.append(gesture_detected)
+
+        # 如果滑动窗口内所有值都为 True，则认为手势稳定
+        gesture_ratio = sum(self.buffer) / len(self.buffer)
+        return all(self.buffer)
+
 # 手势检测函数
 def is_wait_gesture(landmarks):
-    """检测等待手势（竖起食指）"""
-    thumb_tip = landmarks[4]
-    index_tip = landmarks[8]
-    
-    index_finger_extended = index_tip.y < landmarks[6].y
-    
-    if index_finger_extended:
-        return True
-    return False
 
-def is_thumbs_up(landmarks):
-    """检测竖大拇指手势"""
-    thumb_tip = landmarks[4]  # 大拇指指尖
-    thumb_ip = landmarks[3]   # 大拇指第二关节
+    wrist = landmarks[0]  # 手腕点
     index_tip = landmarks[8]  # 食指指尖
     index_pip = landmarks[6]  # 食指第二关节
-    middle_tip = landmarks[12]  # 中指指尖
-    middle_pip = landmarks[10]  # 中指第二关节
-    ring_tip = landmarks[16]  # 无名指指尖
-    ring_pip = landmarks[14]  # 无名指第二关节
+
+    # 计算手掌宽度（手腕到食指根部）
+    palm_width = abs(landmarks[5].x - landmarks[17].x)
+
+    # 归一化坐标
+    index_tip_y_norm = (index_tip.y - wrist.y) / palm_width
+    index_pip_y_norm = (index_pip.y - wrist.y) / palm_width
+
+    # 检测食指是否竖直
+    index_finger_extended = index_tip_y_norm < index_pip_y_norm - 0.2  # 提高阈值，防止误判
+
+    # 检测其他手指是否弯曲
+    other_fingers_bent = all(
+        landmarks[finger_tip].y > landmarks[finger_pip].y
+        for finger_tip, finger_pip in [(12, 10), (16, 14), (20, 18)]  # 中指、无名指、小指
+    )
+
+    return index_finger_extended and other_fingers_bent
+
+def is_five_fingers_open(landmarks):
+    # 获取手部关键点
+    wrist = landmarks[0]       # 手腕点
+    thumb_tip = landmarks[4]   # 大拇指指尖
+    thumb_ip = landmarks[3]    # 大拇指第二关节
+    index_tip = landmarks[8]   # 食指指尖
+    index_pip = landmarks[6]   # 食指第二关节
+    middle_tip = landmarks[12] # 中指指尖
+    middle_pip = landmarks[10] # 中指第二关节
+    ring_tip = landmarks[16]   # 无名指指尖
+    ring_pip = landmarks[14]   # 无名指第二关节
     pinky_tip = landmarks[20]  # 小指指尖
     pinky_pip = landmarks[18]  # 小指第二关节
 
-    # 判断大拇指是否伸展（指尖高于第二关节）
-    thumb_extended = thumb_tip.y < thumb_ip.y
+    palm_width = abs(landmarks[5].x - landmarks[17].x)
 
-    # 判断其他手指是否弯曲（指尖低于第二关节）
-    index_finger_bent = index_tip.y > index_pip.y
-    middle_finger_bent = middle_tip.y > middle_pip.y
-    ring_finger_bent = ring_tip.y > ring_pip.y
-    pinky_finger_bent = pinky_tip.y > pinky_pip.y
+    # 检测大拇指是否伸展（指尖远离手腕）
+    thumb_extended = abs(thumb_tip.x - wrist.x) > 0.2  # 大拇指横向远离手掌中心
 
-    # 如果大拇指伸展且其他手指弯曲，则认为是"大拇指"手势
-    if (thumb_extended and
-        index_finger_bent and
-        middle_finger_bent and
-        ring_finger_bent and
-        pinky_finger_bent):
-        return True
-    return False
+    # 检测其他手指是否完全伸展
+    index_extended = index_tip.y < index_pip.y - 0.05 * palm_width
+    middle_extended = middle_tip.y < middle_pip.y - 0.05 * palm_width
+    ring_extended = ring_tip.y < ring_pip.y - 0.05 * palm_width
+    pinky_extended = pinky_tip.y < pinky_pip.y - 0.05 * palm_width
+
+    # 判断是否五指完全张开
+    return thumb_extended and index_extended and middle_extended and ring_extended and pinky_extended
 
 # 动作分析函数
 def analyze_movement(right_shoulder, right_elbow, right_wrist):
@@ -124,55 +148,10 @@ def analyze_movement(right_shoulder, right_elbow, right_wrist):
                 workout_state.total_energy += energy
                 
                 workout_state.lateral_rise_count += 1
+               
 
-# API端点
-@mediapipe_bp.route('/analyze', methods=['POST'])
-def analyze_frame():
-    """分析上传的单张图片"""
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
-    # 保存临时文件
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-    file.save(temp_file.name)
-    temp_file.close()
-    
-    # 读取图像
-    frame = cv2.imread(temp_file.name)
-    os.unlink(temp_file.name)  # 删除临时文件
-    
-    if frame is None:
-        return jsonify({'error': 'Invalid image file'}), 400
-    
-    # 转换为RGB图像并处理
-    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = pose.process(image_rgb)
-    
-    if results.pose_landmarks:
-        # 提取关键点
-        landmarks = results.pose_landmarks.landmark
-        # 获取右肩、右肘、右手腕的坐标
-        right_shoulder = np.array([landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
-                                  landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y])
-        right_elbow = np.array([landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].x,
-                               landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y])
-        right_wrist = np.array([landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
-                               landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y])
-        
-        # 运动分析逻辑
-        analyze_movement(right_shoulder, right_elbow, right_wrist)
-    
-    return jsonify({
-        'count': workout_state.lateral_rise_count,
-        'distance': workout_state.total_distance,
-        'energy': workout_state.total_energy,
-        'overextension': workout_state.overextension_detected,
-        'paused': workout_state.is_paused
-    })
+wait_gesture_detector = GestureDetector(buffer_size=5)
+five_fingers_detector = GestureDetector(buffer_size=5)  
 
 @mediapipe_bp.route('/analyze-stream', methods=['POST'])
 def analyze_stream():
@@ -199,7 +178,6 @@ def analyze_stream():
     # 初始化响应数据
     response_data = {
         'count': workout_state.lateral_rise_count,
-        'distance': workout_state.total_distance,
         'energy': workout_state.total_energy,
         'overextension': workout_state.overextension_detected,
         'paused': workout_state.is_paused,
@@ -217,12 +195,14 @@ def analyze_stream():
             landmarks = hand_landmarks.landmark
             
             # 手势检测
-            if is_wait_gesture(landmarks):
+            if wait_gesture_detector.detect_stable_gesture(is_wait_gesture, landmarks):
                 workout_state.is_paused = True
                 response_data['gesture_detected'] = 'wait'
-            elif is_thumbs_up(landmarks):
+
+            # 检测稳定的大拇指手势
+            elif five_fingers_detector.detect_stable_gesture(is_five_fingers_open, landmarks):
                 workout_state.is_paused = False
-                response_data['gesture_detected'] = 'thumbs_up'
+                response_data['gesture_detected'] = 'five_fingers_open'
     
     # 分析姿势
     pose_results = pose.process(image_rgb)
@@ -252,10 +232,9 @@ def analyze_stream():
     # 更新响应中的当前状态
     response_data.update({
         'count': workout_state.lateral_rise_count,
-        'distance': workout_state.total_distance,
         'energy': workout_state.total_energy,
         'overextension': workout_state.overextension_detected,
-        'paused': workout_state.is_paused
+        'paused': workout_state.is_paused,
     })
     
     return jsonify(response_data)
@@ -281,7 +260,6 @@ def get_status():
     """获取当前训练状态"""
     return jsonify({
         'count': workout_state.lateral_rise_count,
-        'distance': workout_state.total_distance,
         'energy': workout_state.total_energy,
         'overextension': workout_state.overextension_detected,
         'paused': workout_state.is_paused

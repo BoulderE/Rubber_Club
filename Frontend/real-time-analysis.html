@@ -202,10 +202,6 @@
                         <div id="countValue" class="stat-value">0</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Total Distance</div>
-                        <div id="distanceValue" class="stat-value">0.00</div>
-                    </div>
-                    <div class="stat-box">
                         <div class="stat-label">Total Energy (J)</div>
                         <div id="energyValue" class="stat-value">0.00</div>
                     </div>
@@ -228,7 +224,7 @@
 
     <script>
         // API基础URL - 修改为您服务器的地址
-        const API_BASE_URL = 'http://10.44.149.48:5001';
+        const API_BASE_URL = 'http://localhost:5001';
         
         // DOM元素
         const webcamEl = document.getElementById('webcam');
@@ -380,13 +376,13 @@
         // 更新UI显示
         function updateUI(data) {
             countValueEl.textContent = data.count;
-            distanceValueEl.textContent = data.distance.toFixed(2);
             energyValueEl.textContent = data.energy.toFixed(2);
+
             
             if (data.paused) {
-                statusValueEl.textContent = '已暂停';
+                statusValueEl.textContent = 'Paused';
             } else {
-                statusValueEl.textContent = '正在分析';
+                statusValueEl.textContent = 'Analyzing';
             }
             
             // 显示/隐藏过度伸展警告
@@ -399,9 +395,9 @@
             // 如果检测到手势，显示提示
             if (data.gesture_detected) {
                 if (data.gesture_detected === 'wait') {
-                    showStatus('检测到暂停手势', 'info');
+                    showStatus('Paused Gesture Detected', 'info');
                 } else if (data.gesture_detected === 'thumbs_up') {
-                    showStatus('检测到继续手势', 'success');
+                    showStatus('Resumed Gesture Detected', 'success');
                 }
             }
         }
@@ -434,7 +430,7 @@
             
             // 定期发送帧进行分析
             analyzeInterval = setInterval(analyzeFrame, ANALYZE_INTERVAL_MS);
-            showStatus('实时分析已开始', 'success');
+            showStatus('Real-time Analysis Begin', 'success');
         }
         
         // 停止分析
@@ -451,7 +447,7 @@
             // 清除overlay
             ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
             
-            showStatus('实时分析已停止', 'info');
+            showStatus('Real-time Analysis Stopped', 'info');
         }
         
         // 控制训练状态
@@ -473,13 +469,13 @@
                 const result = await response.json();
                 if (result.status === 'success') {
                     if (action === 'pause') {
-                        showStatus('训练已暂停', 'info');
-                        statusValueEl.textContent = '已暂停';
+                        showStatus('Training Paused', 'info');
+                        statusValueEl.textContent = 'Paused';
                     } else if (action === 'resume') {
-                        showStatus('训练已恢复', 'success');
+                        showStatus('Training Resumed', 'success');
                         statusValueEl.textContent = '正在分析';
                     } else if (action === 'reset') {
-                        showStatus('训练已重置', 'info');
+                        showStatus('Training Reset', 'info');
                         // 立即获取最新状态
                         fetchStatus();
                     }
@@ -521,7 +517,7 @@
             initCamera().then(success => {
                 if (!success) {
                     startBtn.disabled = true;
-                    showStatus('无法访问摄像头，请检查权限', 'error');
+                    showStatus('Unable to detect the Camera', 'error');
                 }
             });
         });

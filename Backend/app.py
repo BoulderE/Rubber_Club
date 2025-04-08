@@ -5,7 +5,7 @@ from api.routes import mediapipe_bp
 def create_app():
     """创建并配置Flask应用"""
     app = Flask(__name__)
-    CORS(app)  # 启用跨域资源共享
+    CORS(app, resources={r"/*": {"origins": "*"}})  # 启用跨域资源共享
     
     # 注册API路由
     app.register_blueprint(mediapipe_bp, url_prefix='/mediapipe')
