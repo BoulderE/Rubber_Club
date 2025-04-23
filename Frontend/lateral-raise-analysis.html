@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rubber Club</title>
+    <title>Rubber Club - Lateral Raise</title>
     <style>
         :root {
             --primary-color: #5D5CDE;
@@ -261,8 +261,7 @@
                 });
                 
                 webcamEl.srcObject = stream;
-                
-                // 设置overlay canvas大小
+
                 webcamEl.addEventListener('loadedmetadata', () => {
                     overlayEl.width = webcamEl.videoWidth;
                     overlayEl.height = webcamEl.videoHeight;
@@ -281,8 +280,7 @@
             if (webcamEl.readyState !== webcamEl.HAVE_ENOUGH_DATA) {
                 return null;
             }
-            
-            // 创建临时canvas
+
             const canvas = document.createElement('canvas');
             canvas.width = webcamEl.videoWidth;
             canvas.height = webcamEl.videoHeight;
@@ -290,8 +288,7 @@
             // 绘制当前视频帧
             const ctx = canvas.getContext('2d');
             ctx.drawImage(webcamEl, 0, 0, canvas.width, canvas.height);
-            
-            // 将canvas转为blob
+
             return new Promise(resolve => {
                 canvas.toBlob(blob => {
                     resolve(blob);
@@ -301,27 +298,27 @@
         
         // 发送帧到后端分析
         async function analyzeFrame() {
-            const frameBlob = await captureFrame();
-            if (!frameBlob) return;
-            
-            const formData = new FormData();
-            formData.append('file', frameBlob, 'frame.jpg');
-            
             try {
+                const frameBlob = await captureFrame();
+                if (!frameBlob) return;
+                
+                const formData = new FormData();
+                formData.append('file', frameBlob, 'frame.jpg'); // 在web端，必须将帧作为文件发送
+                
                 const response = await fetch(`${API_BASE_URL}/mediapipe/analyze-stream`, {
                     method: 'POST',
                     body: formData
                 });
                 
                 if (!response.ok) {
-                    showStatus('分析请求失败', 'error');
+                    showStatus(`分析请求失败: ${response.status}`, 'error');
                     return;
                 }
                 
                 const result = await response.json();
-                updateUI(result);
-                drawLandmarks(result.landmarks);
+                console.log("Response data:", result); // 调试
                 
+                updateUI(result);
             } catch (error) {
                 showStatus(`分析错误: ${error.message}`, 'error');
                 console.error('Analysis error:', error);
@@ -375,22 +372,30 @@
         
         // 更新UI显示
         function updateUI(data) {
-            countValueEl.textContent = data.count;
-            energyValueEl.textContent = data.energy.toFixed(2);
-
+            if (!data) {
+                console.error("No data received");
+                return;
+            }
             
-            if (data.paused) {
+            // 处理嵌套数据结构
+            const lateralRaiseData = data.lateral_raise || data;
+            
+            // 更新UI元素
+            countValueEl.textContent = lateralRaiseData.count || 0;
+            if (lateralRaiseData.energy !== undefined) {
+                energyValueEl.textContent = parseFloat(lateralRaiseData.energy).toFixed(2);
+            }
+            
+            if (lateralRaiseData.paused) {
                 statusValueEl.textContent = 'Paused';
             } else {
                 statusValueEl.textContent = 'Analyzing';
             }
-            
+    
             // 显示/隐藏过度伸展警告
-            if (data.overextension) {
-                overextensionWarningEl.style.display = 'block';
-            } else {
-                overextensionWarningEl.style.display = 'none';
-            }
+            overextensionWarningEl.style.display = 
+                lateralRaiseData.overextension ? 'block' : 'none';
+
             
             // 如果检测到手势，显示提示
             if (data.gesture_detected) {
@@ -412,7 +417,7 @@
             // 3秒后自动隐藏
             setTimeout(() => {
                 statusMessageEl.style.display = 'none';
-            }, 3000);
+            }, 5000);
         }
         
         // 开始分析
@@ -449,8 +454,7 @@
             
             showStatus('Real-time Analysis Stopped', 'info');
         }
-        
-        // 控制训练状态
+
         async function controlWorkout(action) {
             try {
                 const response = await fetch(`${API_BASE_URL}/mediapipe/control`, {
@@ -462,7 +466,7 @@
                 });
                 
                 if (!response.ok) {
-                    showStatus(`控制请求失败: ${action}`, 'error');
+                    showStatus(`Control request failed: ${action}`, 'error');
                     return;
                 }
                 
@@ -470,7 +474,7 @@
                 if (result.status === 'success') {
                     if (action === 'pause') {
                         showStatus('Training Paused', 'info');
-                        statusValueEl.textContent = 'Paused';
+                        statusValueEl.textContent = '已暂停';
                     } else if (action === 'resume') {
                         showStatus('Training Resumed', 'success');
                         statusValueEl.textContent = '正在分析';

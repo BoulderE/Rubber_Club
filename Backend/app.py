@@ -16,7 +16,6 @@ def create_app():
             'name': 'MediaPipe 动作分析 API',
             'version': '1.0',
             'endpoints': [
-                '/mediapipe/analyze',
                 '/mediapipe/analyze-stream',
                 '/mediapipe/control',
                 '/mediapipe/status'
