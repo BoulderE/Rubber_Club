@@ -7,7 +7,8 @@ mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=0)
 
 # 定义常量
-CHEST_PULL_THRESHOLD_Y = 0.2  # 手腕抬起到肩膀以上的阈值
+# CHEST_PULL_THRESHOLD_Y = 0.2  # 手腕抬起到肩膀以上的阈值
+CHEST_PULL_THRESHOLD_Y = 0.05
 OVER_EXTENSION_THRESHOLD_Y = -0.2  # 手腕或手肘高度显著高于肩膀的阈值
 BAND_RESISTANCE_N = 25 * 9.81
 # 状态变量
@@ -36,24 +37,21 @@ def analyze_chest_pull(right_shoulder, right_elbow, right_wrist):
     if workout_state.is_paused:
         return
 
-    # 计算手腕和肩膀的垂直高度差
     wrist_to_shoulder_y_diff = right_wrist[1] - right_shoulder[1]
     elbow_to_shoulder_y_diff = right_elbow[1] - right_shoulder[1]
 
-    # 检测 Overextension（手肘或手腕超出肩膀高度）
     workout_state.overextension_detected = (
-        right_elbow[1] < right_shoulder[1] + OVER_EXTENSION_THRESHOLD_Y or
-        right_wrist[1] < right_shoulder[1] + OVER_EXTENSION_THRESHOLD_Y
+        right_elbow[1] < right_shoulder[1] + OVER_EXTENSION_THRESHOLD_Y 
+        or right_wrist[1] < right_shoulder[1] + OVER_EXTENSION_THRESHOLD_Y
     )
 
     if not workout_state.chest_pull_active:
-        # 起始状态：手腕和手肘的高度低于肩膀（动作初始位置）
         if wrist_to_shoulder_y_diff < -CHEST_PULL_THRESHOLD_Y and elbow_to_shoulder_y_diff < -CHEST_PULL_THRESHOLD_Y:
             workout_state.chest_pull_active = True
             workout_state.chest_pull_start_position = right_wrist
     elif workout_state.chest_pull_active:
-        # 完成状态：手腕和手肘的高度达到肩膀高度以上
-        if wrist_to_shoulder_y_diff > CHEST_PULL_THRESHOLD_Y and elbow_to_shoulder_y_diff > CHEST_PULL_THRESHOLD_Y:
+        
+       if wrist_to_shoulder_y_diff > CHEST_PULL_THRESHOLD_Y and elbow_to_shoulder_y_diff > CHEST_PULL_THRESHOLD_Y:
             workout_state.chest_pull_active = False
             workout_state.chest_pull_end_position = right_wrist
 

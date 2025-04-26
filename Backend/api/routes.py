@@ -102,19 +102,28 @@ def analyze_stream():
         if not chest_pull_state.is_paused:
             analyze_chest_pull(right_shoulder, right_elbow, right_wrist)
 
-    # 更新响应数据
-    response_data['lateral_raise'].update({
-        'count': int(lateral_raise_state.lateral_rise_count),
-        'energy': float(lateral_raise_state.total_energy),
-        'overextension': bool(lateral_raise_state.overextension_detected),
-        'paused': bool(lateral_raise_state.is_paused)
-    })
-    response_data['chest_pull'].update({
-        'count': int(chest_pull_state.chest_pull_count),
-        'energy': float(chest_pull_state.total_energy),
-        'overextension': bool(chest_pull_state.overextension_detected),
-        'paused': bool(chest_pull_state.is_paused)
-    })
+        keypoints = {
+            'right_shoulder': {'x': float(right_shoulder[0]), 'y': float(right_shoulder[1])},
+            'right_elbow': {'x': float(right_elbow[0]), 'y': float(right_elbow[1])},
+            'right_wrist': {'x': float(right_wrist[0]), 'y': float(right_wrist[1])}
+        }
+    
+    # 将关键点数据添加到响应中
+        response_data['landmarks'] = keypoints
+
+        # 更新响应数据
+        response_data['lateral_raise'].update({
+            'count': int(lateral_raise_state.lateral_rise_count),
+            'energy': float(lateral_raise_state.total_energy),
+            'overextension': bool(lateral_raise_state.overextension_detected),
+            'paused': bool(lateral_raise_state.is_paused)
+        })
+        response_data['chest_pull'].update({
+            'count': int(chest_pull_state.chest_pull_count),
+            'energy': float(chest_pull_state.total_energy),
+            'overextension': bool(chest_pull_state.overextension_detected),
+            'paused': bool(chest_pull_state.is_paused)
+        })
 
     return jsonify(response_data)
 

@@ -247,7 +247,7 @@
         // 状态变量
         let isAnalyzing = false;
         let analyzeInterval = null;
-        const ANALYZE_INTERVAL_MS = 200; // 每200毫秒分析一帧
+        const ANALYZE_INTERVAL_MS = 50;
         
         // 初始化摄像头
         async function initCamera() {
@@ -396,7 +396,9 @@
             overextensionWarningEl.style.display = 
                 lateralRaiseData.overextension ? 'block' : 'none';
 
-            
+            if (data.landmarks) {
+                drawLandmarks(data.landmarks);
+            }
             // 如果检测到手势，显示提示
             if (data.gesture_detected) {
                 if (data.gesture_detected === 'wait') {

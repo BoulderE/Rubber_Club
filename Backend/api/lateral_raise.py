@@ -60,8 +60,6 @@ def analyze_movement(right_shoulder, right_elbow, right_wrist):
             # 确保起始和结束位置都不为空
             if workout_state.start_position is not None and workout_state.end_position is not None:
                 # 计算移动距离
-                # distance = math.sqrt((workout_state.end_position[0] - workout_state.start_position[0])**2 +
-                #                     (workout_state.end_position[1] - workout_state.start_position[1])**2)
                 distance = float(np.linalg.norm(workout_state.end_position - workout_state.start_position))
                 workout_state.total_distance += distance
                 
