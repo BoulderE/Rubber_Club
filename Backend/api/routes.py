@@ -7,7 +7,7 @@ import os
 
 from .chest_pull import analyze_chest_pull, workout_state as chest_pull_state
 from .lateral_raise import analyze_movement, workout_state as lateral_raise_state
-from .gesture_classification import GestureDetector, is_wait_gesture, is_five_fingers_open
+from .gesture_classification import GestureDetector, is_wait_gesture, is_thumbs_up
 
 # 创建蓝图
 mediapipe_bp = Blueprint('mediapipe', __name__)
@@ -20,7 +20,7 @@ hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_c
 
 # 手势检测器
 wait_gesture_detector = GestureDetector(buffer_size=5)
-five_fingers_detector = GestureDetector(buffer_size=5)
+thumb_up_detecot = GestureDetector(buffer_size=5)
 
 # 路由：分析视频流
 @mediapipe_bp.route('/analyze-stream', methods=['POST'])
@@ -74,10 +74,10 @@ def analyze_stream():
                 response_data['gesture_detected'] = 'wait'
 
             # 检测恢复手势
-            elif five_fingers_detector.detect_stable_gesture(is_five_fingers_open, landmarks):
+            elif thumb_up_detecot.detect_stable_gesture(is_thumbs_up, landmarks):
                 lateral_raise_state.is_paused = False
                 chest_pull_state.is_paused = False
-                response_data['gesture_detected'] = 'five_fingers_open'
+                response_data['gesture_detected'] = 'thumbs_up'
 
     # 姿势分析
     pose_results = pose.process(image_rgb)

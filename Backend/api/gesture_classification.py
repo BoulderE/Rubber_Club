@@ -35,24 +35,29 @@ def is_wait_gesture(landmarks):
 
     return index_finger_extended and other_fingers_bent
 
-def is_five_fingers_open(landmarks):
-    wrist = landmarks[0]         # 手腕点
-    thumb_tip = landmarks[4]     # 大拇指指尖
-    index_tip = landmarks[8]     # 食指指尖
-    middle_tip = landmarks[12]   # 中指指尖
-    ring_tip = landmarks[16]     # 无名指指尖
-    pinky_tip = landmarks[20]    # 小指指尖
-    
-    # 计算手掌宽度
-    palm_width = abs(landmarks[5].x - landmarks[17].x)
+def is_thumbs_up(landmarks):
+    thumb_tip = landmarks[4]  # 大拇指指尖
+    thumb_ip = landmarks[3]   # 大拇指第二关节
+    index_tip = landmarks[8]  # 食指指尖
+    index_pip = landmarks[6]  # 食指第二关节
+    middle_tip = landmarks[12]  # 中指指尖
+    middle_pip = landmarks[10]  # 中指第二关节
+    ring_tip = landmarks[16]  # 无名指指尖
+    ring_pip = landmarks[14]  # 无名指第二关节
+    pinky_tip = landmarks[20]  # 小指指尖
+    pinky_pip = landmarks[18]  # 小指第二关节
 
-    # 检测大拇指是否伸展（指尖远离手腕）
-    thumb_extended = abs(thumb_tip.x - wrist.x) > 0.2  # 大拇指横向远离手掌中心
+    # 判断大拇指是否伸展（指尖高于第二关节）
+    thumb_extended = thumb_tip.y < thumb_ip.y - 0.05
 
-    # 检测其他手指是否完全伸展
-    index_extended = index_tip.y < landmarks[6].y - 0.05 * palm_width
-    middle_extended = middle_tip.y < landmarks[10].y - 0.05 * palm_width
-    ring_extended = ring_tip.y < landmarks[14].y - 0.05 * palm_width
-    pinky_extended = pinky_tip.y < landmarks[18].y - 0.05 * palm_width
+    # 判断其他手指是否弯曲（指尖低于第二关节）
+    index_finger_bent = index_tip.y > index_pip.y
+    middle_finger_bent = middle_tip.y > middle_pip.y
+    ring_finger_bent = ring_tip.y > ring_pip.y
+    pinky_finger_bent = pinky_tip.y > pinky_pip.y
 
-    return thumb_extended and index_extended and middle_extended and ring_extended and pinky_extended
+    # 放宽条件，只要大拇指伸展，且大部分其他手指弯曲即可
+    other_fingers_bent = sum([index_finger_bent, middle_finger_bent,
+                            ring_finger_bent, pinky_finger_bent]) >= 2
+
+    return thumb_extended and other_fingers_bent

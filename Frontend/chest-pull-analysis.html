@@ -385,17 +385,19 @@
             
             if (lateralRaiseData.paused) {
                 statusValueEl.textContent = 'Paused';
+                ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
             } else {
                 statusValueEl.textContent = 'Analyzing';
+                if (data.landmarks) {
+                    drawLandmarks(data.landmarks);
+                }
             }
     
             // 显示/隐藏过度伸展警告
             overextensionWarningEl.style.display = 
                 lateralRaiseData.overextension ? 'block' : 'none';
 
-            if (data.landmarks) {
-                drawLandmarks(data.landmarks);
-            }
+            
             // 如果检测到手势，显示提示
             if (data.gesture_detected) {
                 if (data.gesture_detected === 'wait') {
@@ -416,7 +418,7 @@
             // 3秒后自动隐藏
             setTimeout(() => {
                 statusMessageEl.style.display = 'none';
-            }, 3000);
+            }, 5000);
         }
 
         // 事件监听与初始化逻辑
