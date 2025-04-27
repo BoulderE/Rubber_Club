@@ -7,8 +7,7 @@ mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=0)
 
 # 定义常量
-# CHEST_PULL_THRESHOLD_Y = 0.2  # 手腕抬起到肩膀以上的阈值
-CHEST_PULL_THRESHOLD_Y = 0.05
+CHEST_PULL_THRESHOLD_Y = 0.02
 OVER_EXTENSION_THRESHOLD_Y = -0.2  # 手腕或手肘高度显著高于肩膀的阈值
 BAND_RESISTANCE_N = 25 * 9.81
 # 状态变量
@@ -46,12 +45,11 @@ def analyze_chest_pull(right_shoulder, right_elbow, right_wrist):
     )
 
     if not workout_state.chest_pull_active:
-        if wrist_to_shoulder_y_diff < -CHEST_PULL_THRESHOLD_Y and elbow_to_shoulder_y_diff < -CHEST_PULL_THRESHOLD_Y:
+        if wrist_to_shoulder_y_diff < -CHEST_PULL_THRESHOLD_Y:
             workout_state.chest_pull_active = True
             workout_state.chest_pull_start_position = right_wrist
     elif workout_state.chest_pull_active:
-        
-       if wrist_to_shoulder_y_diff > CHEST_PULL_THRESHOLD_Y and elbow_to_shoulder_y_diff > CHEST_PULL_THRESHOLD_Y:
+       if wrist_to_shoulder_y_diff > CHEST_PULL_THRESHOLD_Y:
             workout_state.chest_pull_active = False
             workout_state.chest_pull_end_position = right_wrist
 
@@ -60,11 +58,13 @@ def analyze_chest_pull(right_shoulder, right_elbow, right_wrist):
                 # 计算移动距离
                 distance = math.sqrt((workout_state.chest_pull_end_position[0] - workout_state.chest_pull_start_position[0])**2 +
                                      (workout_state.chest_pull_end_position[1] - workout_state.chest_pull_start_position[1])**2)
-                workout_state.total_distance += distance
+                min_distance_threshold = 0.02
+                if distance > min_distance_threshold:
+                    workout_state.total_distance += distance
 
-                # 计算能量消耗
-                energy = BAND_RESISTANCE_N * distance
-                workout_state.total_energy += energy
+                    # 计算能量消耗
+                    energy = BAND_RESISTANCE_N * distance
+                    workout_state.total_energy += energy
 
-                # Chest Pull 动作计数增加
-                workout_state.chest_pull_count += 1
+                    # Chest Pull 动作计数增加
+                    workout_state.chest_pull_count += 1

@@ -220,6 +220,19 @@
                 </div>
             </div>
         </div>
+        <div id="summaryModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
+            <div style="background-color: var(--card-background); border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+                <h3 style="text-align: center; margin-top: 0;">Complete!</h3>
+                <div id="summaryContent" style="margin: 20px 0;">
+                    <p><strong>Count:</strong> <span id="summaryCount">0</span></p>
+                    <p><strong>Energy:</strong> <span id="summaryEnergy">0</span> J</p>
+                    <p><strong>Overextension:</strong> <span id="summaryOverextensions">0</span></p>
+                </div>
+                <div style="text-align: center; margin-top: 25px;">
+                    <button id="continueBtnModal" style="background-color: var(--primary-color); color: white; border: none; border-radius: 4px; padding: 10px 20px; cursor: pointer;">One More</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -248,7 +261,10 @@
         let isAnalyzing = false;
         let analyzeInterval = null;
         const ANALYZE_INTERVAL_MS = 50;
-        
+        let repetitionLimit = 15; // 达到15次动作后显示总结
+        let overextensionCount = 0; // 跟踪过度伸展次数
+        let lastCount = 0; // 用于跟踪上一次的计数
+
         // 初始化摄像头
         async function initCamera() {
             try {
@@ -380,8 +396,10 @@
             // 处理嵌套数据结构
             const lateralRaiseData = data.lateral_raise || data;
             
+            const currentCount = lateralRaiseData.count || 0;
+
             // 更新UI元素
-            countValueEl.textContent = lateralRaiseData.count || 0;
+            countValueEl.textContent = currentCount || 0;
             if (lateralRaiseData.energy !== undefined) {
                 energyValueEl.textContent = parseFloat(lateralRaiseData.energy).toFixed(2);
             }
@@ -390,14 +408,26 @@
                 statusValueEl.textContent = 'Paused';
             } else {
                 statusValueEl.textContent = 'Analyzing';
+                if (data.landmarks) {
+                    drawLandmarks(data.landmarks);
+                }
             }
+
+            const wasDisplayingWarning = overextensionWarningEl.style.display === 'block';
     
             // 显示/隐藏过度伸展警告
             overextensionWarningEl.style.display = 
                 lateralRaiseData.overextension ? 'block' : 'none';
 
-            if (data.landmarks) {
-                drawLandmarks(data.landmarks);
+                if (lateralRaiseData.overextension && !wasDisplayingWarning) {
+                    overextensionCount++;
+                    console.log("Overextension detected! Count: " + overextensionCount);
+                }
+           
+
+            if (currentCount > 0 && currentCount % repetitionLimit === 0 && currentCount !== lastCount) {
+                lastCount = currentCount;
+                showWorkoutSummary(currentCount, lateralRaiseData.energy, overextensionCount);
             }
             // 如果检测到手势，显示提示
             if (data.gesture_detected) {
@@ -408,6 +438,56 @@
                 }
             }
         }
+
+        function showWorkoutSummary(count, energy, overextensions) {
+            // 暂停分析
+            if (isAnalyzing) {
+                clearInterval(analyzeInterval);
+            }
+            
+            // 填充总结数据
+            document.getElementById('summaryCount').textContent = count;
+            document.getElementById('summaryEnergy').textContent = parseFloat(energy).toFixed(2);
+            document.getElementById('summaryOverextensions').textContent = overextensions;
+            
+            // 显示模态框
+            const modal = document.getElementById('summaryModal');
+            modal.style.display = 'flex';
+            
+            // 控制按钮发送暂停命令
+            controlWorkout('pause');
+        }
+
+            // 继续训练按钮的事件处理程序
+            document.getElementById('continueBtnModal').addEventListener('click', function() {
+            // 隐藏模态框
+            document.getElementById('summaryModal').style.display = 'none';
+            
+            // 重置过度伸展计数
+            overextensionCount = 0;
+            
+            controlWorkout('reset');
+            setTimeout(() => {
+                if (isAnalyzing) {
+                    // 设置分析状态为 true（关键步骤）
+                    isAnalyzing = true;
+                    
+                    // 更新按钮状态
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    
+                    // 确保分析间隔被清除后重新启动
+                    if (analyzeInterval) clearInterval(analyzeInterval);
+                    analyzeInterval = setInterval(analyzeFrame, ANALYZE_INTERVAL_MS);
+
+                    // 直接设置UI状态为"Analyzing"
+                    statusValueEl.textContent = 'Analyzing';
+
+                    // 显示重新开始的提示消息
+                    showStatus('Training Restarted', 'success');
+                }
+            }, 300);
+        });
         
         // 显示状态消息
         function showStatus(message, type = 'info') {
@@ -453,6 +533,8 @@
             
             // 清除overlay
             ctx.clearRect(0, 0, overlayEl.width, overlayEl.height);
+
+            overextensionCount = 0;
             
             showStatus('Real-time Analysis Stopped', 'info');
         }
@@ -476,10 +558,10 @@
                 if (result.status === 'success') {
                     if (action === 'pause') {
                         showStatus('Training Paused', 'info');
-                        statusValueEl.textContent = '已暂停';
+                        statusValueEl.textContent = 'Paused';
                     } else if (action === 'resume') {
                         showStatus('Training Resumed', 'success');
-                        statusValueEl.textContent = '正在分析';
+                        statusValueEl.textContent = 'Analyzing';
                     } else if (action === 'reset') {
                         showStatus('Training Reset', 'info');
                         // 立即获取最新状态
@@ -487,7 +569,7 @@
                     }
                 }
             } catch (error) {
-                showStatus(`控制错误: ${error.message}`, 'error');
+                showStatus(`Control Erroe: ${error.message}`, 'error');
             }
         }
         
@@ -496,14 +578,17 @@
             try {
                 const response = await fetch(`${API_BASE_URL}/mediapipe/status`);
                 if (!response.ok) {
-                    showStatus('获取状态失败', 'error');
+                    showStatus('Failed to Fetch Status', 'error');
                     return;
                 }
                 
                 const data = await response.json();
+
+                overextensionCount = 0;
+                lastCount = 0;
                 updateUI(data);
             } catch (error) {
-                showStatus(`获取状态错误: ${error.message}`, 'error');
+                showStatus(`Failed to Fetch Status: ${error.message}`, 'error');
             }
         }
         
