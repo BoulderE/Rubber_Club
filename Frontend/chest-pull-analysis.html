@@ -239,7 +239,7 @@
         const statusValueEl = document.getElementById('statusValue');
         const overextensionWarningEl = document.getElementById('overextensionWarning');
         const statusMessageEl = document.getElementById('statusMessage');
-        
+        const ctx = overlayEl.getContext('2d');
         // 状态变量
         let isAnalyzing = false;
         let analyzeInterval = null;
@@ -393,7 +393,9 @@
             overextensionWarningEl.style.display = 
                 lateralRaiseData.overextension ? 'block' : 'none';
 
-            
+            if (data.landmarks) {
+                drawLandmarks(data.landmarks);
+            }
             // 如果检测到手势，显示提示
             if (data.gesture_detected) {
                 if (data.gesture_detected === 'wait') {
