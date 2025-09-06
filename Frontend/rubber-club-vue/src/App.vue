@@ -1,0 +1,83 @@
+<template>
+  <div id="app">
+    <nav class="navbar">
+      <router-link to="/" class="logo">
+        AI Fitness Coach
+      </router-link>
+      <div class="nav-links">
+        <router-link to="/lateral-raise">侧平举</router-link>
+        <router-link to="/chest-pull">拉胸</router-link>
+      </div>
+    </nav>
+    
+    <main>
+      <router-view />
+    </main>
+  </div>
+</template>
+
+<style>
+:root {
+  --primary-color: #667eea;
+  --secondary-color: #764ba2;
+  --text-primary: #333;
+  --text-secondary: #666;
+  --background: #f8f9fa;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--background);
+  color: var(--text-primary);
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar {
+  background: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  padding: 15px 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-size: 24px;
+  font-weight: bold;
+  text-decoration: none;
+  color: var(--primary-color);
+}
+
+.nav-links {
+  display: flex;
+  gap: 30px;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: color 0.3s;
+}
+
+.nav-links a:hover,
+.nav-links a.router-link-active {
+  color: var(--primary-color);
+}
+
+main {
+  flex: 1;
+  padding: 20px;
+}
+</style>
