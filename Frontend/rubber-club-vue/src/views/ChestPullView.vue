@@ -39,13 +39,15 @@
     <WorkoutSummary 
       v-if="showSummary"
       :exercise-type="exerciseType"
-      @close="handleSummaryClose"
+      @continue="handleContinueWorkout"
+      @end="handleEndWorkout"
     />
   </div>
 </template>
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
@@ -55,6 +57,7 @@ import WorkoutSummary from '@/components/WorkoutSummary.vue'
 
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()
+const router = useRouter()
 
 const analyzer = ref(null)
 const exerciseType = 'chest_pull'
@@ -90,10 +93,26 @@ watch(() => mediapipeStore.count, (newCount, oldCount) => {
   }
 })
 
-// 关闭总结
-function handleSummaryClose() {
+function handleContinueWorkout() {
+  console.log('继续运动被触发')
   showSummary.value = false
   mediapipeStore.reset()
+  
+  setTimeout(() => {
+    if (analyzer.value) {
+      console.log('重新启动分析器')
+      analyzer.value.startAnalysis()
+    }
+
+  // 重新启动 MediaPipe
+  mediapipeStore.startExercise(exerciseType)
+    }, 100)
+}
+
+function handleEndWorkout() {
+  showSummary.value = false       // 1. 关闭总结窗口
+  mediapipeStore.reset()          // 2. 重置数据
+  router.push('/')                // 3. 返回主页
 }
 </script>
 

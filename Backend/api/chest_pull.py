@@ -18,6 +18,7 @@ class WorkoutState:
         self.reset()
 
     def reset(self):
+        print("Chest Pull state has been reset.")
         # Chest Pull 状态
         self.chest_pull_count = 0  # 完成次数
         self.chest_pull_active = False  # 是否处于动作执行状态
@@ -56,8 +57,10 @@ def analyze_chest_pull(right_shoulder, right_elbow, right_wrist):
             # 确保起始和结束位置都不为空
             if workout_state.chest_pull_start_position is not None and workout_state.chest_pull_end_position is not None:
                 # 计算移动距离
-                distance = math.sqrt((workout_state.chest_pull_end_position[0] - workout_state.chest_pull_start_position[0])**2 +
-                                     (workout_state.chest_pull_end_position[1] - workout_state.chest_pull_start_position[1])**2)
+                # distance = math.sqrt((workout_state.chest_pull_end_position[0] - workout_state.chest_pull_start_position[0])**2 +
+                #                      (workout_state.chest_pull_end_position[1] - workout_state.chest_pull_start_position[1])**2)
+                distance = np.linalg.norm(workout_state.chest_pull_end_position - workout_state.chest_pull_start_position)
+                
                 min_distance_threshold = 0.02
                 if distance > min_distance_threshold:
                     workout_state.total_distance += distance

@@ -56,8 +56,8 @@
       </div>
       
       <div class="actions">
-        <button @click="handleContinue" class="btn-primary">继续运动</button>
-        <button @click="$emit('close')" class="btn-secondary">结束</button>
+        <button @click="$emit('continue')" class="btn-primary">继续运动</button>
+        <button @click="$emit('end')" class="btn-secondary">结束</button>
       </div>
     </div>
   </div>
@@ -68,7 +68,7 @@ import { computed, ref, onMounted } from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 
-const emit = defineEmits(['close', 'continue'])
+const emit = defineEmits(['end', 'continue'])
 
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()  
@@ -126,12 +126,6 @@ const tips = computed(() => {
   
   return tipsList
 })
-
-function handleContinue() {
-  mediapipeStore.reset()
-  emit('continue')
-  // emit('close')
-}
 
 onMounted(() => {
   startTime.value = Date.now() - (mediapipeStore.count * 2000) // 估算开始时间

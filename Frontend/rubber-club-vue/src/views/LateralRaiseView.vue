@@ -38,7 +38,7 @@
     <WorkoutSummary 
       v-if="showSummary"
       :exercise-type="exerciseType"
-      @close="handleSummaryClose"
+      @end="handleEndWorkout"
       @continue="handleContinueWorkout"
     />
   </div>
@@ -46,6 +46,7 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
@@ -55,7 +56,7 @@ import WorkoutSummary from '@/components/WorkoutSummary.vue'
 
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()
-
+const router = useRouter()
 const analyzer = ref(null)
 const exerciseType = 'lateral_raise'
 const currentAngles = ref(null)
@@ -97,9 +98,10 @@ watch(() => mediapipeStore.count, (newCount, oldCount) => {
 })
 
 // 关闭总结
-function handleSummaryClose() {
+function handleEndWorkout() {
   showSummary.value = false
   mediapipeStore.reset()
+  router.push('/')
 }
 
 function handleContinueWorkout() {
