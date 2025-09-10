@@ -12,11 +12,32 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   const isAnalyzing = ref(false)
   const analysisResults = ref(null)
   
+  const isPaused = ref(false) 
   // 运动限制
-  const repetitionLimit = 20
+  const repetitionLimit = 15
   
   // 计算属性
   const isActive = computed(() => status.value === 'active')
+
+  async function controlBackend(action) {
+    try {
+      const response = await fetch(`${API_URL}/mediapipe/control`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action }), // 'reset', 'pause', 'resume'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to send control action: ${action}`);
+      }
+      console.log(`Backend action '${action}' successful.`);
+      return true;
+    } catch (error) {
+      console.error(`Error with backend action '${action}':`, error);
+      return false;
+    }
+  }
   
   // 分析帧的方法
   async function analyzeFrame(imageData) {
@@ -54,20 +75,19 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       // 更新分析结果
       analysisResults.value = result
       
-      // 处理运动计数
-      if (result.lateral_raise?.count) {
-        count.value = result.lateral_raise.count
-      } else if (result.chest_pull?.count) {
-        count.value = result.chest_pull.count
-      }
-      
       // 根据当前运动类型更新数据
-      if (currentExercise.value === 'lateral_raise' && result.lateral_raise) {
-        count.value = result.lateral_raise.count
-        energy.value = Math.round(result.lateral_raise.energy)
-      } else if (currentExercise.value === 'chest_pull' && result.chest_pull) {
-        count.value = result.chest_pull.count
-        energy.value = Math.round(result.chest_pull.energy)
+      if (result[currentExercise.value]) {
+        const exerciseData = result[currentExercise.value];
+        count.value = exerciseData.count;
+        energy.value = Math.round(exerciseData.energy);
+        isPaused.value = exerciseData.paused; // 同步暂停状态
+        
+        // 根据暂停状态更新主状态
+        if (exerciseData.paused && status.value === 'active') {
+            status.value = 'paused';
+        } else if (!exerciseData.paused && status.value === 'paused') {
+            status.value = 'active';
+        }
       }
       
       // 检查是否达到限制
@@ -86,12 +106,16 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
   
   // 开始运动
-  function startExercise(exerciseType) {
-    currentExercise.value = exerciseType
-    status.value = 'active'
-    count.value = 0
-    energy.value = 0
-    analysisResults.value = null
+  async function startExercise(exerciseType) {
+    const success = await controlBackend('reset');
+    if (success) {
+      currentExercise.value = exerciseType
+      status.value = 'active'
+      count.value = 0
+      energy.value = 0
+      isPaused.value = false
+      analysisResults.value = null
+    }
   }
   
   // 停止运动
@@ -101,19 +125,32 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
   
   // 重置
-  function reset() {
-    count.value = 0
-    energy.value = 0
-    status.value = 'ready'
-    analysisResults.value = null
-    isAnalyzing.value = false
+  async function reset() {
+    const success = await controlBackend('reset');
+    if (success) {
+      count.value = 0
+      energy.value = 0
+      status.value = 'ready'
+      isPaused.value = false
+      analysisResults.value = null
+      isAnalyzing.value = false
+    }
   }
   
-  // 更新运动数据（用于手动更新）
-  function updateExerciseData(data) {
-    if (data.count !== undefined) count.value = data.count
-    if (data.energy !== undefined) energy.value = data.energy
-    if (data.status !== undefined) status.value = data.status
+  async function pauseWorkout() {
+    const success = await controlBackend('pause');
+    if (success) {
+      status.value = 'paused';
+      isPaused.value = true;
+    }
+  }
+
+  async function resumeWorkout() {
+    const success = await controlBackend('resume');
+    if (success) {
+      status.value = 'active';
+      isPaused.value = false;
+    }
   }
   
   return {
@@ -128,12 +165,14 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     
     // 计算属性
     isActive,
-    
+    isPaused,
+
     // 方法
     analyzeFrame,
     startExercise,
     stopExercise,
     reset,
-    updateExerciseData
+    pauseWorkout,
+    resumeWorkout
   }
 })

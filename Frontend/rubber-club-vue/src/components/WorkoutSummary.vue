@@ -68,10 +68,10 @@ import { computed, ref, onMounted } from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'continue'])
 
 const mediapipeStore = useMediapipeStore()
-const exerciseStore = useExerciseStore()  // 添加这行
+const exerciseStore = useExerciseStore()  
 
 // 从 store 获取当前运动类型
 const exerciseType = computed(() => exerciseStore.currentExercise)
@@ -129,7 +129,8 @@ const tips = computed(() => {
 
 function handleContinue() {
   mediapipeStore.reset()
-  emit('close')
+  emit('continue')
+  // emit('close')
 }
 
 onMounted(() => {

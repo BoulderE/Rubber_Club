@@ -39,6 +39,7 @@
       v-if="showSummary"
       :exercise-type="exerciseType"
       @close="handleSummaryClose"
+      @continue="handleContinueWorkout"
     />
   </div>
 </template>
@@ -59,6 +60,7 @@ const analyzer = ref(null)
 const exerciseType = 'lateral_raise'
 const currentAngles = ref(null)
 const showSummary = ref(false)
+const isProcessing = ref(false)
 
 // 设置当前运动类型
 onMounted(() => {
@@ -82,8 +84,13 @@ function handleError(error) {
 }
 
 // 监听是否需要显示总结
+
 watch(() => mediapipeStore.count, (newCount, oldCount) => {
-  if (newCount > 0 && newCount % mediapipeStore.repetitionLimit === 0 && newCount !== oldCount) {
+  if (newCount > 0 && 
+        newCount % mediapipeStore.repetitionLimit === 0 && 
+        newCount !== oldCount &&
+        !showSummary.value &&
+        !isProcessing.value) {
     showSummary.value = true
     analyzer.value?.stopAnalysis()
   }
@@ -93,6 +100,22 @@ watch(() => mediapipeStore.count, (newCount, oldCount) => {
 function handleSummaryClose() {
   showSummary.value = false
   mediapipeStore.reset()
+}
+
+function handleContinueWorkout() {
+  console.log('继续运动被触发')
+  showSummary.value = false
+  mediapipeStore.reset()
+  
+  setTimeout(() => {
+    if (analyzer.value) {
+      console.log('重新启动分析器')
+      analyzer.value.startAnalysis()
+    }
+
+  // 重新启动 MediaPipe
+  mediapipeStore.startExercise(exerciseType)
+    }, 100)
 }
 </script>
 

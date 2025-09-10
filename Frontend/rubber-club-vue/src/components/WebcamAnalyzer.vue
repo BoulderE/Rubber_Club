@@ -122,6 +122,12 @@ function toggleMirror() {
 }
 
 function startAnalysis() {
+  if (!videoElement.value || !isStreaming.value) {
+    console.log('视频流未准备好，延迟启动分析')
+    setTimeout(() => startAnalysis(), 100)
+    return
+  }
+
   if (analyzeTimer.value) {
     clearInterval(analyzeTimer.value)
   }
