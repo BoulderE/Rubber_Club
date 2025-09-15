@@ -56,9 +56,6 @@ def analyze_chest_pull(right_shoulder, right_elbow, right_wrist):
 
             # 确保起始和结束位置都不为空
             if workout_state.chest_pull_start_position is not None and workout_state.chest_pull_end_position is not None:
-                # 计算移动距离
-                # distance = math.sqrt((workout_state.chest_pull_end_position[0] - workout_state.chest_pull_start_position[0])**2 +
-                #                      (workout_state.chest_pull_end_position[1] - workout_state.chest_pull_start_position[1])**2)
                 distance = np.linalg.norm(workout_state.chest_pull_end_position - workout_state.chest_pull_start_position)
                 
                 min_distance_threshold = 0.02

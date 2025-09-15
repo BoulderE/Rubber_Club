@@ -1,12 +1,14 @@
 from flask import Flask
+from application.config import Config
 from .blueprints.mediapipe_bp import mediapipe_bp
+from .blueprints.auth_bp import auth_bp
 
-def create_app():
+def create_app(config_class=Config):
     app = Flask(__name__)
-    app.config.from_pyfile('../config.py')
-    
+    app.config.from_object(config_class)
     # 注册蓝图
     app.register_blueprint(mediapipe_bp, url_prefix='/mediapipe')
+    app.register_blueprint(auth_bp, url_prefix='/api')
     register_error_handlers(app)
     return app
 

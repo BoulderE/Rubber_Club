@@ -1,10 +1,10 @@
 <template>
   <div id="app">
     <nav class="navbar">
-      <router-link to="/" class="logo">
-        AI Fitness Coach
+      <router-link to="/home" class="logo">
+        Rubber Club
       </router-link>
-      <div class="nav-links">
+      <div class="nav-links" v-if="!isLoginPage">
         <router-link to="/lateral-raise">侧平举</router-link>
         <router-link to="/chest-pull">拉胸</router-link>
       </div>
@@ -15,6 +15,14 @@
     </main>
   </div>
 </template>
+
+<script setup>
+import { computed } from 'vue';
+import { useRoute } from 'vue-router';
+
+const route = useRoute();
+const isLoginPage = computed(() => route.name === 'Login');
+</script>
 
 <style>
 :root {
