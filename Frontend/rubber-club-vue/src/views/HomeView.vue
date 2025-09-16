@@ -4,6 +4,17 @@
       <h1>AI 健身教练</h1>
       <p>使用 MediaPipe 技术，实时分析您的运动姿势</p>
     </div>
+
+    <button @click="toggleChatbot" class="chatbot-toggle-btn">
+      需要帮助？
+    </button>
+
+    <!-- Chatbot 窗口 -->
+    <ChatbotWindow 
+      v-if="isChatbotVisible" 
+      @close="isChatbotVisible = false"
+      class="chatbot-container"
+    />
     
     <div class="exercise-cards">
       <router-link 
@@ -41,7 +52,13 @@
 
 <script setup>
 import { useExerciseStore } from '@/stores/exercise'
-import { computed } from 'vue'
+import ChatbotWindow from '@/components/ChatbotWindow.vue'; 
+import { ref, computed } from 'vue';
+
+const isChatbotVisible = ref(false);
+const toggleChatbot = () => {
+  isChatbotVisible.value = !isChatbotVisible.value;
+};
 
 const exerciseStore = useExerciseStore()
 

@@ -8,7 +8,11 @@
         <router-link to="/lateral-raise">侧平举</router-link>
         <router-link to="/chest-pull">拉胸</router-link>
       </div>
+      <div v-if="isLoggedIn" class="user-actions">
+        <button @click="logout" class="logout-btn">登出</button>
+      </div>
     </nav>
+  
     
     <main>
       <router-view />
@@ -17,11 +21,26 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
 const isLoginPage = computed(() => route.name === 'Login');
+const router = useRouter();
+const isLoggedIn = ref(!!localStorage.getItem('user-token'));
+
+const logout = () => {
+  localStorage.removeItem('user-token');
+  isLoggedIn.value = false;
+  router.replace({ name: 'login' });
+};
+
+watch(
+  () => route.path,
+  () => {
+    isLoggedIn.value = !!localStorage.getItem('user-token');
+  }
+);
 </script>
 
 <style>

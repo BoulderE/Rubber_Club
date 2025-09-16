@@ -2,6 +2,8 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from api.routes import mediapipe_bp
 from application.blueprints.auth_bp import auth_bp
+from application.blueprints.chatbot_bp import chatbot_bp
+
 def create_app():
     """创建并配置Flask应用"""
     app = Flask(__name__)
@@ -10,6 +12,8 @@ def create_app():
     # 注册API路由
     app.register_blueprint(mediapipe_bp, url_prefix='/mediapipe')
     app.register_blueprint(auth_bp, url_prefix='/api')
+    app.register_blueprint(chatbot_bp, url_prefix='/api/chatbot')
+    
     @app.route('/')
     def index():
         return jsonify({
@@ -19,6 +23,8 @@ def create_app():
                 '/mediapipe/analyze-stream',
                 '/mediapipe/control',
                 '/mediapipe/status'
+                '/api/login',
+                '/api/chatbot/chat'
             ]
         })
     

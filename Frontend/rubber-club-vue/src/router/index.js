@@ -35,18 +35,21 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  // 检查即将进入的路由是否需要认证
-  if (to.meta.requiresAuth) {
-    const isLoggedIn = !!localStorage.getItem('user-token'); // 这是一个简单的示例
+  const requiresAuth = to.meta.requiresAuth;
+  const hasToken = !!localStorage.getItem('user-token');
 
-    if (isLoggedIn) {
-      next(); 
+  if (requiresAuth) {
+    if (hasToken) {
+      next();
     } else {
-      next('/login'); 
+      next({ name: 'login' });
     }
   } else {
-    next(); 
+    if (to.name === 'login' && hasToken) {
+      next({ name: 'home' });
+    } else {
+      next();
+    }
   }
 });
-
 export default router
