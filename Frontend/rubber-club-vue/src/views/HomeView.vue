@@ -16,7 +16,7 @@
       class="chatbot-container"
     />
     
-    <div class="exercise-cards">
+    <!-- <div class="exercise-cards">
       <router-link 
         v-for="exercise in exercises" 
         :key="exercise.id"
@@ -28,6 +28,20 @@
         <p>{{ exercise.description }}</p>
         <span class="card-arrow">→</span>
       </router-link>
+    </div> -->
+
+    <div class="exercise-cards">
+      <div 
+        v-for="exercise in exercises" 
+        :key="exercise.id"
+        class="exercise-card"
+        @click="openDifficultyModal(exercise)"
+      >
+        <div class="card-icon">{{ exercise.icon }}</div>
+        <h3>{{ exercise.name }}</h3>
+        <p>{{ exercise.description }}</p>
+        <span class="card-arrow">→</span>
+      </div>
     </div>
     
     <div class="features">
@@ -47,27 +61,84 @@
         <p>记录运动数据和进度</p>
       </div>
     </div>
+
+    <div v-if="showModal" class="modal">
+      <div class="modal-content">
+        <h2 id="modal-title">{{ modalTitle }}</h2>
+        <div class="difficulty-options">
+          <button class="difficulty-btn motivator-btn" @click="startExercise('motivator')">
+            💪 激励者 (Motivator)<br><small>轻松入门，为你喝彩</small>
+          </button>
+          <button class="difficulty-btn guide-btn" @click="startExercise('guide')">
+            🧐 引导者 (Guide)<br><small>专业精准，规范动作</small>
+          </button>
+        </div>
+        <button class="close-btn" @click="showModal = false">取消</button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { useExerciseStore } from '@/stores/exercise'
 import ChatbotWindow from '@/components/ChatbotWindow.vue'; 
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 const isChatbotVisible = ref(false);
 const toggleChatbot = () => {
   isChatbotVisible.value = !isChatbotVisible.value;
 };
 
-const exerciseStore = useExerciseStore()
+// const exerciseStore = useExerciseStore()
 
-const exercises = computed(() => 
-  exerciseStore.exerciseTypes.map(ex => ({
-    ...ex,
-    route: `/${ex.id.replace('_', '-')}`
-  }))
-)
+// const exercises = computed(() => 
+//   exerciseStore.exerciseTypes.map(ex => ({
+//     ...ex,
+//     route: `/${ex.id.replace('_', '-')}`
+//   }))
+// )
+
+const exercises = ref([
+  { 
+    id: 'chest_pull', 
+    name: 'Chest Pull', 
+    description: '激活胸部和背部肌群', 
+    icon: '🏋️' 
+  },
+  { 
+    id: 'lateral_raise', 
+    name: 'Lateral Raise', 
+    description: '锻炼肩部三角肌中束', 
+    icon: '💪' 
+  },
+  // 未来可以添加更多
+  // { id: 'squat', name: '深蹲', description: '锻炼腿部和臀部力量', icon: '🦵' },
+]);
+
+// --- 【新增】控制难度选择弹窗的逻辑 ---
+const showModal = ref(false);
+const modalTitle = ref('');
+const selectedExercise = ref(null);
+
+function openDifficultyModal(exercise) {
+  selectedExercise.value = exercise;
+  modalTitle.value = `为「${exercise.name}」选择模式`;
+  showModal.value = true;
+}
+
+function startExercise(style) {
+  showModal.value = false;
+  if (!selectedExercise.value) return;
+
+  // 使用我们新的动态路由进行跳转
+  router.push({ 
+    name: 'exercise', 
+    params: { type: selectedExercise.value.id },
+    query: { style: style }
+  });
+}
 </script>
 
 <style scoped>

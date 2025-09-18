@@ -5,8 +5,8 @@
         Rubber Club
       </router-link>
       <div class="nav-links" v-if="!isLoginPage">
-        <router-link to="/lateral-raise">侧平举</router-link>
-        <router-link to="/chest-pull">拉胸</router-link>
+        <router-link to="/exercise/lateral_raise">侧平举</router-link>
+        <router-link to="/exercise/chest_pull">拉胸</router-link>
       </div>
       <div v-if="isLoggedIn" class="user-actions">
         <button @click="logout" class="logout-btn">登出</button>

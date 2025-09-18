@@ -31,9 +31,6 @@
       <button @click="toggleCamera" class="control-button">
         {{ isStreaming ? '停止' : '开始' }}
       </button>
-      <button @click="toggleMirror" class="control-button">
-        {{ mirror ? '取消镜像' : '镜像' }}
-      </button>
     </div>
   </div>
 </template>
@@ -115,10 +112,6 @@ function toggleCamera() {
   } else {
     startCamera()
   }
-}
-
-function toggleMirror() {
-  mirror.value = !mirror.value
 }
 
 function startAnalysis() {

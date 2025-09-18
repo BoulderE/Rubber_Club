@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
+import ExerciseView from '../views/ExerciseView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -20,15 +21,10 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/lateral-raise',
-      name: 'lateral-raise',
-      component: () => import('../views/LateralRaiseView.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/chest-pull',
-      name: 'chest-pull',
-      component: () => import('../views/ChestPullView.vue'),
+      path: '/exercise/:type', // :type 是一个动态参数
+      name: 'exercise',
+      component: ExerciseView,
+      props: true, // 这会将 URL 参数作为 props 传递给组件
       meta: { requiresAuth: true }
     }
   ]
