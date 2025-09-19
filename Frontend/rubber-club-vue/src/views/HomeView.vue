@@ -15,20 +15,6 @@
       @close="isChatbotVisible = false"
       class="chatbot-container"
     />
-    
-    <!-- <div class="exercise-cards">
-      <router-link 
-        v-for="exercise in exercises" 
-        :key="exercise.id"
-        :to="exercise.route"
-        class="exercise-card"
-      >
-        <div class="card-icon">{{ exercise.icon }}</div>
-        <h3>{{ exercise.name }}</h3>
-        <p>{{ exercise.description }}</p>
-        <span class="card-arrow">→</span>
-      </router-link>
-    </div> -->
 
     <div class="exercise-cards">
       <div 
@@ -90,15 +76,6 @@ const isChatbotVisible = ref(false);
 const toggleChatbot = () => {
   isChatbotVisible.value = !isChatbotVisible.value;
 };
-
-// const exerciseStore = useExerciseStore()
-
-// const exercises = computed(() => 
-//   exerciseStore.exerciseTypes.map(ex => ({
-//     ...ex,
-//     route: `/${ex.id.replace('_', '-')}`
-//   }))
-// )
 
 const exercises = ref([
   { 

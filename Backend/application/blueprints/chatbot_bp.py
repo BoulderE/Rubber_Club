@@ -1,9 +1,10 @@
 import requests
 import os
 from flask import Blueprint, request, jsonify
+from dotenv import load_dotenv
 
-# api_key = "cddce022-9493-462f-ad38-8d9babf1d865"
-api_key = "fcb1ab9c-4dc2-4670-97ab-7da6d3274a77"
+load_dotenv()
+api_key = os.getenv("HKBU_API_KEY")
 base_url = "https://genai.hkbu.edu.hk/general/rest"
 model_name = "gpt-4.1"
 api_version = "2024-12-01-preview"
