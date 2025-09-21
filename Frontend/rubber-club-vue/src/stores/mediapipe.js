@@ -72,7 +72,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       console.log('[analyzeFrame] backend raw result:', result);
       console.log('[analyzeFrame] keys:', Object.keys(result));
       
-      // 更新分析结果
       analysisResults.value = result
       
       const exerciseStore = useExerciseStore();
@@ -80,7 +79,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       const currentExerciseInfo = exerciseStore.getExerciseById(currentExercise.value);
 
       if (!currentExerciseInfo) {
-        // 如果因为某些原因找不到，就直接退出，防止程序崩溃
         console.error("无法在 exerciseStore 中找到当前运动的配置！");
         return result;
       }
@@ -88,12 +86,11 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       const dynamicKey = currentExerciseInfo.name;
 
       if (result[dynamicKey]) {
-        const exerciseData = result[dynamicKey]; // 正确获取数据！
+        const exerciseData = result[dynamicKey]; 
         console.log('[analyzeFrame] currentExercise =', currentExercise.value);
         console.log('[analyzeFrame] exerciseStore.name (dynamicKey) =', dynamicKey);
         console.log('[analyzeFrame] result[dynamicKey] exists?', !!result[dynamicKey]);
         
-        // 后续逻辑完全不变，因为 exerciseData 现在有值了！
         count.value = exerciseData.count;
         energy.value = Math.round(exerciseData.energy);
         isPaused.value = exerciseData.paused;
@@ -120,17 +117,15 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   async function startExercise(exerciseType, style) {
-    // 1. 向后端发送包含所有参数的 'start' 指令
     const success = await controlBackend({
       action: 'start',
       exercise: exerciseType,
       style: style
     });
 
-    // 2. 如果后端确认成功，则更新前端的状态
     if (success) {
       currentExercise.value = exerciseType
-      currentStyle.value = style // 保存难度模式
+      currentStyle.value = style
       status.value = 'active'
       count.value = 0
       energy.value = 0
@@ -160,8 +155,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
 
   analysisResults.value = analysisData
 
-  // if (isPaused.value && status.value === 'active') status.value = 'paused'
-  // if (!isPaused.value && status.value === 'paused') status.value = 'active'
   if (isPaused.value) status.value = 'paused'
     else status.value = 'active'
   if (count.value >= repetitionLimit) status.value = 'completed'

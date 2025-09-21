@@ -2,7 +2,7 @@
   <div class="exercise-view" v-if="exerciseData">
     <div class="header">
       <router-link to="/" class="back-button">← 返回</router-link>
-      <h1>{{ exerciseData.title }}</h1>
+      <h1>{{ exerciseData?.title || 'Analysis' }}</h1>
     </div>
     
     <div class="content">
@@ -14,7 +14,7 @@
           @error="handleError"
         />
         
-        <div class="tips">
+        <div class="tips" v-if="exerciseData?.tips?.length">
           <h3>动作要点</h3>
           <ul>
             <li v-for="tip in exerciseData.tips" :key="tip">{{ tip }}</li>
@@ -68,25 +68,7 @@ const analyzer = ref(null);
 const currentAngles = ref(null);
 const showSummary = ref(false);
 
-// --- 3. 动态内容配置 ---
-const exercisesConfig = {
-  chest_pull: {
-    title: '拉胸分析',
-    tips: [
-      '双手握住弹力带或拉力器把手', '保持背部挺直，核心收紧',
-      '将把手拉向胸部，肩胛骨向后收缩', '控制速度，避免借力',
-      '呼吸节奏：拉时呼气，还原时吸气'
-    ]
-  },
-  lateral_raise: {
-    title: '侧平举分析',
-    tips: [
-      '保持身体直立，核心收紧', '手臂从身体两侧举起至肩膀高度',
-      '控制下放速度，避免自由落体', '保持肘部微屈，避免完全伸直'
-    ]
-  }
-};
-const exerciseData = computed(() => exercisesConfig[exerciseType.value]);
+const exerciseData = computed(() => exerciseStore.getExerciseById(exerciseType.value));
 
 onMounted(() => {
   if (!exerciseType.value || !style.value) {

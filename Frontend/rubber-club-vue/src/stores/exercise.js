@@ -8,14 +8,37 @@ export const useExerciseStore = defineStore('exercise', () => {
       id: 'lateral_raise',
       name: '侧平举',
       description: '锻炼肩部中束',
-      icon: '💪'
+      icon: '💪',
+      tips: ['保持身体直立，核心收紧','手臂举至肩高','控制下放','肘部微屈']
     },
     {
       id: 'chest_pull',
       name: '拉胸',
       description: '锻炼胸部肌肉',
-      icon: '🏋️'
-    }
+      icon: '🏋️',
+      tips: ['握住拉力器','肩胛后收','控制速度','拉时呼气']
+    },
+    {
+      id: 'front_raise',
+      name: '前平举',
+      description: '锻炼肩部前束',
+      icon: '💪',
+      tips: ['从大腿前抬至与肩同高','核心收紧避免后仰']
+    },
+    {
+      id: 'overhead_press',
+      name: '过顶举',
+      description: '综合锻炼肩部和手臂力量',
+      icon: '🏋️',
+      tips: ['起于肩高','推至手腕过头顶','避免过度后仰']
+    },
+    {
+      id: 'squat',
+      name: '深蹲',
+      description: '锻炼腿部和臀部力量',
+      icon: '🦵',
+      tips: ['膝盖对齐脚尖','髋向后坐','站起伸直髋膝']
+    },
   ])
 
   const selectedExercise = ref('lateral_raise')

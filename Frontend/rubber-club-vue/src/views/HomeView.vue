@@ -90,8 +90,24 @@ const exercises = ref([
     description: '锻炼肩部三角肌中束', 
     icon: '💪' 
   },
-  // 未来可以添加更多
-  // { id: 'squat', name: '深蹲', description: '锻炼腿部和臀部力量', icon: '🦵' },
+  { 
+    id: 'squat', 
+    name: '深蹲', 
+    description: '锻炼腿部和臀部力量', 
+    icon: '🦵' 
+  },
+  { 
+    id: 'front_raise', 
+    name: '前平举', 
+    description: '锻炼肩部三角肌前束', 
+    icon: '💪' 
+  },
+  { 
+    id: 'overhead_press', 
+    name: '过顶举', 
+    description: '综合锻炼肩部和手臂力量', 
+    icon: '🏋️' 
+  }
 ]);
 
 // --- 【新增】控制难度选择弹窗的逻辑 ---
