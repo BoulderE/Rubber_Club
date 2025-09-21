@@ -41,14 +41,12 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     }
   }
   
-  // 分析帧的方法
   async function analyzeFrame(imageData) {
-    if (!isActive.value || isAnalyzing.value) return null
+    if (isAnalyzing.value) return null
     
     try {
       isAnalyzing.value = true
       
-      // 将 base64 图像转换为 Blob
     const base64Data = imageData.split(',')[1]
     const byteCharacters = atob(base64Data)
     const byteNumbers = new Array(byteCharacters.length)
@@ -57,12 +55,10 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     }
     const byteArray = new Uint8Array(byteNumbers)
     const blob = new Blob([byteArray], { type: 'image/jpeg' })
-    
-    // 创建 FormData（修改点1：改为 FormData）
+
     const formData = new FormData()
     formData.append('file', blob, 'frame.jpg')
     
-    // 发送到后端的 analyze-stream 端点（修改点2：改为正确的端点）
     const response = await fetch(`${API_URL}/mediapipe/analyze-stream`, {
       method: 'POST',
       body: formData
@@ -164,8 +160,10 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
 
   analysisResults.value = analysisData
 
-  if (isPaused.value && status.value === 'active') status.value = 'paused'
-  if (!isPaused.value && status.value === 'paused') status.value = 'active'
+  // if (isPaused.value && status.value === 'active') status.value = 'paused'
+  // if (!isPaused.value && status.value === 'paused') status.value = 'active'
+  if (isPaused.value) status.value = 'paused'
+    else status.value = 'active'
   if (count.value >= repetitionLimit) status.value = 'completed'
 }
 
@@ -176,12 +174,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     if (success) {
       count.value = 0
       energy.value = 0
-      status.value = 'ready'
-      isPaused.value = false
       analysisResults.value = null
       isAnalyzing.value = false
-      currentExercise.value = ''
-      currentStyle.value = null // 【新增】重置难度模式
+      currentStyle.value = null
     }
   }
   

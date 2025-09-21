@@ -101,6 +101,17 @@ class ExerciseAnalyzer:
         results = self.pose.process(image_rgb)
         landmarks = self._get_landmarks(results)
 
+        if self.state.is_paused:
+            self.state.stage = self.state.stage  # 保持上一次阶段或根据姿态轻量更新
+            self.state.feedback = "已暂停，做点赞手势继续"
+            return {
+                'count': self.state.count,
+                'stage': self.state.stage,
+                'feedback': self.state.feedback,
+                'paused': True,
+                'energy': self.state.total_energy
+            }
+
         if landmarks:
             logic_function = getattr(self, self.config['logic_function'])
             logic_function(landmarks)
@@ -118,8 +129,6 @@ class ExerciseAnalyzer:
         }
 
     def _analyze_chest_pull_logic(self, landmarks):
-        """胸部拉伸的特定分析逻辑，现在使用分层参数"""
-        # 【关键】根据 self.style 动态加载对应的参数集
         params = self.config['params'][self.style]
         
         shoulder = landmarks['right_shoulder']
@@ -129,12 +138,10 @@ class ExerciseAnalyzer:
         self.state.stage = 'up' if y_diff < params['start_threshold_y'] else 'down'
 
         if not self.state._action_active:
-            # 使用从 params 加载的动态阈值
             if y_diff < params['start_threshold_y']:
                 self.state._action_active = True
                 self.state._start_position = wrist
         else:
-            # 使用从 params 加载的动态阈值
             if y_diff > params['end_threshold_y']:
                 self.state._action_active = False
                 self.state._end_position = wrist
@@ -174,9 +181,6 @@ class ExerciseAnalyzer:
                     self.state.total_distance += distance
                     self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
 
-    # --------------------------------------------------------------------------
-    # 反馈生成器 (Feedback Generator) - (保持不变，但现在更有意义)
-    # --------------------------------------------------------------------------
     def _generate_feedback(self):
         """根据 style 和当前状态生成反馈信息"""
         if self.state._overextension_detected:
