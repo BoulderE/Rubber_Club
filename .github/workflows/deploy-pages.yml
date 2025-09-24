@@ -31,12 +31,13 @@ jobs:
 
       - name: Build
         env:
-          VITE_API_BASE: "https://semipneumatically-expositorial-margert.ngrok-free.dev"
-          VITE_BASE: "/Rubber_Club/"
+          VITE_API_BASE: https://semipneumatically-expositorial-margert.ngrok-free.dev
+          VITE_BASE: /Rubber_Club/
         run: |
           echo "VITE_API_BASE=$VITE_API_BASE"
           echo "VITE_BASE=$VITE_BASE"
           npm run build -- --base "$VITE_BASE"
+          echo "Check that API base got baked into dist (expect >=1 hit):"
           grep -R "${VITE_API_BASE}" dist || echo "VITE_API_BASE not found in dist"
         working-directory: Frontend/rubber-club-vue
 
