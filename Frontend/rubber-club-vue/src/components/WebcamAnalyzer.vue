@@ -17,8 +17,8 @@
       
       <div v-if="!isStreaming" class="video-placeholder">
         <div class="placeholder-content">
-          <p>📹 摄像头未启动</p>
-          <button @click="startCamera" class="start-button">启动摄像头</button>
+          <p>📹 Camera Off</p>
+          <button @click="startCamera" class="start-button">Camera On</button>
         </div>
       </div>
       
@@ -29,7 +29,7 @@
     
     <div class="controls">
       <button @click="toggleCamera" class="control-button">
-        {{ isStreaming ? '停止' : '开始' }}
+        {{ isStreaming ? 'Stop' : 'Begin' }}
       </button>
     </div>
   </div>

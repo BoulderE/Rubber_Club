@@ -46,16 +46,16 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_front_raise_logic',
         'params': {
             'guide': {
-                'start_threshold_y': 0.15,  # 手臂放下时，手腕低于肩膀的y坐标差
-                'end_threshold_y': 0.05,   # 手臂举到与肩同高时，y坐标差阈值
+                'start_threshold_y': 0.20,  # 手臂放下时，手腕低于肩膀的y坐标差
+                'end_threshold_y': 0.12,   # 手臂举到与肩同高时，y坐标差阈值
                 'over_extension_threshold_y': -0.05, # 手臂举过高
-                'min_distance': 0.02
+                'min_distance': 0.015
             },
             'motivator': {
-                'start_threshold_y': 0.18,
-                'end_threshold_y': 0.08,
-                'over_extension_threshold_y': -0.03,
-                'min_distance': 0.015
+                'start_threshold_y': 0.22,
+                'end_threshold_y': 0.18,
+                'over_extension_threshold_y': -0.10,
+                'min_distance': 0.010
             }
         }
     },

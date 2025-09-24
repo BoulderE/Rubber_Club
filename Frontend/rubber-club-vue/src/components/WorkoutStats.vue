@@ -1,19 +1,19 @@
 <template>
   <div class="workout-stats">
-    <h3>运动数据</h3>
+    <h3>Stats</h3>
     
     <div class="stat-item">
-      <span class="stat-label">状态</span>
+      <span class="stat-label">Status</span>
       <span :class="['stat-value', 'status', statusClass]">{{ mediapipeStore.status }}</span>
     </div>
     
     <div class="stat-item">
-      <span class="stat-label">次数</span>
+      <span class="stat-label">Count</span>
       <span class="stat-value count">{{ mediapipeStore.count }}</span>
     </div>
     
     <div class="stat-item">
-      <span class="stat-label">能量值</span>
+      <span class="stat-label">Energy</span>
       <div class="energy-bar">
         <div class="energy-fill" :style="{ width: energyPercentage + '%' }"></div>
       </div>
@@ -22,16 +22,16 @@
     
     <div v-if="mediapipeStore.isPaused" class="pause-indicator">
       <span class="pause-icon">⏸️</span>
-      <span>检测到暂停手势</span>
+      <span>Paused</span>
     </div>
     
     <div v-if="mediapipeStore.overextension" class="warning">
       <span class="warning-icon">⚠️</span>
-      <span>手臂过度伸展！</span>
+      <span>Over-extension</span>
     </div>
     
     <button @click="handleReset" class="reset-button">
-      重置数据
+      Reset
     </button>
   </div>
 </template>

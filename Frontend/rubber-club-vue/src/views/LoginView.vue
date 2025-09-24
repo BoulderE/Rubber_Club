@@ -1,8 +1,8 @@
 <template>
   <div class="login-page">
     <div class="login-container" v-if="!isLoggedIn">
-      <h1>欢迎回来</h1>
-      <p>请输入您的4位数字PIN码</p>
+      <h1>Welcome Back</h1>
+      <p>Please Enter Your 4-digit PIN</p>
 
       <div class="pin-display" :class="{ shake: isShaking }">
         <div v-for="i in 4" :key="i" class="pin-dot" :class="{ filled: currentPin.length >= i }"></div>
@@ -12,7 +12,7 @@
 
       <div class="keypad">
         <button v-for="key in keypadLayout" :key="key" 
-                :class="{ 'action-key': !key }"
+                :class="{ 'action-key': typeof key !== 'number' }"
                 @click="handleKeyPress(key)">
           {{ key === 'delete' ? '⌫' : key }}
         </button>
@@ -20,8 +20,8 @@
     </div>
 
     <div class="welcome-screen" v-else>
-      <h1>登录成功！</h1>
-      <p>正在为您加载个人主页...</p>
+      <h1>Logged In!</h1>
+      <p>Loading your profile...</p>
       <!-- 下一步的Chatbot内容就可以在这里作为另一个组件引入 -->
     </div>
   </div>
@@ -31,6 +31,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
+import { getApiBase } from '@/api/base';
 
 // --- 1. 响应式状态定义 ---
 const currentPin = ref(''); // 使用 ref 创建响应式变量
@@ -39,6 +40,7 @@ const messageColor = ref('#e74c3c'); // 默认是错误颜色
 const isShaking = ref(false);
 const router = useRouter(); // 获取router实例
 const isLoggedIn = ref(false); // 登录状态
+const base = getApiBase();
 // --- 2. 逻辑与计算属性 ---
 
 // 数字键盘布局，用数组驱动模板，更符合Vue的思想
@@ -65,12 +67,14 @@ const handleKeyPress = (key) => {
 
 const checkPin = async () => {
   try {
-    const response = await axios.post('http://127.0.0.1:5001/api/login', {
+    const response = await axios.post(`${base}/api/login`, {
       pin: currentPin.value
     });
 
-    if (response.data.token) {
+    if (response.data?.token) {
       loginSuccess(response.data.token);
+    } else {
+      throw new Error('Invalid response');
     }
   } catch (error) {
     console.error('Login request failed:', error);

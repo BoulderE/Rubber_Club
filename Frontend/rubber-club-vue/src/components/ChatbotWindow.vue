@@ -1,7 +1,9 @@
 <template>
   <div class="chatbot-window">
     <div class="chat-header">
-      <span>智能助手</span>
+      <span>
+        AI Fitness Assistant
+      </span>
       <button @click="emit('close')" class="close-btn">×</button>
     </div>
     <div class="chat-body" ref="chatBody">
@@ -16,12 +18,12 @@
         <input
           type="text"
           v-model="newMessage"
-          placeholder="输入消息..."
+          placeholder="Message"
           class="message-input"
           :disabled="isLoading"
         />
         <button type="submit" class="send-btn" :disabled="isLoading">
-          发送
+          Send
         </button>
       </form>
     </div>
@@ -30,7 +32,7 @@
 
 <script setup>
 import { ref, onMounted, nextTick } from 'vue';
-
+import { getApiBase } from '@/api/base';
 // 定义组件可以发出的事件
 const emit = defineEmits(['close']);
 
@@ -39,7 +41,7 @@ const messages = ref([]);
 const newMessage = ref('');
 const isLoading = ref(false);
 const chatBody = ref(null); // 关键2：创建一个 ref 来引用 DOM 元素
-
+const base = getApiBase();
 // --- 核心函数 ---
 
 /**
@@ -71,7 +73,7 @@ const sendMessage = async () => {
 
   try {
     // 2. 发送请求到后端
-    const response = await fetch('http://127.0.0.1:5001/api/chatbot/chat', {
+    const response = await fetch(`${base}/api/chatbot/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -112,7 +114,7 @@ onMounted(() => {
   messages.value.push({
     id: Date.now(),
     role: 'assistant',
-    content: '您好！我是您的智能健身助手。我可以帮助您选择最适合您的教练风格。您在健身体验中，最看重的是什么呢？'
+    content: "Hello! I'm your smart fitness assistant. I can help you choose the coaching style that best suits you. What do you value most in your fitness experience?"
   });
   scrollToBottom();
 });

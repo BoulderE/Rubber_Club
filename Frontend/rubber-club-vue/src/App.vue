@@ -5,14 +5,14 @@
         Rubber Club
       </router-link>
       <div class="nav-links" v-if="!isLoginPage">
-        <router-link to="/exercise/lateral_raise">侧平举</router-link>
-        <router-link to="/exercise/chest_pull">拉胸</router-link>
-        <router-link to="/exercise/squat">深蹲</router-link>
-        <router-link to="/exercise/front_raise">前平举</router-link>
-        <router-link to="/exercise/overhead_press">过顶举</router-link>
+        <router-link to="/exercise/lateral_raise">Lateral Raise</router-link>
+        <router-link to="/exercise/chest_pull">Chest Pull</router-link>
+        <router-link to="/exercise/squat">Squat</router-link>
+        <router-link to="/exercise/front_raise">Front Raise</router-link>
+        <router-link to="/exercise/overhead_press">Overhead Press</router-link>
       </div>
       <div v-if="isLoggedIn" class="user-actions">
-        <button @click="logout" class="logout-btn">登出</button>
+        <button @click="logout" class="logout-btn">Log out</button>
       </div>
     </nav>
   

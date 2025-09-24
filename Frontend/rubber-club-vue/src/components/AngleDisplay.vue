@@ -1,6 +1,6 @@
 <template>
   <div class="angle-display">
-    <h3>关节角度</h3>
+    <h3>Joint Angle</h3>
     
     <div v-for="(angle, joint) in displayAngles" :key="joint" class="angle-item">
       <div class="angle-header">

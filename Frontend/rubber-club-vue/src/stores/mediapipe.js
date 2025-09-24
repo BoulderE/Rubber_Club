@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useExerciseStore } from './exercise'
-const API_URL = 'http://localhost:5001'
+import { getApiBase } from '@/api/base';
+const API_URL = getApiBase();
 
 export const useMediapipeStore = defineStore('mediapipe', () => {
   // 状态

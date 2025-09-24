@@ -1,12 +1,12 @@
 <template>
   <div class="home-view">
     <div class="hero-section">
-      <h1>AI 健身教练</h1>
-      <p>使用 MediaPipe 技术，实时分析您的运动姿势</p>
+      <h1>Rubber Club</h1>
+      <p>Your Digital Fitness Helper</p>
     </div>
 
     <button @click="toggleChatbot" class="chatbot-toggle-btn">
-      需要帮助？
+      Need Help?
     </button>
 
     <!-- Chatbot 窗口 -->
@@ -15,6 +15,23 @@
       @close="isChatbotVisible = false"
       class="chatbot-container"
     />
+
+    <div v-if="showModal" class="modal">
+      <div class="modal-content">
+        <h2 id="modal-title">{{ modalTitle }}</h2>
+        <div class="difficulty-options">
+          <button class="difficulty-btn motivator-btn" @click="startExercise('motivator')">
+            💪 Motivator<br><small>Get started with ease</small>
+          </button>
+          <button class="difficulty-btn guide-btn" @click="startExercise('guide')">
+            🧐 Guide<br><small>Professional precision</small>
+          </button>
+        </div>
+        <button class="close-btn" @click="showModal = false">
+          cancel
+        </button>
+      </div>
+    </div>
 
     <div class="exercise-cards">
       <div 
@@ -33,33 +50,18 @@
     <div class="features">
       <div class="feature">
         <span class="feature-icon">📹</span>
-        <h4>实时分析</h4>
-        <p>通过摄像头实时捕捉动作</p>
+        <h4>Real-time Analysis</h4>
+        <p>Webcam analysis movement real-time</p>
       </div>
       <div class="feature">
         <span class="feature-icon">🎯</span>
-        <h4>精准反馈</h4>
-        <p>AI 分析动作准确度</p>
+        <h4>Accurate Feedback</h4>
+        <p>Movement accuracy analyzed by AI</p>
       </div>
       <div class="feature">
         <span class="feature-icon">📊</span>
-        <h4>数据统计</h4>
-        <p>记录运动数据和进度</p>
-      </div>
-    </div>
-
-    <div v-if="showModal" class="modal">
-      <div class="modal-content">
-        <h2 id="modal-title">{{ modalTitle }}</h2>
-        <div class="difficulty-options">
-          <button class="difficulty-btn motivator-btn" @click="startExercise('motivator')">
-            💪 激励者 (Motivator)<br><small>轻松入门，为你喝彩</small>
-          </button>
-          <button class="difficulty-btn guide-btn" @click="startExercise('guide')">
-            🧐 引导者 (Guide)<br><small>专业精准，规范动作</small>
-          </button>
-        </div>
-        <button class="close-btn" @click="showModal = false">取消</button>
+        <h4>History Record </h4>
+        <p>Exercise stats and progress documented</p>
       </div>
     </div>
   </div>
@@ -81,31 +83,31 @@ const exercises = ref([
   { 
     id: 'chest_pull', 
     name: 'Chest Pull', 
-    description: '激活胸部和背部肌群', 
+    description: 'Activate the chest and back muscle groups', 
     icon: '🏋️' 
   },
   { 
     id: 'lateral_raise', 
     name: 'Lateral Raise', 
-    description: '锻炼肩部三角肌中束', 
+    description: 'Enhance the Lateral Deltoid', 
     icon: '💪' 
   },
   { 
     id: 'squat', 
-    name: '深蹲', 
-    description: '锻炼腿部和臀部力量', 
+    name: 'Squat', 
+    description: 'Strengthen your legs and glutes.', 
     icon: '🦵' 
   },
   { 
     id: 'front_raise', 
-    name: '前平举', 
-    description: '锻炼肩部三角肌前束', 
+    name: 'Front Raise', 
+    description: 'Enhance the Anterior Deltoid', 
     icon: '💪' 
   },
   { 
     id: 'overhead_press', 
-    name: '过顶举', 
-    description: '综合锻炼肩部和手臂力量', 
+    name: 'Overhead Press', 
+    description: 'Comprehensive shoulder and arm strength training', 
     icon: '🏋️' 
   }
 ]);
@@ -117,7 +119,7 @@ const selectedExercise = ref(null);
 
 function openDifficultyModal(exercise) {
   selectedExercise.value = exercise;
-  modalTitle.value = `为「${exercise.name}」选择模式`;
+  modalTitle.value = `Select your level for「${exercise.name}」`;
   showModal.value = true;
 }
 

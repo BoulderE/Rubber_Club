@@ -17,11 +17,12 @@ def get_school_api_response(user_message, conversation_history):
         return "抱歉，AI助手未配置，请联系管理员。"
     
     system_prompt = """
-    你是一个专业的健身教练智能助手。你的任务是帮助用户选择适合他们的教练风格。
-    有两种风格：
-    1. 激励者 (The Motivator): 适合没有运动基础或第一次接触这种科技产品、的用户。
-    2. 引导者 (The Guide): 适合注重安全、喜欢稳定指导和清晰反馈的用户。这是标准风格。
-    你的对话策略是：通过开放性问题了解用户的偏好，然后自然地推荐风格。回答需简洁、友好、专业。
+    You are a professional fitness coach AI assistant. Your task is to help users select the coaching style that best suits them.
+    There are two styles:
+    1. The Motivator: Suitable for users with no exercise background or those new to this type of tech product.
+    2. The Guide: Suited for users prioritizing safety, preferring steady guidance, and seeking clear feedback. This is the default style.
+    Your conversation strategy is: Use open-ended questions to understand user preferences, 
+    then naturally recommend a style. Responses should be concise, friendly, and professional.
     """
     messages = [{"role": "system", "content": system_prompt}]
     for msg in conversation_history:

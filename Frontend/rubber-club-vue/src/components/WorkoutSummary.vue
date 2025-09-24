@@ -1,14 +1,14 @@
 <template>
   <div class="workout-summary-overlay" @click.self="$emit('close')">
     <div class="workout-summary">
-      <h2>运动总结</h2>
+      <h2>Summary</h2>
       
       <div class="summary-stats">
         <div class="stat-card">
           <div class="stat-icon">🎯</div>
           <div class="stat-info">
             <div class="stat-value">{{ mediapipeStore.count }}</div>
-            <div class="stat-label">完成次数</div>
+            <div class="stat-label">Counts</div>
           </div>
         </div>
         
@@ -16,7 +16,7 @@
           <div class="stat-icon">⚡</div>
           <div class="stat-info">
             <div class="stat-value">{{ mediapipeStore.energy }}%</div>
-            <div class="stat-label">最终能量</div>
+            <div class="stat-label">Energy</div>
           </div>
         </div>
         
@@ -24,15 +24,15 @@
           <div class="stat-icon">⏱️</div>
           <div class="stat-info">
             <div class="stat-value">{{ duration }}</div>
-            <div class="stat-label">运动时长</div>
+            <div class="stat-label">Duration</div>
           </div>
         </div>
       </div>
       
       <div class="performance-analysis">
-        <h3>表现分析</h3>
+        <h3>Analysis</h3>
         <div class="analysis-item">
-          <span class="analysis-label">动作标准度</span>
+          <span class="analysis-label">Accuracy</span>
           <div class="progress-bar">
             <div class="progress-fill" :style="{ width: accuracy + '%' }"></div>
           </div>
@@ -40,7 +40,7 @@
         </div>
         
         <div class="analysis-item">
-          <span class="analysis-label">动作流畅度</span>
+          <span class="analysis-label">Smoothness</span>
           <div class="progress-bar">
             <div class="progress-fill" :style="{ width: fluency + '%' }"></div>
           </div>
@@ -49,15 +49,15 @@
       </div>
       
       <div class="feedback">
-        <h3>建议</h3>
+        <h3>Advice</h3>
         <ul>
           <li v-for="tip in tips" :key="tip">{{ tip }}</li>
         </ul>
       </div>
       
       <div class="actions">
-        <button @click="$emit('continue')" class="btn-primary">继续运动</button>
-        <button @click="$emit('end')" class="btn-secondary">结束</button>
+        <button @click="$emit('continue')" class="btn-primary">Again</button>
+        <button @click="$emit('end')" class="btn-secondary">Finish</button>
       </div>
     </div>
   </div>
@@ -121,7 +121,7 @@ const tips = computed(() => {
   }
   
   if (tipsList.length === 0) {
-    tipsList.push('表现很棒！继续保持')
+    tipsList.push('Good Job! Keep it up!')
   }
   
   return tipsList

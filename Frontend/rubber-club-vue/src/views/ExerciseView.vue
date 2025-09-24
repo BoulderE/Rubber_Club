@@ -1,7 +1,7 @@
 <template>
   <div class="exercise-view" v-if="exerciseData">
     <div class="header">
-      <router-link to="/" class="back-button">← 返回</router-link>
+      <router-link to="/" class="back-button">← Back</router-link>
       <h1>{{ exerciseData?.title || 'Analysis' }}</h1>
     </div>
     
@@ -15,7 +15,7 @@
         />
         
         <div class="tips" v-if="exerciseData?.tips?.length">
-          <h3>动作要点</h3>
+          <h3>Pay Attention to:</h3>
           <ul>
             <li v-for="tip in exerciseData.tips" :key="tip">{{ tip }}</li>
           </ul>

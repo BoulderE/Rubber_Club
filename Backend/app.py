@@ -22,12 +22,16 @@ def create_app():
             'endpoints': [
                 '/mediapipe/analyze-stream',
                 '/mediapipe/control',
-                '/mediapipe/status'
+                '/mediapipe/status',
                 '/api/login',
-                '/api/chatbot/chat'
+                '/api/chatbot/chat',
+                '/health'
             ]
         })
     
+    @app.get('/health')
+    def health():
+        return jsonify(ok=True), 200
     return app
 
 if __name__ == '__main__':

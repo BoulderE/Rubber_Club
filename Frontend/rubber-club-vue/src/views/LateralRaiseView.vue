@@ -1,7 +1,7 @@
 <template>
   <div class="lateral-raise-view">
     <div class="header">
-      <router-link to="/" class="back-button">← 返回</router-link>
+      <router-link to="/" class="back-button">← Back</router-link>
       <h1>侧平举分析</h1>
     </div>
     

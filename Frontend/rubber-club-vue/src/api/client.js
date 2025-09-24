@@ -1,12 +1,12 @@
 import axios from 'axios'
+console.log('[api] baseURL =', API_BASE_URL);
 
 const API_BASE_URL =
   (typeof import !== 'undefined' &&
     typeof import.meta !== 'undefined' &&
     import.meta.env &&
     import.meta.env.VITE_API_BASE &&
-    String(import.meta.env.VITE_API_BASE).trim()) ||
-  '/api' // 没有环境变量时走 /api
+    String(import.meta.env.VITE_API_BASE).trim()) || '/api' // 没有环境变量时走 /api
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
