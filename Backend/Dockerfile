@@ -20,4 +20,4 @@ COPY . .
 # Gunicorn 是生产级的 Python Web 服务器运行器
 # 请确保 "app:app" 和你的文件名及Flask/FastAPI实例名一致
 # 例如，如果你的主文件是 main.py，实例是 my_app，就写 "main:my_app"
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "app:app"]
