@@ -3,10 +3,7 @@ FROM python:3.9-slim
 
 # 步骤 2 (最关键的一步): 安装 mediapipe 运行所需的底层系统依赖库
 # Buildpack 环境缺的就是这些东西！
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
 
 # 步骤 3: 在容器内创建一个工作目录
 WORKDIR /app
