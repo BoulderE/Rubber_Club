@@ -42,6 +42,9 @@
         <div v-else class="webcam-placeholder">
           <p>{{ style === 'motivator' ? 'Standby...' : 'Loading...' }}</p>
         </div>
+        <div class="feedback-container" :class="{ 'is-error': isOverextended }">
+          <p class="feedback-text">{{ feedbackText }}</p>
+        </div>
       </div>
       
       <div class="stats-section">
@@ -93,6 +96,9 @@ const showIntro = ref(false);
 const isWorkoutActive = ref(false);
 const exerciseData = computed(() => exerciseStore.getExerciseById(exerciseType.value));
 
+const feedbackText = ref("Ready when you are!");
+const isOverextended = ref(false);
+
 async function startWorkoutFlow() {
   isWorkoutActive.value = true;
     await nextTick();
@@ -133,7 +139,8 @@ function handleFrameAnalyzed(result) {
         elbow: analysisData.elbow_angle
       };
       mediapipeStore.updateAnalysisData(analysisData);
-
+      feedbackText.value = analysisData.feedback;
+      isOverextended.value = analysisData.overextended;
     } else {
       console.log("当前帧未返回有效的分析数据");
     }
@@ -158,6 +165,7 @@ watch(() => mediapipeStore.count, (newCount, oldCount) => {
 
 function handleContinueWorkout() {
   showSummary.value = false;
+  isWorkoutActive.value = true;
   mediapipeStore.reset();
   exerciseStore.startExercise(); 
   setTimeout(() => {
@@ -290,11 +298,53 @@ function handleEndWorkout() {
 .header h1 { margin: 0; color: #333; }
 .content { display: grid; grid-template-columns: 1fr 350px; gap: 30px; }
 .main-section, .stats-section { display: flex; flex-direction: column; gap: 20px; }
-@media (max-width: 1024px) { .content { grid-template-columns: 1fr; } }
 
+.feedback-container {
+  background-color: #2d3748; /* 深灰色背景 */
+  color: #edf2f7; /* 浅灰色文字 */
+  padding: 16px 24px;
+  border-radius: 12px;
+  text-align: center;
+  margin-top: 20px; /* 与上方视频区保持间距 */
+  border: 2px solid transparent; /* 预留边框位置 */
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+.feedback-text {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+/* 当 overextended 为 true 时的错误状态样式 */
+.feedback-container.is-error {
+  background-color: #451a1a; /* 暗红色背景 */
+  border-color: #e53e3e; /* 鲜红色边框 */
+  animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both;
+}
+.feedback-container.is-error .feedback-text {
+  color: #fed7d7; /* 浅红色文字 */
+  font-weight: 700;
+}
 /* 动画 */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+  40%, 60% { transform: translate3d(3px, 0, 0); }
+}
+@media (max-width: 1024px) { .content { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+  .modal-body { flex-direction: column; gap: 20px; }
+  .intro-modal-content { padding: 30px; }
+  .info-container h2 { font-size: 1.5rem; }
+  .feedback-text { font-size: 1.2rem; }
+}
+
 </style>
