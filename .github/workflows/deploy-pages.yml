@@ -1,58 +1,58 @@
-name: Deploy Vite to GitHub Pages
+# name: Deploy Vite to GitHub Pages
 
-on:
-  push:
-    branches: [ main ]
+# on:
+#   push:
+#     branches: [ main ]
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
+# permissions:
+#   contents: write
+#   pages: write
+#   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
+# concurrency:
+#   group: pages
+#   cancel-in-progress: true
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.12
+#       - name: Setup Node
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: 22.12
                     
-      - name: Install deps
-        run: npm ci
-        working-directory: Frontend/rubber-club-vue
+#       - name: Install deps
+#         run: npm ci
+#         working-directory: Frontend/rubber-club-vue
 
-      - name: Build
-        env:
-          VITE_API_BASE: https://semipneumatically-expositorial-margert.ngrok-free.dev
-          VITE_BASE: /Rubber_Club/
-        run: |
-          echo "VITE_API_BASE=$VITE_API_BASE"
-          echo "VITE_BASE=$VITE_BASE"
-          npm run build -- --base "$VITE_BASE"
-          echo "Check that API base got baked into dist (expect >=1 hit):"
-          grep -R "${VITE_API_BASE}" dist || echo "VITE_API_BASE not found in dist"
-        working-directory: Frontend/rubber-club-vue
+#       - name: Build
+#         env:
+#           VITE_API_BASE: https://semipneumatically-expositorial-margert.ngrok-free.dev
+#           VITE_BASE: /Rubber_Club/
+#         run: |
+#           echo "VITE_API_BASE=$VITE_API_BASE"
+#           echo "VITE_BASE=$VITE_BASE"
+#           npm run build -- --base "$VITE_BASE"
+#           echo "Check that API base got baked into dist (expect >=1 hit):"
+#           grep -R "${VITE_API_BASE}" dist || echo "VITE_API_BASE not found in dist"
+#         working-directory: Frontend/rubber-club-vue
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: Frontend/rubber-club-vue/dist
+#       - name: Upload artifact
+#         uses: actions/upload-pages-artifact@v3
+#         with:
+#           path: Frontend/rubber-club-vue/dist
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+#   deploy:
+#     needs: build
+#     runs-on: ubuntu-latest
+#     environment:
+#       name: github-pages
+#       url: ${{ steps.deployment.outputs.page_url }}
+#     steps:
+#       - name: Deploy to GitHub Pages
+#         id: deployment
+#         uses: actions/deploy-pages@v4
