@@ -71,6 +71,7 @@ const showSummary = ref(false);
 const exerciseData = computed(() => exerciseStore.getExerciseById(exerciseType.value));
 
 onMounted(() => {
+  exerciseStore.startExercise()
   if (!exerciseType.value || !style.value) {
     console.error("运动类型或难度模式缺失!");
     router.push('/'); // 如果缺少参数，返回主页
@@ -113,6 +114,8 @@ function handleError(error) {
 
 watch(() => mediapipeStore.count, (newCount, oldCount) => {
   if (newCount > 0 && newCount % mediapipeStore.repetitionLimit === 0 && newCount !== oldCount) {
+
+    exerciseStore.endExercise()
     showSummary.value = true;
     analyzer.value?.stopAnalysis();
   }
@@ -121,6 +124,7 @@ watch(() => mediapipeStore.count, (newCount, oldCount) => {
 function handleContinueWorkout() {
   showSummary.value = false;
   mediapipeStore.reset();
+  exerciseStore.startExercise(); 
   setTimeout(() => {
     analyzer.value?.startAnalysis();
     mediapipeStore.startExercise(exerciseType.value, style.value);

@@ -44,6 +44,9 @@ export const useExerciseStore = defineStore('exercise', () => {
   const selectedExercise = ref('lateral_raise')
 
   const exerciseHistory = ref([])
+  
+  const startTime = ref(null) 
+  const endTime = ref(null) 
 
   const selectExercise = (exerciseId) => {
     selectedExercise.value = exerciseId
@@ -60,12 +63,26 @@ export const useExerciseStore = defineStore('exercise', () => {
     return exerciseTypes.value.find(ex => ex.id === id)
   }
 
+  const startExercise = () => { // <-- 新增：开始计时的函数
+    startTime.value = Date.now();
+    endTime.value = null; // 重置结束时间，以防万一
+  }
+
+  const endExercise = () => {   // <-- 新增：结束计时的函数
+    endTime.value = Date.now();
+  }
+
+
   return {
     exerciseTypes,
     selectedExercise,
     exerciseHistory,
     selectExercise,
     addToHistory,
-    getExerciseById
+    getExerciseById,
+    startTime,
+    endTime,
+    startExercise,
+    endExercise
   }
 })

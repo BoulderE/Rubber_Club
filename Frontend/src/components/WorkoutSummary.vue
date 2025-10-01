@@ -64,21 +64,24 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed} from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 
-const emit = defineEmits(['end', 'continue'])
+// const emit = defineEmits(['end', 'continue'])
 
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()  
 
 // 从 store 获取当前运动类型
 const exerciseType = computed(() => exerciseStore.currentExercise)
-const startTime = ref(Date.now())
 
 const duration = computed(() => {
-  const seconds = Math.floor((Date.now() - startTime.value) / 1000)
+if (!exerciseStore.startTime || !exerciseStore.endTime) {
+    return '0:00'
+  }
+
+  const seconds = Math.floor((exerciseStore.endTime - exerciseStore.startTime) / 1000)
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
@@ -125,10 +128,6 @@ const tips = computed(() => {
   }
   
   return tipsList
-})
-
-onMounted(() => {
-  startTime.value = Date.now() - (mediapipeStore.count * 2000) // 估算开始时间
 })
 </script>
 
