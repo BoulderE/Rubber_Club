@@ -5,32 +5,39 @@
       <p>Your Digital Fitness Helper</p>
     </div>
 
-    <button @click="toggleChatbot" class="chatbot-toggle-btn">
-      Need Help?
-    </button>
-
-    <!-- Chatbot 窗口 -->
-    <ChatbotWindow 
-      v-if="isChatbotVisible" 
-      @close="isChatbotVisible = false"
-      class="chatbot-container"
-    />
-
-    <div v-if="showModal" class="modal">
+     <div v-if="showModal" class="modal-backdrop">
       <div class="modal-content">
-        <h2 id="modal-title">{{ modalTitle }}</h2>
-        <div class="difficulty-options">
-          <button class="difficulty-btn motivator-btn" @click="startExercise('motivator')">
-            💪 Motivator<br><small>Get started with ease</small>
-          </button>
-          <button class="difficulty-btn guide-btn" @click="startExercise('guide')">
-            🧐 Guide<br><small>Professional precision</small>
-          </button>
+        <h2 id="modal-title">Select your level for「{{ selectedExercise.name }}」</h2>
+        <div class="level-options">
+          <label>
+            <input type="radio" name="level" value="beginner" v-model="globalLevel">
+            <div class="level-card">
+              <span class="emoji">🥳</span>
+              <div>Beginner</div>
+              <p>Get started with ease.</p>
+            </div>
+          </label>
+          <label>
+            <input type="radio" name="level" value="intermediate" v-model="globalLevel">
+            <div class="level-card">
+              <span class="emoji">🎯</span>
+              <div>Intermediate</div>
+              <p>Strict guidance.</p>
+            </div>
+          </label>
         </div>
-        <button class="close-btn" @click="showModal = false">
-          cancel
-        </button>
+        <div class="modal-buttons">
+          <button class="cancel-btn" @click="showModal = false">Cancel</button>
+          <button class="confirm-btn" @click="startExercise">Confirm Selection</button>
+        </div>
       </div>
+    </div>
+
+     <div v-if="isChatbotVisible" class="modal-backdrop" @click.self="isChatbotVisible = false">
+      <ChatbotWindow 
+        @close="isChatbotVisible = false"
+        class="chatbot-container"
+      />
     </div>
 
     <div class="exercise-cards">
@@ -46,24 +53,7 @@
         <span class="card-arrow">→</span>
       </div>
     </div>
-    
-    <div class="features">
-      <div class="feature">
-        <span class="feature-icon">📹</span>
-        <h4>Real-time Analysis</h4>
-        <p>Webcam analysis movement real-time</p>
-      </div>
-      <div class="feature">
-        <span class="feature-icon">🎯</span>
-        <h4>Accurate Feedback</h4>
-        <p>Movement accuracy analyzed by AI</p>
-      </div>
-      <div class="feature">
-        <span class="feature-icon">📊</span>
-        <h4>History Record </h4>
-        <p>Exercise stats and progress documented</p>
-      </div>
-    </div>
+    <button @click="isChatbotVisible = true" id="need-help-fab">?</button>
   </div>
 </template>
 
@@ -75,9 +65,15 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 
 const isChatbotVisible = ref(false);
-const toggleChatbot = () => {
-  isChatbotVisible.value = !isChatbotVisible.value;
-};
+const showModal = ref(false); 
+const selectedExercise = ref(null); 
+const selectedLevel = ref('beginner');
+
+function openDifficultyModal(exercise) {
+  selectedExercise.value = exercise; // 记住是哪个运动
+  selectedLevel.value = 'beginner'; // 每次打开都重置为默认值
+  showModal.value = true; // 显示弹窗
+}
 
 const exercises = ref([
   { 
@@ -112,27 +108,16 @@ const exercises = ref([
   }
 ]);
 
-// --- 【新增】控制难度选择弹窗的逻辑 ---
-const showModal = ref(false);
-const modalTitle = ref('');
-const selectedExercise = ref(null);
-
-function openDifficultyModal(exercise) {
-  selectedExercise.value = exercise;
-  modalTitle.value = `Select your level for「${exercise.name}」`;
-  showModal.value = true;
-}
-
-function startExercise(style) {
-  showModal.value = false;
+function startExercise() {
   if (!selectedExercise.value) return;
 
-  // 使用我们新的动态路由进行跳转
   router.push({ 
     name: 'exercise', 
     params: { type: selectedExercise.value.id },
-    query: { style: style }
+    query: { style: selectedLevel.value } // 使用全局选择的难度
   });
+
+  showModal.value = false;
 }
 </script>
 
@@ -141,15 +126,17 @@ function startExercise(style) {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+  background-color: #f0f2f5;
 }
 
 .hero-section {
   text-align: center;
-  padding: 60px 20px;
+  padding: 40px 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border-radius: 20px;
   margin-bottom: 40px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
 }
 
 .hero-section h1 {
@@ -172,13 +159,14 @@ function startExercise(style) {
 .exercise-card {
   background: white;
   border-radius: 16px;
-  padding: 30px;
+  padding: 25px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   text-decoration: none;
   color: inherit;
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .exercise-card:hover {
@@ -241,5 +229,108 @@ function startExercise(style) {
 
 .feature p {
   color: #666;
+}
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  padding: 30px;
+  width: 90%;
+  max-width: 500px;
+  text-align: center;
+}
+
+.modal-content h2 { margin-top: 0; margin-bottom: 25px; }
+
+.level-options { display: flex; gap: 20px; margin-bottom: 30px; }
+.level-options input[type="radio"] { display: none; }
+.level-options label { flex: 1; cursor: pointer; }
+.level-card { padding: 20px; border: 2px solid #e0e0e0; border-radius: 12px; transition: all 0.2s ease; text-align: left; }
+.level-card .emoji { font-size: 1.5em; margin-right: 10px; }
+.level-card div { font-weight: bold; font-size: 1.1em; }
+.level-card p { font-size: 0.9em; color: #6c757d; margin: 5px 0 0; }
+.level-options input[type="radio"]:checked + .level-card {
+  border-color: #6a5af9;
+  background-color: #f3f1ff;
+  box-shadow: 0 0 10px rgba(106, 90, 249, 0.2);
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 15px; /* 按钮之间的间距 */
+}
+
+.confirm-btn {
+  flex: 1; 
+  padding: 15px;
+  font-size: 1.1em;
+  font-weight: bold;
+  color: white;
+  background: #6a5af9;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.confirm-btn:hover { background: #5a4ae9; }
+
+.cancel-btn {
+  flex: 1; 
+  padding: 15px;
+  font-size: 1.1em;
+  font-weight: bold;
+  color: white; 
+  background-color: #e74c3c; /* 红底 */
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.cancel-btn:hover {
+  background-color: #c0392b; /* 悬停时更深的红色 */
+}
+
+
+#need-help-fab {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  background: #6a5af9;
+  color: white;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+  box-shadow: 0 5px 15px rgba(106, 90, 249, 0.4);
+  cursor: pointer;
+  z-index: 999;
+  transition: transform 0.2s ease;
+}
+#need-help-fab:hover {
+  transform: scale(1.1);
+  background: #5a4ae9;
+}
+
+@media (max-width: 768px) {
+  .level-options { flex-direction: column; }
 }
 </style>

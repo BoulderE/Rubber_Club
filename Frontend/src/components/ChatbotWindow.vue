@@ -13,16 +13,15 @@
         </div>
       </div>
     </div>
-    <div class="chat-footer">
+    <div class="input-container">
       <form @submit.prevent="sendMessage">
         <input
           type="text"
           v-model="newMessage"
           placeholder="Message"
-          class="message-input"
           :disabled="isLoading"
         />
-        <button type="submit" class="send-btn" :disabled="isLoading">
+        <button type="submit" :disabled="isLoading">
           Send
         </button>
       </form>
@@ -33,21 +32,14 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue';
 import { getApiBase } from '@/api/base';
-// 定义组件可以发出的事件
 const emit = defineEmits(['close']);
 
-// --- 响应式变量 ---
 const messages = ref([]);
 const newMessage = ref('');
 const isLoading = ref(false);
-const chatBody = ref(null); // 关键2：创建一个 ref 来引用 DOM 元素
+const chatBody = ref(null); 
 const base = getApiBase();
-// --- 核心函数 ---
 
-/**
- * 滚动聊天窗口到底部
- * 使用 nextTick 确保在 DOM 更新后再执行滚动
- */
 const scrollToBottom = () => {
   nextTick(() => {
     if (chatBody.value) {
@@ -56,9 +48,6 @@ const scrollToBottom = () => {
   });
 };
 
-/**
- * 发送消息的异步函数
- */
 const sendMessage = async () => {
   const content = newMessage.value.trim();
   if (!content || isLoading.value) return;
@@ -67,7 +56,7 @@ const sendMessage = async () => {
   messages.value.push({ id: Date.now(), role: 'user', content });
   const currentMessageHistory = messages.value.map(({ role, content }) => ({ role, content }));
   newMessage.value = '';
-  scrollToBottom(); // 关键3：直接调用函数，而不是 this.scrollToBottom()
+  scrollToBottom(); 
 
   isLoading.value = true;
 
@@ -151,6 +140,27 @@ onMounted(() => {
   cursor: pointer;
 }
 
+.chat-body {
+  flex-grow: 1;
+  padding: 15px;
+  overflow-y: auto; 
+  background-color: #e5ddd5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-body::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-body::-webkit-scrollbar-thumb {
+  background: #bdbdbd;
+  border-radius: 3px;
+}
+.chat-body::-webkit-scrollbar-thumb:hover {
+  background: #a5a5a5;
+}
+
 .messages-container {
   flex-grow: 1;
   padding: 15px;
@@ -174,7 +184,7 @@ onMounted(() => {
   border-bottom-right-radius: 4px;
 }
 
-.message.bot {
+.message.assistant {
   background-color: #ffffff;
   align-self: flex-start;
   border-bottom-left-radius: 4px;

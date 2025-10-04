@@ -21,6 +21,11 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   // 计算属性
   const isActive = computed(() => status.value === 'active')
 
+  // new
+  const accurateCount = ref(0)
+  const accuracy = ref(0)
+  const lastCount = ref(0)
+
   async function controlBackend(payload) {
     try {
       const response = await fetch(`${API_URL}/mediapipe/control`, {
@@ -125,6 +130,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     });
 
     if (success) {
+      accurateCount.value = 0
+      accuracy.value = 0
+      lastCount.value = 0
       currentExercise.value = exerciseType
       currentStyle.value = style
       status.value = 'active'
@@ -146,19 +154,56 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   function updateAnalysisData(analysisData) {
-  console.log('[updateAnalysisData] input:', analysisData);
-  // 根据你的后端返回键名调整
+  console.log('[updateAnalysisData] input:', analysisData)
+
+  // 原有赋值（根据后端键名）
   count.value = analysisData.count ?? count.value
   energy.value = Math.round(analysisData.energy ?? energy.value)
   isPaused.value = !!analysisData.paused
 
-  console.log('[updateAnalysisData] after update -> count:', count.value, 'energy:', energy.value, 'paused:', isPaused.value, 'status:', status.value);
+  console.log(
+    '[updateAnalysisData] after update ->',
+    'count:', count.value,
+    'energy:', energy.value,
+    'paused:', isPaused.value,
+    'status:', status.value
+  )
 
   analysisResults.value = analysisData
 
+  // 状态机
   if (isPaused.value) status.value = 'paused'
-    else status.value = 'active'
-  if (count.value >= repetitionLimit) status.value = 'completed'
+  else status.value = 'active'
+  if (typeof repetitionLimit !== 'undefined' && repetitionLimit !== null && count.value >= repetitionLimit) {
+    status.value = 'completed'
+  }
+
+  // 只在 count 增长时统计一次，避免 hold=2 帧导致重复累计
+  const grew = Number(count.value) > Number(lastCount.value)
+  if (grew) {
+    const nonStandard = analysisData.category === 'non_standard'
+    if (!nonStandard) {
+      accurateCount.value = (accurateCount.value || 0) + 1
+    }
+  }
+  lastCount.value = Number(count.value)
+
+  // 计算准确率（0-100 的整数百分比）
+  const total = Number(count.value) || 0
+  if (total > 0) {
+    accuracy.value = Math.round((accurateCount.value / total) * 100)
+  } else {
+    accuracy.value = 0
+  }
+
+  console.log(
+    '[updateAnalysisData] after calc ->',
+    'count=', count.value,
+    'accurateCount=', accurateCount.value,
+    'accuracy=', accuracy.value,
+    'category=', analysisData.category,
+    'grew=', grew
+  )
 }
 
 
@@ -166,6 +211,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     // 【修改】使用新的 payload 格式
     const success = await controlBackend({ action: 'reset' });
     if (success) {
+      accurateCount.value = 0
+      accuracy.value = 0
+      lastCount.value = 0
       count.value = 0
       energy.value = 0
       analysisResults.value = null
@@ -205,6 +253,8 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     isActive,
     isPaused,
 
+    accurateCount,
+    accuracy,
     // 方法
     analyzeFrame,
     startExercise,

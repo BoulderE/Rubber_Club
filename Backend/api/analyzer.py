@@ -7,13 +7,13 @@ EXERCISE_CONFIG = {
         'landmarks_to_use': ['right_shoulder', 'right_wrist'],
         'logic_function': '_analyze_chest_pull_logic',
         'params': {
-            'guide': {
+            'intermediate': {
                 'start_threshold_y': -0.02,
                 'end_threshold_y': 0.02,
                 'over_extension_threshold_y': -0.2,
                 'min_distance': 0.02
             },
-            'motivator': {
+            'beginner': {
                 'start_threshold_y': -0.015,
                 'end_threshold_y': 0.03,
                 'over_extension_threshold_y': -0.18,
@@ -26,13 +26,13 @@ EXERCISE_CONFIG = {
         'landmarks_to_use': ['right_shoulder', 'right_elbow', 'right_wrist'],
         'logic_function': '_analyze_lateral_raise_logic',
         'params': {
-            'guide': {
+            'intermediate': {
                 'start_threshold_x': 0.05,
                 'end_threshold_x': 0.09,
                 'over_extension_threshold_y': -0.2,
                 'min_distance': 0.02
             },
-            'motivator': {
+            'beginner': {
                 'start_threshold_x': 0.07,
                 'end_threshold_x': 0.05,
                 'over_extension_threshold_y': -0.18,
@@ -45,13 +45,13 @@ EXERCISE_CONFIG = {
         'landmarks_to_use': ['right_shoulder', 'right_wrist', 'right_elbow'],
         'logic_function': '_analyze_front_raise_logic',
         'params': {
-            'guide': {
-                'start_threshold_y': 0.18,  # 手臂放下时，手腕低于肩膀的y坐标差
-                'end_threshold_y': 0.15,   # 手臂举到与肩同高时，y坐标差阈值
-                'over_extension_threshold_y': -0.25, # 手臂举过高
+            'intermediate': {
+                'start_threshold_y': 0.18, 
+                'end_threshold_y': 0.15,   
+                'over_extension_threshold_y': -0.25,
                 'min_distance': 0.015
             },
-            'motivator': {
+            'beginner': {
                 'start_threshold_y': 0.20,
                 'end_threshold_y': 0.25,
                 'over_extension_threshold_y': -0.25,
@@ -64,13 +64,12 @@ EXERCISE_CONFIG = {
         'landmarks_to_use': ['right_shoulder', 'right_wrist', 'right_elbow'],
         'logic_function': '_analyze_overhead_press_logic',
         'params': {
-            # 【已修改】完全采用你提供的经典配置
-            'guide': {
-                'start_threshold_y': 0.05, # 起始时，手腕在肩膀附近的高度差
-                'end_threshold_y': -0.2,   # 举到最高点时，手腕高于肩膀的y坐标差
+            'intermediate': {
+                'start_threshold_y': 0.05, 
+                'end_threshold_y': -0.2,   
                 'min_distance': 0.02
             },
-            'motivator': {
+            'beginner': {
                 'start_threshold_y': 0.08,
                 'end_threshold_y': -0.18,
                 'min_distance': 0.01
@@ -82,11 +81,11 @@ EXERCISE_CONFIG = {
         'landmarks_to_use': ['right_hip', 'right_knee', 'right_ankle'],
         'logic_function': '_analyze_squat_logic',
         'params': {
-            'guide': {
-                'up_threshold_angle': 165.0, # 站立时膝盖角度
-                'down_threshold_angle': 95.0 # 深蹲时膝盖角度
+            'intermediate': {
+                'up_threshold_angle': 165.0,
+                'down_threshold_angle': 95.0
             },
-            'motivator': {
+            'beginner': {
                 'up_threshold_angle': 160.0,
                 'down_threshold_angle': 110.0
             }
@@ -113,6 +112,11 @@ class WorkoutState:
         self.total_distance = 0.0
         self.total_energy = 0.0
         self.BAND_RESISTANCE_N = 25 * 9.81
+        # New
+        self._last_completion_category = 'standard'
+        self._completed_this_frame = False
+        self._completed_hold_frames = 0
+        self._action_overextended = False
 
 class ExerciseAnalyzer:
     def __init__(self):
@@ -120,7 +124,7 @@ class ExerciseAnalyzer:
         self.pose = self.mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=1)
         self.state = WorkoutState()
         self.config = None
-        self.style = 'guide'
+        self.style = 'intermediate'
         self.exercise_id = None
 
     def setup(self, exercise_type: str, style: str):
@@ -128,7 +132,7 @@ class ExerciseAnalyzer:
             raise ValueError(f"不支持的运动类型: {exercise_type}")
         
         self.config = EXERCISE_CONFIG[exercise_type]
-        self.style = style if style in ['guide', 'motivator'] else 'guide'
+        self.style = style if style in ['intermediate', 'beginner'] else 'intermediate'
         self.exercise_id = exercise_type
         self.reset()
         print(f"分析器已设置为: 运动='{self.config['name']}', 模式='{self.style}' (使用专属评价标准)")
@@ -155,8 +159,17 @@ class ExerciseAnalyzer:
         results = self.pose.process(image_rgb)
         landmarks = self._get_landmarks(results)
 
+        # 重置当帧的过伸标记
         self.state._overextension_detected = False
         self.state._overextension_type = None
+
+        # completed 使用“延迟清理”机制
+        if self.state._completed_hold_frames > 0:
+            self.state._completed_hold_frames -= 1
+            self.state._completed_this_frame = True
+        else:
+            self.state._completed_this_frame = False
+            self.state._last_completion_category = 'standard'
 
         if self.state.is_paused:
             self.state.feedback = "已暂停，做点赞手势继续"
@@ -166,12 +179,13 @@ class ExerciseAnalyzer:
                 'feedback': self.state.feedback,
                 'paused': True,
                 'energy': self.state.total_energy,
-                'overextended': self.state._overextension_detected
+                'overextended': self.state._overextension_detected,
+                'completed': self.state._completed_this_frame,
+                'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard')
             }
 
         if landmarks:
             logic_function = getattr(self, self.config['logic_function'])
-            # self.state._overextension_detected = False
             logic_function(landmarks)
         else:
             self.state.feedback = "请确保身体关键部位在镜头内"
@@ -184,7 +198,9 @@ class ExerciseAnalyzer:
             'feedback': self.state.feedback,
             'paused': self.state.is_paused,
             'energy': self.state.total_energy,
-            'overextended': self.state._overextension_detected
+            'overextended': self.state._overextension_detected,
+            'completed': self.state._completed_this_frame,
+            'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard')
         }
     
     
@@ -204,66 +220,88 @@ class ExerciseAnalyzer:
                 
             return angle
 
+    # def _analyze_chest_pull_logic(self, landmarks):
+    #     params = self.config['params'][self.style]
+    #     shoulder, wrist = landmarks['right_shoulder'], landmarks['right_wrist']
+        
+    #     y_diff = wrist[1] - shoulder[1]
+        
+    #     if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
+    #         self.state._overextension_detected = True
+    #         self.state._overextension_type = 'height'
+
+    #     # 阶段判断: 手臂在下方为 'pulled'，在上方为 'start'
+    #     is_pulled_down = y_diff > params['end_threshold_y']
+    #     self.state.stage = 'pulled' if is_pulled_down else 'start'
+
+    #     if not self.state._action_active:
+    #         if y_diff < params['start_threshold_y']:
+    #             self.state._action_active = True
+    #             self.state._start_position = wrist
+    #     elif is_pulled_down:
+    #         # 允许无论是否过伸都进入完成分支，用 category 标注标准/非标准
+    #         distance = np.linalg.norm(wrist - self.state._start_position)
+    #         min_dist = params.get('min_distance', 0.01)
+    #         if distance > min_dist:
+    #             self.state._action_active = False
+    #             self.state._end_position = wrist
+    #             self.state.count += 1
+    #             self.state.total_distance += distance
+    #             self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
+    #             self.state._last_completion_category = 'non_standard' if self.state._overextension_detected else 'standard'
+    #             self.state._completed_this_frame = True
+    #             self.state._completed_hold_frames = 2
+
     def _analyze_chest_pull_logic(self, landmarks):
         params = self.config['params'][self.style]
         shoulder, wrist = landmarks['right_shoulder'], landmarks['right_wrist']
         
         y_diff = wrist[1] - shoulder[1]
-        
+
+        # 每帧初始化本帧的过伸显示（仅用于即时反馈）
+        self.state._overextension_detected = False
+        self.state._overextension_type = None
+
+        # 仅保留上相位过伸：手腕明显高于肩（举得过高）
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
-            self.state._overextension_type = 'height'
+            self.state._overextension_type = 'height_up'
+            # 在动作进行期间，一旦出现过伸，就把本次动作标记为非标准
+            if self.state._action_active:
+                self.state._action_overextended = True
 
         # 阶段判断: 手臂在下方为 'pulled'，在上方为 'start'
         is_pulled_down = y_diff > params['end_threshold_y']
         self.state.stage = 'pulled' if is_pulled_down else 'start'
 
         if not self.state._action_active:
-            # 起始条件：手臂在起始的高位
+            # 开启新动作前，清除本次动作的过伸累积标记
             if y_diff < params['start_threshold_y']:
                 self.state._action_active = True
                 self.state._start_position = wrist
-        elif is_pulled_down: # 结束条件: 手臂被拉到低位
-            if not self.state._overextension_detected:
-                distance = np.linalg.norm(wrist - self.state._start_position)
-                min_dist = params.get('min_distance', 0.01)
-                if distance > min_dist:
-                    self.state._action_active = False
-                    self.state._end_position = wrist
-                    self.state.count += 1
-                    self.state.total_distance += distance
-                    self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
+                self.state._action_overextended = False
+        elif is_pulled_down:
+            # 完成：无论是否过伸都计数，category 由“本次动作期间是否出现过伸”决定
+            distance = np.linalg.norm(wrist - self.state._start_position)
+            min_dist = params.get('min_distance', 0.01)
+            if distance > min_dist:
+                self.state._action_active = False
+                self.state._end_position = wrist
+                self.state.count += 1
+                self.state.total_distance += distance
+                self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
 
+                # 用动作级标志决定这一“完成”的类别
+                is_non_standard = bool(getattr(self.state, '_action_overextended', False))
+                self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
 
-    def _analyze_lateral_raise_logic(self, landmarks):
-        params = self.config['params'][self.style]
-        shoulder, elbow, wrist = landmarks['right_shoulder'], landmarks['right_elbow'], landmarks['right_wrist']
+                # 触发完成帧，并保持若干帧
+                self.state._completed_this_frame = True
+                self.state._completed_hold_frames = 2
 
-        if 'over_extension_threshold_y' in params and (elbow[1] < shoulder[1] + params['over_extension_threshold_y'] or wrist[1] < shoulder[1] + params['over_extension_threshold_y']):
-            self.state._overextension_detected = True
-            self.state._overextension_type = 'height'
+                # 重置动作级过伸标记（为下一次动作做准备）
+                self.state._action_overextended = False
 
-        x_diff = abs(wrist[0] - shoulder[0])
-        is_up = x_diff > params['end_threshold_x']
-        self.state.stage = 'up' if is_up else 'down'
-
-        if not self.state._action_active:
-            if x_diff < params['start_threshold_x']:
-                self.state._action_active = True
-                self.state._start_position = wrist
-        elif is_up:
-            if not self.state._overextension_detected:
-                distance = np.linalg.norm(wrist - self.state._start_position)
-                min_dist = params.get('min_distance', 0.01)
-                if distance > min_dist:
-                    self.state._action_active = False
-                    self.state._end_position = wrist
-                    self.state.count += 1
-                    self.state.total_distance += distance
-                    self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-
-
-    # New exercises
     def _analyze_front_raise_logic(self, landmarks):
         """前平举的特定分析逻辑"""
         params = self.config['params'][self.style]
@@ -287,14 +325,18 @@ class ExerciseAnalyzer:
                 self.state._action_active = True
                 self.state._start_position = wrist
         
-        elif is_up and not self.state._overextension_detected:
+        elif is_up:
+            # 允许无论是否过伸都进入完成分支，用 category 标注标准/非标准
             self.state._action_active = False
             self.state._end_position = wrist
             self.state.count += 1
             distance = np.linalg.norm(self.state._end_position - self.state._start_position)
             self.state.total_distance += distance
-            
             self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
+            self.state._last_completion_category = 'non_standard' if self.state._overextension_detected else 'standard'
+            self.state._completed_this_frame = True
+            self.state._completed_hold_frames = 2
+
     def _analyze_overhead_press_logic(self, landmarks):
         params = self.config['params'][self.style]
         shoulder, wrist, elbow = landmarks['right_shoulder'], landmarks['right_wrist'], landmarks['right_elbow']
@@ -364,31 +406,31 @@ class ExerciseAnalyzer:
     def _generate_feedback(self):
         if self.state._overextension_detected:
             if self.state._overextension_type == 'height':
-                self.state.feedback = "手臂举得太高了，请放低一些！"
+                self.state.feedback = "手臂舉得太高了，請放低一些！"
             elif self.state._overextension_type == 'depth':
-                self.state.feedback = "手臂太靠后了，请向前一些！"
+                self.state.feedback = "手臂太靠後了，請往前一些！"
             else:
-                self.state.feedback = "动作幅度过大，请收敛一些！"
+                self.state.feedback = "動作幅度過大，請小心一點！"
             return
         
         # New exercise specific feedback
         if self.exercise_id == 'squat':
             if self.state.stage == 'down':
-                self.state.feedback = "很好，保持核心收紧！" if self.style == 'guide' else "蹲下去！你能行！"
+                self.state.feedback = "很好，保持核心收緊！" if self.style == 'intermediate' else "蹲下去！你能行！"
             elif self.state.stage == 'up':
-                self.state.feedback = "准备下蹲" if self.style == 'guide' else "漂亮！再来一个！"
+                self.state.feedback = "準備下蹲" if self.style == 'intermediate' else "再來一個！"
             return
         
-        if self.style == 'guide':
+        if self.style == 'intermediate':
             if self.state.stage == 'up':
-                self.state.feedback = "保持顶峰收缩，然后缓慢下放"
+                self.state.feedback = "保持頂峰收縮，然後緩慢下放"
             elif self.state.stage == 'down':
-                self.state.feedback = "很好，准备下一次"
+                self.state.feedback = "很好，準備下次"
             else:
-                self.state.feedback = "请开始动作"
+                self.state.feedback = "請開始動作"
         
-        elif self.style == 'motivator':
+        elif self.style == 'beginner':
             if self.state.stage == 'up':
                 self.state.feedback = "漂亮！你太棒了！"
             else:
-                self.state.feedback = "加油！再来一个！"
+                self.state.feedback = "加油！再來一個！"

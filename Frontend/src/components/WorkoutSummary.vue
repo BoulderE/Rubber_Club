@@ -87,10 +87,7 @@ if (!exerciseStore.startTime || !exerciseStore.endTime) {
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
 })
 
-const accuracy = computed(() => {
-  // 基于能量值计算准确度（示例）
-  return Math.min(95, 70 + mediapipeStore.energy * 0.25)
-})
+const accuracy = computed(() => mediapipeStore.accuracy || 0)
 
 const fluency = computed(() => {
   // 基于次数计算流畅度（示例）

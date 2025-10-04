@@ -140,7 +140,8 @@ function handleFrameAnalyzed(result) {
       };
       mediapipeStore.updateAnalysisData(analysisData);
       feedbackText.value = analysisData.feedback;
-      isOverextended.value = analysisData.overextended;
+      const nonStandard = analysisData.category === 'non_standard';
+      isOverextended.value = Boolean(analysisData.overextended || nonStandard);
     } else {
       console.log("当前帧未返回有效的分析数据");
     }
@@ -291,7 +292,6 @@ function handleEndWorkout() {
   }
 }
 
-/* --- 主页面原有样式 --- */
 .exercise-view { max-width: 1400px; margin: 0 auto; padding: 20px; }
 .header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
 .back-button { text-decoration: none; color: #667eea; font-size: 16px; }
