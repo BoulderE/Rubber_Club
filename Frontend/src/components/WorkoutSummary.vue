@@ -68,8 +68,6 @@ import { computed} from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 
-// const emit = defineEmits(['end', 'continue'])
-
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()  
 
@@ -88,7 +86,6 @@ if (!exerciseStore.startTime || !exerciseStore.endTime) {
 })
 
 const accuracy = computed(() => 
-  // 基于能量值计算准确度（示例）
   mediapipeStore.accuracy || 0
 )
 

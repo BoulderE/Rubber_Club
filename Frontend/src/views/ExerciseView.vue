@@ -96,7 +96,7 @@ const showIntro = ref(false);
 const isWorkoutActive = ref(false);
 const exerciseData = computed(() => exerciseStore.getExerciseById(exerciseType.value));
 
-const feedbackText = ref("Ready when you are!");
+const feedbackText = ref("隨時準備！");
 const isOverextended = ref(false);
 
 async function startWorkoutFlow() {
