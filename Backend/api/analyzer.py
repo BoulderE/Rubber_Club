@@ -30,13 +30,13 @@ EXERCISE_CONFIG = {
         'params': {
             'intermediate': {
                 'start_threshold_x': 0.15,
-                'end_threshold_x': 0.30,
+                'end_threshold_x': 0.20,
                 'over_extension_threshold_y': -0.2,
                 'min_distance': 0.02
             },
             'beginner': {
                 'start_threshold_x': 0.15,
-                'end_threshold_x': 0.25,
+                'end_threshold_x': 0.18,
                 'over_extension_threshold_y': -0.18,
                 'min_distance': 0.02
             }
@@ -114,7 +114,6 @@ class WorkoutState:
         self.total_distance = 0.0
         self.total_energy = 0.0
         self.BAND_RESISTANCE_N = 25 * 9.81
-        # New
         self._last_completion_category = 'standard'
         self._completed_this_frame = False
         self._completed_hold_frames = 0
@@ -129,7 +128,6 @@ class ExerciseAnalyzer:
         self.style = 'intermediate'
         self.exercise_id = None
         #new
-        self.last_phase_time = None
         self.last_rep_start = None
         self.repetition_durations = []  
         self.smoothness_score = 100
@@ -137,41 +135,65 @@ class ExerciseAnalyzer:
     def _now(self):
         return time.time()
 
-    def on_phase_change(self, new_phase: str):
-        t = self._now()
-        # 记录开始时间
-        if self.phase is None:
-            # 第一次识别到相位，认为是 rep 的起点
-            self.last_rep_start = t
-        self.phase = new_phase
+    # def on_phase_change(self, new_phase: str):
+    #     t = self._now()
+    #     # 记录开始时间
+    #     if self.phase is None:
+    #         # 第一次识别到相位，认为是 rep 的起点
+    #         self.last_rep_start = t
+    #     self.phase = new_phase
 
-    def on_rep_completed(self):
-        # 在你的 up→down→up（或 down→up→down）完整周期结束处调用
-        t = self._now()
-        if self.last_rep_start is not None:
-            duration = max(0.0, t - self.last_rep_start)
-            # 可加入合理范围过滤（例如 0.2s–10s）
-            if 0.2 <= duration <= 10.0:
-                self.repetition_durations.append(duration)
-        # 下一次重复从当前时刻算起
-        self.last_rep_start = t
-        self.rep_count += 1
-        # 更新平滑度
+    def _on_rep_completed(self):
+        """
+        在任意动作完成一次有效计数后调用。
+        负责：
+        - 计算本次 repetition 的时长并入库（以 last_rep_start 为基准）
+        - 更新 smoothness_score
+        - 重新设定 last_rep_start 作为下一次的起点
+        """
+        now_t = self._now()
+        # 第一次完成时若 last_rep_start 未设，直接将当前作为起点
+        if self.last_rep_start is None:
+            self.last_rep_start = now_t
+            return
+
+        # 计算本次时长
+        duration = max(0.0, now_t - self.last_rep_start)
+        # 合理区间过滤，避免误触发
+        if 0.2 <= duration <= 10.0:
+            self.repetition_durations.append(duration)
+        # 更新下一次计时起点
+        self.last_rep_start = now_t
+
+        # 更新平滑度分数
         self.smoothness_score = self._compute_smoothness()
 
     def _compute_smoothness(self) -> int:
+        """
+        使用 RSD = std/mean 将节奏一致性映射到 10–100。
+        - 少于 3 次时，返回 100（或你可以改成 None）
+        - rsd_min = 0.02（几乎完美），rsd_max = 0.5（非常不稳定）
+        """
         n = len(self.repetition_durations)
         if n < 3:
             return 100
+
         m = mean(self.repetition_durations)
-        if m <= 1e-6:
+        if m <= 1e-6 or not math.isfinite(m):
             return 100
-        sigma = pstdev(self.repetition_durations)  # 标准差
-        sigma_target = 0.10 * m  # 10% 作为理想波动
-        raw = 1.0 - (sigma / sigma_target if sigma_target > 0 else 0.0)
-        raw = max(0.0, min(1.0, raw))
-        score = int(round(1 + 99 * raw))
-        return score
+
+        sigma = pstdev(self.repetition_durations)
+        # 变异系数（相对标准差），越小越稳定
+        rsd = sigma / m if m > 0 else float('inf')
+
+        # 标定区间与线性映射到 [10, 100]
+        rsd_min, rsd_max = 0.02, 0.5
+        rsd = max(rsd_min, min(rsd, rsd_max))
+        ratio = (rsd - rsd_min) / (rsd_max - rsd_min)  # 0（好）→1（差）
+        score = 10 + (100 - 10) * (1.0 - ratio)        # 10（差）→100（好）
+
+        # 四舍五入为整数
+        return int(round(score))
 
     def get_metrics(self):
         # 供路由返回
@@ -212,7 +234,7 @@ class ExerciseAnalyzer:
         image_rgb = image
         results = self.pose.process(image_rgb)
         landmarks = self._get_landmarks(results)
-
+        smoothness = self.smoothness_score
         # 重置当帧的过伸标记
         self.state._overextension_detected = False
         self.state._overextension_type = None
@@ -234,7 +256,9 @@ class ExerciseAnalyzer:
                 'energy': self.state.total_energy,
                 'overextended': self.state._overextension_detected,
                 'completed': self.state._completed_this_frame,
-                'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard')
+                'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard'),
+                'smoothness': self.smoothness_score,
+                'rep_durations': self.repetition_durations[-20:]
             }
 
         if landmarks:
@@ -253,7 +277,9 @@ class ExerciseAnalyzer:
             'energy': self.state.total_energy,
             'overextended': self.state._overextension_detected,
             'completed': self.state._completed_this_frame,
-            'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard')
+            'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard'),
+            'smoothness': self.smoothness_score,
+            'rep_durations': self.repetition_durations[-20:]
         }
     
     
@@ -279,7 +305,6 @@ class ExerciseAnalyzer:
         
         y_diff = wrist[1] - shoulder[1]
 
-        # 每帧初始化本帧的过伸显示（仅用于即时反馈）
         self.state._overextension_detected = False
         self.state._overextension_type = None
 
@@ -307,6 +332,8 @@ class ExerciseAnalyzer:
                 self.state.total_distance += distance
                 self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
 
+                self._on_rep_completed()
+
                 is_non_standard = bool(getattr(self.state, '_action_overextended', False))
                 self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
 
@@ -315,137 +342,7 @@ class ExerciseAnalyzer:
 
                 self.state._action_overextended = False
 
-    # def _analyze_lateral_raise_logic(self, landmarks):
-    #     params = self.config['params'][self.style]
-    #     shoulder, wrist = landmarks['right_shoulder'], landmarks['right_wrist']
-
-    #     # 水平绝对距离（与左右/镜像无关）：越大表示越外展
-    #     x_abs = abs(wrist[0] - shoulder[0])
-
-    #     # 垂直差：用于过伸判定（y 越小越高）
-    #     y_diff = wrist[1] - shoulder[1]
-
-    #     # 每帧初始化本帧的过伸显示（仅用于即时反馈）
-    #     self.state._overextension_detected = False
-    #     self.state._overextension_type = None
-
-    #     # 上相位过伸：手腕明显高于肩
-    #     if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
-    #         self.state._overextension_detected = True
-    #         self.state._overextension_type = 'height_up'
-    #         if self.state._action_active:
-    #             self.state._action_overextended = True
-
-    #     # 阶段显示：外展到足够宽认为 'up'，否则 'start'（对应 chest_pull 的命名）
-    #     is_up = x_abs > params['end_threshold_x']
-    #     self.state.stage = 'up' if is_up else 'start'
-
-    #     # 与 chest_pull 相同结构的状态机
-    #     if not self.state._action_active:
-    #         # 从贴身到略向外展，激活一次动作
-    #         if x_abs > params['start_threshold_x']:
-    #             self.state._action_active = True
-    #             self.state._start_position = wrist
-    #             self.state._action_overextended = False
-    #     elif is_up:
-    #         distance = np.linalg.norm(wrist - self.state._start_position)
-    #         min_dist = params.get('min_distance', 0.01)
-    #         if distance > min_dist:
-    #             # 完成一次
-    #             self.state._action_active = False
-    #             self.state._end_position = wrist
-    #             self.state.count += 1
-    #             self.state.total_distance += distance
-    #             self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-
-    #             # 根据动作期间是否出现过伸决定分类
-    #             is_non_standard = bool(getattr(self.state, '_action_overextended', False))
-    #             self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
-
-    #             # 标记完成帧（与 chest_pull 一致）
-    #             self.state._completed_this_frame = True
-    #             self.state._completed_hold_frames = 2
-
-    #             self.state._action_overextended = False
-
-    # def _analyze_lateral_raise_logic(self, landmarks):
-    #     params = self.config['params'][self.style]
-    #     shoulder = landmarks['right_shoulder']
-    #     wrist = landmarks['right_wrist']
-
-    #     # 水平差（方向性保留）
-    #     x_diff = wrist[0] - shoulder[0]
-    #     # 垂直差：过伸判断（y 越小越高）
-    #     y_diff = wrist[1] - shoulder[1]
-
-    #     # 方向开关：镜像/左手时允许负方向
-    #     allow_neg = bool(params.get('allow_negative_direction', False))
-
-    #     def beyond_start(val):
-    #         th = params['start_threshold_x']
-    #         return (val > th) if not allow_neg else (val < -th)
-
-    #     def beyond_end(val):
-    #         th = params['end_threshold_x']
-    #         return (val > th) if not allow_neg else (val < -th)
-
-    #     # 初始化一次性状态
-    #     if not hasattr(self.state, '_in_up_phase'):
-    #         self.state._in_up_phase = False  # 是否已达到 up（顶端阶段）
-    #     if not hasattr(self.state, '_action_active'):
-    #         self.state._action_active = False
-
-    #     # 过伸标记（即时显示 + 本次 rep 质量）
-    #     self.state._overextension_detected = False
-    #     self.state._overextension_type = None
-    #     if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
-    #         self.state._overextension_detected = True
-    #         self.state._overextension_type = 'height_up'
-    #         if self.state._action_active:
-    #             self.state._action_overextended = True
-
-    #     # 阶段显示：达到 end 阈即认为 up，否则 start
-    #     is_up_now = beyond_end(x_diff)
-    #     self.state.stage = 'up' if is_up_now else 'start'
-
-    #     # 流程：
-    #     # 1) 未激活 -> x 超过 start -> 激活并记录起点
-    #     if not self.state._action_active and beyond_start(x_diff):
-    #         self.state._action_active = True
-    #         self.state._start_position = wrist
-    #         self.state._action_overextended = False
-    #         self.state._in_up_phase = False  # 新一轮开始
-
-    #     # 2) 已激活但尚未到 up -> 当超过 end 时标记进入 up 相位
-    #     if self.state._action_active and not self.state._in_up_phase and is_up_now:
-    #         self.state._in_up_phase = True
-
-    #     # 3) 已经到过 up，相当于“顶到位”，回落到起始区才计数
-    #     #    起始区定义：不再超过 start 阈（即 beyond_start(x_diff) 为 False）
-    #     if self.state._action_active and self.state._in_up_phase and not beyond_start(x_diff):
-    #         distance = float(np.linalg.norm(wrist - self.state._start_position))
-    #         min_dist = params.get('min_distance', 0.02)
-    #         if distance > min_dist:
-    #             # 完成一次
-    #             self.state._action_active = False
-    #             self.state._end_position = wrist
-    #             self.state.count += 1
-    #             self.state.total_distance += distance
-    #             self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-
-    #             is_non_standard = bool(getattr(self.state, '_action_overextended', False))
-    #             self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
-
-    #             self.state._completed_this_frame = True
-    #             self.state._completed_hold_frames = 2
-
-    #             # 复位本次标记
-    #             self.state._action_overextended = False
-    #             self.state._in_up_phase = False
-    #         else:
-    #             # 位移不足：不计数但允许继续，直到满足或用户重新开始
-    #             pass
-
+    
     def _analyze_lateral_raise_logic(self, landmarks):
         """
         修正后的侧平举分析逻辑。
@@ -509,6 +406,8 @@ class ExerciseAnalyzer:
                 self.state.total_distance += distance
                 self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
 
+                self._on_rep_completed()
+
                 # 根据本次动作中是否发生过过伸来分类
                 is_non_standard = bool(getattr(self.state, '_action_overextended', False))
                 self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
@@ -521,58 +420,6 @@ class ExerciseAnalyzer:
             self.state._action_active = False
             self.state._in_up_phase = False
             self.state._action_overextended = False
-
-    # def _analyze_front_raise_logic(self, landmarks):
-    # # 前平举的特定分析逻辑（与 chest_pull 对齐的标准格式）"""
-    #     params = self.config['params'][self.style]
-        
-    #     shoulder = landmarks['right_shoulder']
-    #     wrist = landmarks['right_wrist']
-
-    #     y_diff = wrist[1] - shoulder[1]
-
-    #     # 每帧初始化本帧的过伸显示（仅用于即时反馈）
-    #     self.state._overextension_detected = False
-    #     self.state._overextension_type = None
-
-    #     # 过伸：抬得过高
-    #     if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
-    #         self.state._overextension_detected = True
-    #         self.state._overextension_type = 'height_up'
-    #         if self.state._action_active:
-    #             self.state._action_overextended = True
-
-    #     # 当手臂举到与肩同高或更高时为 'up'
-    #     is_up = y_diff < params['end_threshold_y']
-    #     self.state.stage = 'up' if is_up else 'down'
-
-    #     if not self.state._action_active:
-    #         # 当手臂处于较低位置时，准备开始一个动作
-    #         if y_diff > params['start_threshold_y']:
-    #             self.state._action_active = True
-    #             self.state._start_position = wrist
-    #             self.state._action_overextended = False
-    #     elif is_up:
-    #         distance = np.linalg.norm(wrist - self.state._start_position)
-    #         min_dist = params.get('min_distance', 0.01)
-    #         if distance > min_dist:
-    #             # 完成一次
-    #             self.state._action_active = False
-    #             self.state._end_position = wrist
-    #             self.state.count += 1
-    #             self.state.total_distance += distance
-    #             self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-
-    #             # 根据动作期间是否出现过伸决定分类
-    #             is_non_standard = bool(getattr(self.state, '_action_overextended', False))
-    #             self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
-
-    #             # 标记完成帧
-    #             self.state._completed_this_frame = True
-    #             self.state._completed_hold_frames = 2
-
-    #             self.state._action_overextended = False
-    #             self.state._start_position = None
 
     def _analyze_front_raise_logic(self, landmarks):
         """
@@ -638,6 +485,8 @@ class ExerciseAnalyzer:
                 self.state.total_distance += distance
                 self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
 
+                self._on_rep_completed()
+
                 # 根据本次动作中是否发生过过伸来分类。
                 is_non_standard = bool(getattr(self.state, '_action_overextended', False))
                 self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
@@ -656,8 +505,6 @@ class ExerciseAnalyzer:
         shoulder, wrist, elbow = landmarks['right_shoulder'], landmarks['right_wrist'], landmarks['right_elbow']
         
         y_diff = wrist[1] - shoulder[1]
-       
-        # 【已移除】不再检测 z_diff 和 over_extension
         
         is_up = y_diff < params['end_threshold_y']
         # 起始位置判断：手腕在肩膀附近的一个小范围内
@@ -678,6 +525,8 @@ class ExerciseAnalyzer:
                 distance = np.linalg.norm(self.state._end_position - self.state._start_position)
                 self.state.total_distance += distance
                 self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
+
+                self._on_rep_completed()
 
     def _analyze_squat_logic(self, landmarks):
         params = self.config['params'][self.style]
@@ -709,6 +558,8 @@ class ExerciseAnalyzer:
             self.state._action_active = False
             self.state.count += 1
             self.state._end_position = hip
+
+            self._on_rep_completed()
             # 深蹲的能量消耗主要来自克服自身体重，这里用臀部垂直位移估算
             # 注意：这里的能量计算是一个非常简化的模型
             if self.state._start_position is not None:

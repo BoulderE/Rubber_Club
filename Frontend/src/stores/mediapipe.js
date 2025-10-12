@@ -21,10 +21,13 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   // 计算属性
   const isActive = computed(() => status.value === 'active')
 
-  // new
   const accurateCount = ref(0)
   const accuracy = ref(0)
   const lastCount = ref(0)
+
+  //new
+  const smoothness = ref(100)   
+  const repDurations = ref([])
 
   async function controlBackend(payload) {
     try {
@@ -100,6 +103,13 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
         count.value = exerciseData.count;
         energy.value = Math.round(exerciseData.energy);
         isPaused.value = exerciseData.paused;
+
+        if (typeof exerciseData.smoothness !== 'undefined') {           
+          smoothness.value = Number(exerciseData.smoothness) || 0        
+        }                                                               
+        if (Array.isArray(exerciseData.rep_durations)) {                 
+          repDurations.value = exerciseData.rep_durations.slice()        
+        }  
         
         if (exerciseData.paused && status.value === 'active') {
             status.value = 'paused';
@@ -140,6 +150,8 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       energy.value = 0
       isPaused.value = false
       analysisResults.value = null
+      smoothness.value = 100          
+      repDurations.value = []         
       console.log(`Exercise '${exerciseType}' started with style '${style}'.`);
     } else {
       console.error("Failed to start exercise on the backend.");
@@ -161,12 +173,20 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   energy.value = Math.round(analysisData.energy ?? energy.value)
   isPaused.value = !!analysisData.paused
 
+  if (typeof analysisData.smoothness !== 'undefined') {           
+    smoothness.value = Number(analysisData.smoothness) || 0      
+  }                                                               
+  if (Array.isArray(analysisData.rep_durations)) {               
+    repDurations.value = analysisData.rep_durations.slice()       
+  }   
+
   console.log(
     '[updateAnalysisData] after update ->',
     'count:', count.value,
     'energy:', energy.value,
     'paused:', isPaused.value,
-    'status:', status.value
+    'status:', status.value,
+    'smoothness:', smoothness.value
   )
 
   analysisResults.value = analysisData
@@ -219,6 +239,8 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       analysisResults.value = null
       isAnalyzing.value = false
       currentStyle.value = null
+      smoothness.value = 100
+      repDurations.value = []
     }
   }
   
@@ -255,6 +277,11 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
 
     accurateCount,
     accuracy,
+
+    // new
+    smoothness,   
+    repDurations,
+    
     // 方法
     analyzeFrame,
     startExercise,

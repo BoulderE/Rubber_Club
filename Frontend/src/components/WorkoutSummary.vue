@@ -42,9 +42,9 @@
         <div class="analysis-item">
           <span class="analysis-label">Smoothness</span>
           <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: fluency + '%' }"></div>
+            <div class="progress-fill" :style="{ width: smoothnessPercent + '%' }"></div>
           </div>
-          <span class="analysis-value">{{ fluency }}%</span>
+          <span class="analysis-value">{{ smoothnessPercent }}%</span>
         </div>
       </div>
       
@@ -89,39 +89,39 @@ const accuracy = computed(() =>
   mediapipeStore.accuracy || 0
 )
 
-const fluency = computed(() => {
-  // 基于次数计算流畅度（示例）
-  return Math.min(90, 60 + mediapipeStore.count * 2)
-})
+const smoothnessPercent = computed(() => 
+  Number(mediapipeStore.smoothness) || 0
+)  
+
 
 const tips = computed(() => {
   const tipsList = []
   
   if (accuracy.value < 80) {
-    tipsList.push('注意保持动作标准，可以适当降低速度')
+    tipsList.push('注意保持動作標準，可以適當降低速度')
   }
   
   if (mediapipeStore.count < 10) {
-    tipsList.push('建议增加运动次数，以达到更好的锻炼效果')
+    tipsList.push('建議增加運動次數，以達到更好的運動效果')
   }
   
   if (mediapipeStore.energy < 50) {
-    tipsList.push('能量消耗较低，可以尝试增加动作幅度')
+    tipsList.push('能量消耗較低，可以嘗試增加動作幅度')
   }
   
   // 根据不同运动类型添加特定建议
   if (exerciseType.value === 'lateral_raise') {
     if (accuracy.value < 85) {
-      tipsList.push('侧平举时注意保持手臂在身体侧面')
+      tipsList.push('側平舉時注意保持手臂在身體側面')
     }
   } else if (exerciseType.value === 'chest_pull') {
     if (accuracy.value < 85) {
-      tipsList.push('拉胸时注意肩胛骨的收缩')
+      tipsList.push('拉胸時注意肩胛骨的收縮')
     }
   }
   
   if (tipsList.length === 0) {
-    tipsList.push('Good Job! Keep it up!')
+    tipsList.push('繼續加油！')
   }
   
   return tipsList
