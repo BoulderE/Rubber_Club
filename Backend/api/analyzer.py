@@ -4,10 +4,10 @@ import time, math
 from statistics import mean, pstdev
 
 EXERCISE_CONFIG = {
-    'chest_pull': {
+    'bicep_curl': {
         'name': '胸部拉伸',
         'landmarks_to_use': ['right_shoulder', 'right_wrist'],
-        'logic_function': '_analyze_chest_pull_logic',
+        'logic_function': '_analyze_bicep_curl_logic',
         'params': {
             'intermediate': {
                 'start_threshold_y': -0.02,
@@ -20,6 +20,30 @@ EXERCISE_CONFIG = {
                 'end_threshold_y': 0.03,
                 'over_extension_threshold_y': -0.18,
                 'min_distance': 0.015
+            }
+        }
+    },
+    'chest_pull': {
+        'name': '胸前拉開',
+        'landmarks_to_use': [
+            'left_shoulder','right_shoulder',
+            'left_wrist','right_wrist'
+        ],
+        'logic_function': '_analyze_chest_pull_logic',
+        'params': {
+            'intermediate': {
+                'start_threshold_wx': 0.26,
+                'end_threshold_wx':   0.40,
+                'min_distance_wx':    0.025,
+                'min_wrist_rel_y':   -0.28,
+                'max_wrist_rel_y':    0.38
+            },
+            'beginner': {
+                'start_threshold_wx': 0.28,
+                'end_threshold_wx':   0.35,
+                'min_distance_wx':    0.010,
+                'min_wrist_rel_y':   -0.28,
+                'max_wrist_rel_y':    0.38
             }
         }
     },
@@ -92,7 +116,7 @@ EXERCISE_CONFIG = {
                 'down_threshold_angle': 110.0
             }
         }
-    }
+    },
 
 }
 
@@ -299,7 +323,7 @@ class ExerciseAnalyzer:
                 
             return angle
 
-    def _analyze_chest_pull_logic(self, landmarks):
+    def _analyze_bicep_curl_logic(self, landmarks):
         params = self.config['params'][self.style]
         shoulder, wrist = landmarks['right_shoulder'], landmarks['right_wrist']
         
@@ -342,6 +366,85 @@ class ExerciseAnalyzer:
 
                 self.state._action_overextended = False
 
+    def _analyze_chest_pull_logic(self, landmarks):
+
+    # Chest Pull（胸前拉開）
+    # - 主判據：wx = |wr.x - wl.x|（左右手腕水平距離）; up 時變大、down 時變小
+    # - 輔助：手腕垂直穩定、手腕高度範圍、腕-肩距離合計增加、肘角增大（至少一側）
+    # - 狀態機：down -> up(達成且hold) -> 回到down 計數
+    # 假設: 坐標為[0..1]正規化，y向下為正。
+        P = self.config['params'][self.style]
+
+        ls = np.array(landmarks['left_shoulder'], dtype=float)
+        rs = np.array(landmarks['right_shoulder'], dtype=float)
+        lw = np.array(landmarks['left_wrist'], dtype=float)
+        rw = np.array(landmarks['right_wrist'], dtype=float)
+
+        # 主指標：左右手腕水平距離
+        wx = abs(float(rw[0] - lw[0]))
+
+        # 手腕相對同側肩的高度（y向下為正）
+        rel_y_l = float(lw[1] - ls[1])
+        rel_y_r = float(rw[1] - rs[1])
+
+        # 滯回分區
+        is_up = wx >= P['end_threshold_wx']
+        is_down = wx <= P['start_threshold_wx']
+
+        if is_up:
+            self.state.stage = 'up'
+        elif is_down:
+            self.state.stage = 'down'
+
+        # 初始化狀態
+        if not hasattr(self.state, '_cpull_active'):
+            self.state._cpull_active = False
+        if not hasattr(self.state, '_cpull_reached_up'):
+            self.state._cpull_reached_up = False
+
+        # 在 down 區且未激活 → 設置起點
+        if is_down and not self.state._cpull_active:
+            self.state._cpull_active = True
+            self.state._cpull_reached_up = False
+            self.state._cpull_start_wx = wx
+            self.state._cpull_start_lw = lw[:2].copy()
+            self.state._cpull_start_rw = rw[:2].copy()
+
+        # 首次進入 up 區
+        if self.state._cpull_active and not self.state._cpull_reached_up and is_up:
+            self.state._cpull_reached_up = True
+
+        # 回到 down 區，嘗試完成一次
+        if self.state._cpull_active and self.state._cpull_reached_up and is_down:
+            # 幅度要求
+            wx_range = abs(wx - self.state._cpull_start_wx)
+            pass_range = wx_range >= P['min_distance_wx']
+
+            # 輕量姿態（末端檢查，避免明顯上舉/下壓）
+            pass_rel_y = (P['min_wrist_rel_y'] <= rel_y_l <= P['max_wrist_rel_y']) and \
+                        (P['min_wrist_rel_y'] <= rel_y_r <= P['max_wrist_rel_y'])
+
+            if pass_range and pass_rel_y:
+                move_dist = float(
+                    np.linalg.norm(lw[:2] - self.state._cpull_start_lw) +
+                    np.linalg.norm(rw[:2] - self.state._cpull_start_rw)
+                )
+                self.state.count += 1
+                self.state.total_distance += move_dist
+                self.state.total_energy += self.state.BAND_RESISTANCE_N * move_dist
+
+                self._on_rep_completed()
+                self.state._last_completion_category = 'standard'
+                self.state._completed_this_frame = True
+                self.state._completed_hold_frames = 2
+
+            # 復位（結束本輪）
+            for k in ['_cpull_active','_cpull_reached_up',
+                    '_cpull_start_wx','_cpull_start_lw','_cpull_start_rw']:
+                if hasattr(self.state, k):
+                    delattr(self.state, k)
+            self.state._cpull_active = False
+            self.state._cpull_reached_up = False           
     
     def _analyze_lateral_raise_logic(self, landmarks):
         """
@@ -528,45 +631,191 @@ class ExerciseAnalyzer:
 
                 self._on_rep_completed()
 
-    def _analyze_squat_logic(self, landmarks):
-        params = self.config['params'][self.style]
-        
-        hip = landmarks['right_hip']
-        knee = landmarks['right_knee']
-        ankle = landmarks['right_ankle']
+    def _analyze_chest_press_logic(self, landmarks):
+    
+    # 胸推（Chest Press）
+    # 流程：down（屈肘、手在胸前） -> up（前推、肘伸直） -> 回到 down 才计数。
+    # 主判据：肘角 angle = ∠(shoulder, elbow, wrist)，角度越大越接近“伸直”。
+        P = self.config['params'][self.style]
 
-        # 计算膝盖角度
-        knee_angle = self._calculate_angle(hip, knee, ankle)
+        # 取点
+        sh = np.array(landmarks['right_shoulder'], dtype=float)
+        el = np.array(landmarks['right_elbow'], dtype=float)
+        wr = np.array(landmarks['right_wrist'], dtype=float)
 
-        # 根据膝盖角度判断是处于站立 ('up') 还是深蹲 ('down') 状态
-        is_down = knee_angle < params['down_threshold_angle']
-        is_up = knee_angle > params['up_threshold_angle']
-        
-        if is_down:
-            self.state.stage = 'down'
-        elif is_up:
+        # 标量与几何量
+        dx = abs(wr[0] - el[0])  # 主指标
+        d_ws = float(np.linalg.norm(wr[:2] - sh[:2]))  # 腕-肩平面距离
+        y_diff = wr[1] - sh[1]  # 过伸判定用（y小为更高）
+
+        # 帧率与时间
+        fps = max(1.0, float(getattr(self, 'fps', 30.0)))
+        dt = 1.0 / fps
+
+        # 过伸检测
+        self.state._overextension_detected = False
+        self.state._overextension_type = None
+        if y_diff < P['over_extension_threshold_y']:
+            self.state._overextension_detected = True
+            self.state._overextension_type = 'height_up'
+            if self.state._action_active:
+                self.state._action_overextended = True
+
+        # 初始化缓存
+        if not hasattr(self.state, '_cp_in_up'):
+            self.state._cp_in_up = False
+        if not hasattr(self.state, '_cp_active'):
+            self.state._cp_active = False
+        if not hasattr(self.state, '_cp_hist'):
+            self.state._cp_hist = []  # 每帧缓存：wr, el, sh, dx, d_ws
+
+        # 更新历史（限制长度以覆盖最长时间窗）
+        max_hist_len = int(fps * max(P['max_up_time_s'] + P['min_down_time_s'] + 0.8, 4.0))
+        self.state._cp_hist.append({
+            'wr': wr.copy(), 'el': el.copy(), 'sh': sh.copy(),
+            'dx': dx, 'dws': d_ws
+        })
+        if len(self.state._cp_hist) > max_hist_len:
+            self.state._cp_hist.pop(0)
+
+        # 滞回区判定
+        is_up_zone = dx <= P['end_threshold_dx']
+        is_down_zone = dx >= P['start_threshold_dx']
+        if is_up_zone:
             self.state.stage = 'up'
+        elif is_down_zone:
+            self.state.stage = 'down'
 
-        # 核心计数逻辑：从 'down' 状态回到 'up' 状态完成一次计数
-        if self.state.stage == 'down':
-            # 如果当前处于深蹲状态，则激活下一次计数的准备状态
-            self.state._action_active = True
-            self.state._start_position = hip # 使用臀部位置来估算能量消耗
-        
-        if self.state._action_active and self.state.stage == 'up':
-            # 如果之前已经激活，并且现在回到了站立状态，则完成一次动作
-            self.state._action_active = False
-            self.state.count += 1
-            self.state._end_position = hip
+        # 启动一轮（进入down区且未激活）
+        if is_down_zone and not self.state._cp_active:
+            self.state._cp_active = True
+            self.state._cp_in_up = False
+            self.state._action_overextended = False
+            self.state._cp_start_idx = len(self.state._cp_hist) - 1
+            self.state._cp_start_dx = dx
+            self.state._cp_start_dws = d_ws
+            self.state._cp_start_wr = wr.copy()
+            self.state._cp_start_el = el.copy()
+            self.state._cp_start_sh = sh.copy()
+            self.state._cp_up_idx = None
+            self.state._cp_hold_frames = 0
 
-            self._on_rep_completed()
-            # 深蹲的能量消耗主要来自克服自身体重，这里用臀部垂直位移估算
-            # 注意：这里的能量计算是一个非常简化的模型
-            if self.state._start_position is not None:
-                distance = abs(self.state._end_position[1] - self.state._start_position[1])
-                # 假设一个70kg的人，其做功的体重部分约为60%
-                body_weight_force = 70 * 0.6 * 9.81
-                self.state.total_energy += body_weight_force * distance
+        # 达到up顶点（首次进入up区）
+        if self.state._cp_active and not self.state._cp_in_up and is_up_zone:
+            self.state._cp_in_up = True
+            self.state._cp_up_idx = len(self.state._cp_hist) - 1
+            self.state._cp_hold_frames = 0
+
+        # 在up区内累计hold时间
+        if self.state._cp_active and self.state._cp_in_up and is_up_zone:
+            self.state._cp_hold_frames += 1
+
+        # 从 up 回到 down，尝试完成一次
+        if self.state._cp_active and self.state._cp_in_up and is_down_zone:
+            start_idx = self.state._cp_start_idx
+            up_idx = self.state._cp_up_idx if self.state._cp_up_idx is not None else len(self.state._cp_hist) - 1
+            end_idx = len(self.state._cp_hist) - 1
+
+            # 若无有效up阶段，直接复位
+            if up_idx is None or up_idx <= start_idx:
+                # 复位
+                self.state._cp_active = False
+                self.state._cp_in_up = False
+                return
+
+            # 时间窗评估
+            up_frames = max(1, up_idx - start_idx)
+            down_frames = max(1, end_idx - up_idx)
+            up_time = up_frames * dt
+            down_time = down_frames * dt
+            hold_time = self.state._cp_hold_frames * dt
+
+            if not (P['min_up_time_s'] <= up_time <= P['max_up_time_s']):
+                # 失败：推出过快或过慢
+                pass_up_time = False
+            else:
+                pass_up_time = True
+
+            pass_down_time = down_time >= P['min_down_time_s']
+            pass_hold = hold_time >= P['hold_up_time_s']
+
+            # 轨迹一致性与速度
+            seq = self.state._cp_hist[start_idx:up_idx + 1]
+            wr_seq = np.array([it['wr'] for it in seq])
+            el_seq = np.array([it['el'] for it in seq])
+            sh_seq = np.array([it['sh'] for it in seq])
+
+            # 位移分解（以x为前向）
+            disp = wr_seq[-1, :2] - wr_seq[0, :2]
+            forward_disp = abs(disp[0])
+            total_disp = float(np.linalg.norm(disp))
+            forward_rate = (forward_disp / (total_disp + 1e-8))
+
+            # 平均前向速度
+            avg_forward_speed = forward_disp / (up_time + 1e-8)
+
+            # 垂直偏移限制
+            vertical_exc = abs(wr_seq[-1, 1] - wr_seq[0, 1])
+
+            # 腕-肩距离增量
+            d_inc = float(seq[-1]['dws'] - seq[0]['dws'])
+
+            # 肘角变化（增强真实性）
+            def angle(a, b, c):
+                v1 = a - b; v2 = c - b
+                n1 = np.linalg.norm(v1); n2 = np.linalg.norm(v2)
+                if n1 < 1e-8 or n2 < 1e-8: return 0.0
+                cosv = float(np.dot(v1, v2) / (n1 * n2))
+                cosv = max(-1.0, min(1.0, cosv))
+                return math.degrees(math.acos(cosv))
+            elbow_angle_gain = angle(sh_seq[-1, :2], el_seq[-1, :2], wr_seq[-1, :2]) - \
+                            angle(sh_seq[0, :2],  el_seq[0, :2],  wr_seq[0, :2])
+
+            pass_forward_rate = forward_rate >= P['min_forward_dx_rate']
+            pass_forward_speed = avg_forward_speed >= P['min_forward_speed']
+            pass_vertical = vertical_exc <= P['max_vertical_excursion']
+            pass_d_inc = d_inc >= P['min_wrist_shoulder_d_inc']
+            pass_elbow_gain = elbow_angle_gain >= P['min_elbow_angle_gain']
+
+            # 姿态稳定（肩不应剧烈移动）
+            sh_disp = sh_seq[-1, :2] - sh_seq[0, :2]
+            pass_shoulder = (abs(sh_disp[1]) <= P['max_shoulder_y_change']) and \
+                            (abs(sh_disp[0]) <= P['max_shoulder_x_drift'])
+
+            # Δx 幅度
+            dx_start = float(self.state._cp_start_dx)
+            dx_min = min([it['dx'] for it in seq]) if len(seq) else dx
+            dx_range = dx_start - dx_min
+            pass_dx_range = dx_range >= P['min_distance_dx']
+
+            # 多条件合一：必须满足主链 + 至少若干辅条件
+            core_ok = pass_dx_range and pass_up_time and pass_down_time and pass_hold
+            aux_checks = [pass_forward_rate, pass_forward_speed, pass_vertical, pass_d_inc, pass_elbow_gain, pass_shoulder]
+            aux_pass_count = sum(1 for x in aux_checks if x)
+
+            # 要求至少通过 4 项辅助，基本杜绝“抬手/耸肩/摆动”作弊
+            if core_ok and aux_pass_count >= 4:
+                # 计数
+                move_dist = float(np.linalg.norm(self.state._cp_hist[end_idx]['wr'][:2] - self.state._cp_hist[start_idx]['wr'][:2]))
+                self.state.count += 1
+                self.state.total_distance += move_dist
+                self.state.total_energy += self.state.BAND_RESISTANCE_N * move_dist
+
+                self._on_rep_completed()
+
+                is_non_standard = bool(getattr(self.state, '_action_overextended', False))
+                self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
+                self.state._completed_this_frame = True
+                self.state._completed_hold_frames = 2
+
+            # 复位
+            self.state._cp_active = False
+            self.state._cp_in_up = False
+            self.state._action_overextended = False
+            for k in ['_cp_start_idx','_cp_up_idx','_cp_hold_frames','_cp_start_dx','_cp_start_dws',
+                    '_cp_start_wr','_cp_start_el','_cp_start_sh']:
+                if hasattr(self.state, k):
+                    delattr(self.state, k)
 
     def _generate_feedback(self):
         if self.state._overextension_detected:

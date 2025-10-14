@@ -7,7 +7,7 @@
       <div class="nav-links" v-if="!isLoginPage">
         <router-link to="/exercise/lateral_raise">Lateral Raise</router-link>
         <router-link to="/exercise/chest_pull">Chest Pull</router-link>
-        <router-link to="/exercise/squat">Squat</router-link>
+        <router-link to="/exercise/squat">Bicep Curl</router-link>
         <router-link to="/exercise/front_raise">Front Raise</router-link>
         <router-link to="/exercise/overhead_press">Overhead Press</router-link>
       </div>

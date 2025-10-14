@@ -13,12 +13,12 @@ export const useExerciseStore = defineStore('exercise', () => {
       imageUrl: '/images/Lateral-raise.png'
     },
     {
-      id: 'chest_pull',
+      id: 'bicep_curl',
       name: '拉胸',
       description: '锻炼胸部肌肉',
       icon: '🏋️',
       tips: ['握住拉力器','肩胛後收','控制速度','拉時呼氣'],
-      imageUrl: '/images/Chest-pull.png'
+      imageUrl: '/images/Bicep-curl.png'
     },
     {
       id: 'front_raise',
@@ -31,18 +31,18 @@ export const useExerciseStore = defineStore('exercise', () => {
     {
       id: 'overhead_press',
       name: '过顶举',
-      description: '综合锻炼肩部和手臂力量',
+      description: '綜合鍛鍊肩部和手臂力量',
       icon: '🏋️',
       tips: ['起於肩膀高','推至手腕過頭頂','避免過度後仰'],
       imageUrl: '/images/Overhead-press.png'
     },
     {
-      id: 'squat',
-      name: '深蹲',
-      description: '锻炼腿部和臀部力量',
+      id: 'chest_pull',
+      name: '拉胸',
+      description: '鍛鍊腿部和臀部力量',
       icon: '🦵',
       tips: ['膝蓋對齊腳尖','髖向後坐','站起伸直髖膝'],
-      imageUrl: '/images/squat.png'
+      imageUrl: '/images/chest_pull.png'
     },
   ])
 

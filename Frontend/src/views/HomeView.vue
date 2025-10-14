@@ -77,33 +77,33 @@ function openDifficultyModal(exercise) {
 
 const exercises = ref([
   { 
-    id: 'chest_pull', 
-    name: 'Chest Pull', 
-    description: 'Activate the chest and back muscle groups', 
+    id: 'bicep_curl', 
+    name: 'Bicep Curl', 
+    description: '溫和啟動胸背與肩部穩定肌群，幫助長者改善肩帶穩定與姿勢控制。', 
     icon: '🏋️' 
   },
   { 
     id: 'lateral_raise', 
     name: 'Lateral Raise', 
-    description: 'Enhance the Lateral Deltoid', 
+    description: '針對三角肌外側的輕量訓練，協助長者提升抬臂與側向拿取物品的能力。', 
     icon: '💪' 
   },
   { 
-    id: 'squat', 
-    name: 'Squat', 
-    description: 'Strengthen your legs and glutes.', 
-    icon: '🦵' 
+    id: 'chest_pull', 
+    name: 'Chest Pull', 
+    description: '強化上背與肩後肌群的穩健訓練，協助長者改善肩胛後收與挺胸姿勢', 
+    icon: '💪' 
   },
   { 
     id: 'front_raise', 
     name: 'Front Raise', 
-    description: 'Enhance the Anterior Deltoid', 
+    description: '強化前三角肌與肩前穩定度，幫助長者安全抬手至胸前/眼前高度', 
     icon: '💪' 
   },
   { 
     id: 'overhead_press', 
     name: 'Overhead Press', 
-    description: 'Comprehensive shoulder and arm strength training', 
+    description: '逐步訓練肩部與上背推舉能力，協助長者改善頭上取物與伸手動作。', 
     icon: '🏋️' 
   }
 ]);
