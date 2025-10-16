@@ -7,22 +7,22 @@
 
      <div v-if="showModal" class="modal-backdrop">
       <div class="modal-content">
-        <h2 id="modal-title">Select your level for「{{ selectedExercise.name }}」</h2>
+        <h2 id="modal-title">選擇您的級別「{{ selectedExercise.name }}」</h2>
         <div class="level-options">
           <label>
             <input type="radio" name="level" value="beginner" v-model="globalLevel">
             <div class="level-card">
               <span class="emoji">🥳</span>
-              <div>Beginner</div>
-              <p>Get started with ease.</p>
+              <div>初學者</div>
+              <p>輕鬆上手。</p>
             </div>
           </label>
           <label>
             <input type="radio" name="level" value="intermediate" v-model="globalLevel">
             <div class="level-card">
               <span class="emoji">🎯</span>
-              <div>Intermediate</div>
-              <p>Strict guidance.</p>
+              <div>進階</div>
+              <p>嚴格指導。</p>
             </div>
           </label>
         </div>

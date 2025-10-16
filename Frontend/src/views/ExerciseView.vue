@@ -15,7 +15,7 @@
           <h2>{{ exerciseData.name }}</h2>
           <p>{{ exerciseData.description }}</p>
           
-          <h3 class="tips-title">动作要点</h3>
+          <h3 class="tips-title">動作要點</h3>
           <ul class="tips-list">
             <li v-for="tip in exerciseData.tips" :key="tip">{{ tip }}</li>
           </ul>

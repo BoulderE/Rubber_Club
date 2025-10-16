@@ -22,7 +22,6 @@
     <div class="welcome-screen" v-else>
       <h1>Logged In!</h1>
       <p>Loading your profile...</p>
-      <!-- 下一步的Chatbot内容就可以在这里作为另一个组件引入 -->
     </div>
   </div>
 </template>
@@ -43,7 +42,6 @@ const isLoggedIn = ref(false); // 登录状态
 const base = getApiBase();
 // --- 2. 逻辑与计算属性 ---
 
-// 数字键盘布局，用数组驱动模板，更符合Vue的思想
 const keypadLayout = [1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, 'delete'];
 
 // --- 3. 方法定义 ---
@@ -83,7 +81,7 @@ const checkPin = async () => {
 };
 
 const loginSuccess = (token) => {
-  message.value = '登录成功！';
+  message.value = '登入成功！';
   messageColor.value = '#2ecc71'; // 成功消息颜色
   isLoggedIn.value = true; 
   
@@ -94,7 +92,7 @@ const loginSuccess = (token) => {
 };
 
 const loginFailure = () => {
-  message.value = 'PIN码错误，请重试';
+  message.value = 'PIN碼錯誤，請重試';
   messageColor.value = '#e74c3c';
   isShaking.value = true; // 触发抖动动画
 
@@ -114,7 +112,6 @@ const loginFailure = () => {
   background-color: #f0f2f5;
 }
 
-/* ... 将昨天的所有CSS样式复制到这里 ... */
 .login-container {
     width: 100%;
     max-width: 360px;

@@ -159,14 +159,6 @@ class ExerciseAnalyzer:
     def _now(self):
         return time.time()
 
-    # def on_phase_change(self, new_phase: str):
-    #     t = self._now()
-    #     # 记录开始时间
-    #     if self.phase is None:
-    #         # 第一次识别到相位，认为是 rep 的起点
-    #         self.last_rep_start = t
-    #     self.phase = new_phase
-
     def _on_rep_completed(self):
         """
         在任意动作完成一次有效计数后调用。
@@ -229,13 +221,13 @@ class ExerciseAnalyzer:
 
     def setup(self, exercise_type: str, style: str):
         if exercise_type not in EXERCISE_CONFIG:
-            raise ValueError(f"不支持的运动类型: {exercise_type}")
+            raise ValueError(f"不支援的運動類型:{exercise_type}")
         
         self.config = EXERCISE_CONFIG[exercise_type]
         self.style = style if style in ['intermediate', 'beginner'] else 'intermediate'
         self.exercise_id = exercise_type
         self.reset()
-        print(f"分析器已设置为: 运动='{self.config['name']}', 模式='{self.style}' (使用专属评价标准)")
+        print(f"分析器已設定為: 運動='{self.config['name']}', 模式='{self.style}' (使用專屬評價標準)")
 
     def reset(self):
         self.state.reset()
@@ -253,7 +245,7 @@ class ExerciseAnalyzer:
 
     def process(self, image):
         if not self.config:
-            raise RuntimeError("分析器未设置。请先调用 setup() 方法。")
+            raise RuntimeError("分析器未設定。請先呼叫 setup() 方法。")
 
         image_rgb = image
         results = self.pose.process(image_rgb)
@@ -271,7 +263,7 @@ class ExerciseAnalyzer:
             self.state._last_completion_category = 'standard'
 
         if self.state.is_paused:
-            self.state.feedback = "已暂停，做点赞手势继续"
+            self.state.feedback = "已暫停，做按讚手勢繼續"
             return {
                 'count': self.state.count,
                 'stage': self.state.stage,
@@ -289,7 +281,7 @@ class ExerciseAnalyzer:
             logic_function = getattr(self, self.config['logic_function'])
             logic_function(landmarks)
         else:
-            self.state.feedback = "请确保身体关键部位在镜头内"
+            self.state.feedback = "請確保身體關鍵部位在鏡頭內"
 
         self._generate_feedback()
 
