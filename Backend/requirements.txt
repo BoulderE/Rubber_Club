@@ -2,3 +2,7 @@ flask==2.0.1
 mediapipe
 opencv-python==4.5.3.56
 python-dotenv==0.19.0
+flask-cors 
+jwt
+requests
+inference-cli 
