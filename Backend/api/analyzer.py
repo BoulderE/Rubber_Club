@@ -32,16 +32,16 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_chest_pull_logic',
         'params': {
             'intermediate': {
-                'start_threshold_wx': 0.26,
-                'end_threshold_wx':   0.40,
-                'min_distance_wx':    0.025,
+                'start_threshold_wx': 0.28,
+                'end_threshold_wx':   0.30,
+                'min_distance_wx':    0.01,
                 'min_wrist_rel_y':   -0.28,
                 'max_wrist_rel_y':    0.38
             },
             'beginner': {
-                'start_threshold_wx': 0.28,
-                'end_threshold_wx':   0.35,
-                'min_distance_wx':    0.010,
+                'start_threshold_wx': 0.26,
+                'end_threshold_wx':   0.275,
+                'min_distance_wx':    0.01,
                 'min_wrist_rel_y':   -0.28,
                 'max_wrist_rel_y':    0.38
             }
@@ -522,7 +522,7 @@ class ExerciseAnalyzer:
         使用“放下 -> 举起 -> 放下” (down -> up -> down) 的完整周期检测。
         """
         params = self.config['params'][self.style]
-        shoulder, wrist = landmarks['right_shoulder'], landmarks['right_wrist']
+        shoulder, wrist, elbow = landmarks['right_shoulder'], landmarks['right_wrist'], landmarks['right_elbow']
         
         # y_diff: 手腕相对于肩膀的垂直距离。y坐标向下为正，所以手臂越低，y_diff越大。
         y_diff = wrist[1] - shoulder[1]
@@ -602,26 +602,46 @@ class ExerciseAnalyzer:
         y_diff = wrist[1] - shoulder[1]
         
         is_up = y_diff < params['end_threshold_y']
-        # 起始位置判断：手腕在肩膀附近的一个小范围内
-        is_at_start_pos = abs(y_diff) < params['start_threshold_y']
-        self.state.stage = 'up' if is_up else 'down'
+        is_down = abs(y_diff) < params['start_threshold_y']
+
+        if is_up:
+            self.state.stage = 'up'
+        elif is_down:
+            self.state.stage = 'down'
+
 
         if not self.state._action_active:
-            if is_at_start_pos:
-                self.state._action_active = True
-                self.state._start_position = wrist
-        elif is_up:
-            # 因为此函数不检测 overextension，所以 self.state._overextension_detected 永远是 False
-            # 但保留这个判断以维持代码结构统一性
-            if not self.state._overextension_detected:
-                self.state._action_active = False
-                self.state._end_position = wrist
+            self.state._in_up_phase = False
+        # 進入起始區且未激活 → 準備開始一輪
+        if is_down and not self.state._action_active:
+            self.state._action_active = True
+            self.state._in_up_phase = False
+            self.state._start_position = wrist.copy()
+            self.state._action_overextended = False  # 本動作是否過伸（此動作暫不檢測，可保留結構）
+
+        # 首次到達 up 區
+        if self.state._action_active and not self.state._in_up_phase and is_up:
+            self.state._in_up_phase = True
+
+        # 已到達過 up，現在回到 down → 嘗試完成一次
+        if self.state._action_active and self.state._in_up_phase and is_down:
+            self.state._end_position = wrist.copy()
+            distance = float(np.linalg.norm(self.state._end_position - self.state._start_position))
+
+            if distance > params.get('min_distance', 0.02):
                 self.state.count += 1
-                distance = np.linalg.norm(self.state._end_position - self.state._start_position)
                 self.state.total_distance += distance
                 self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
 
                 self._on_rep_completed()
+                self.state._last_completion_category = 'standard'
+                self.state._completed_this_frame = True
+                self.state._completed_hold_frames = 2
+
+            # 本輪結束，復位
+            self.state._action_active = False
+            self.state._in_up_phase = False
+            self.state._action_overextended = False
 
     def _analyze_chest_press_logic(self, landmarks):
     

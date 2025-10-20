@@ -42,19 +42,40 @@
         <div v-else class="webcam-placeholder">
           <p>{{ style === 'motivator' ? 'Standby...' : 'Loading...' }}</p>
         </div>
-        <div class="feedback-container" :class="{ 'is-error': isOverextended }">
-          <p class="feedback-text">{{ feedbackText }}</p>
-        </div>
       </div>
       
       <div class="stats-section">
-        <!-- exerciseType 是动态的 -->
-        <WorkoutStats :exercise-type="exerciseType" />
-        <AngleDisplay 
-          v-if="currentAngles"
-          :angles="currentAngles"
-          :exercise-type="exerciseType"
-        />
+        <!-- Motion preview -->
+         <div class="feedback-container" :class="{ 'is-error': isOverextended }">
+          <p class="feedback-text">{{ feedbackText }}</p>
+        </div>
+        <section class="panel">
+          <div class="section-title">動作示意</div>
+          <div class="hint">當前訓練：{{ exerciseData.name }}</div>
+          <div class="motion-box">
+            <img
+              v-if="exerciseData.motionUrl || exerciseData.imageUrl"
+              :src="exerciseData.motionUrl || exerciseData.imageUrl"
+              :alt="exerciseData.name"
+              class="motion-img"
+            />
+            <div v-else class="motion-placeholder">請為該動作提供動圖/圖片</div>
+          </div>
+        </section>
+        <section class="panel">
+            <div class="progress-block">
+              <div class="progress-label">
+                <span>進度</span>
+                <span class="progress-percent">{{ progressPercent }}%</span>
+              </div>
+            <div class="progress-bar" role="progressbar" :aria-valuenow="progressPercent" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-fill" :class="{ done: progressPercent === 100 }" :style="{ width: progressPercent + '%' }"></div>
+            </div>
+            <div class="progress-ratio">{{ mediapipeStore.count }}/{{ MAX_REPS }}</div>
+            <div class="progress-actions">
+            </div>
+          </div>
+        </section>
       </div>
     </div>
     
@@ -76,8 +97,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
-import WorkoutStats from '@/components/WorkoutStats.vue'
-import AngleDisplay from '@/components/AngleDisplay.vue'
+// import WorkoutStats from '@/components/WorkoutStats.vue'
+// import AngleDisplay from '@/components/AngleDisplay.vue'
 import WorkoutSummary from '@/components/WorkoutSummary.vue'
 
 // --- 1. 从 URL 获取动态数据 ---
@@ -98,6 +119,17 @@ const exerciseData = computed(() => exerciseStore.getExerciseById(exerciseType.v
 
 const feedbackText = ref("隨時準備！");
 const isOverextended = ref(false);
+
+const MAX_REPS = 15;
+
+const progressPercent = computed(() => {
+const total = Number(MAX_REPS || 0);
+const done = Number(mediapipeStore.count || 0);
+if (!total) return 0;
+const p = Math.round((done / total) * 100);
+return Math.max(0, Math.min(100, p));
+});
+
 
 async function startWorkoutFlow() {
   isWorkoutActive.value = true;
@@ -347,4 +379,119 @@ function handleEndWorkout() {
   .feedback-text { font-size: 1.2rem; }
 }
 
+.image-container {
+flex-basis: 50%;
+flex-shrink: 0;
+}
+.image-container {
+display: flex;
+align-items: center;
+justify-content: center;
+
+height: 280px; 
+aspect-ratio: 16 / 9; 
+background: #fff;
+border-radius: 10px;
+overflow: hidden;
+}
+.intro-image {
+width: 100%;
+height: 100%;
+object-fit: contain; 
+object-position: center;
+display: block;
+}
+
+.motion-box {
+width: 100%;
+aspect-ratio: 16 / 9;
+background: #fff;
+border-radius: 12px;
+border: 1px solid #e5e7eb;
+overflow: hidden;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.motion-img {
+width: 100%;
+height: 100%;
+object-fit: contain;
+object-position: center;
+}
+.motion-placeholder {
+color: #9ca3af;
+font-size: 40px;
+}
+
+.panel .section-title {
+font-size: 40px; 
+font-weight: 700; 
+color: #111827;
+}
+
+.panel .hint {
+font-size: 40px; /* “當前訓練：xxx” */
+font-weight: 600;
+color: #1f2937;
+margin-top: 4px;
+}
+
+.progress-block {
+margin-top: 10px;
+}
+.progress-label {
+display: flex;
+justify-content: space-between;
+align-items: center;
+font-size: 40px;
+color: #374151;
+margin-bottom: 6px;
+}
+.progress-percent {
+font-size: 40px;
+font-variant-numeric: tabular-nums;
+color: #111827;
+font-weight: 700;
+}
+.progress-bar {
+width: 100%;
+height: 30px;
+background: #e5e7eb;
+border-radius: 999px;
+overflow: hidden;
+}
+.progress-fill {
+height: 100%;
+width: 0%;
+background: linear-gradient(90deg, #60a5fa, #3b82f6);
+border-radius: 999px;
+transition: width 300ms ease;
+}
+.progress-fill.done {
+background: linear-gradient(90deg, #34d399, #10b981);
+}
+.progress-ratio {
+margin-top: 8px;
+font-size: 40px;
+color: #4b5563;
+}
+.progress-actions {
+display: flex;
+flex-direction: column;
+gap: 8px;
+margin-top: 10px;
+}
+.link-btn {
+background: none;
+border: none;
+padding: 0;
+color: #6b7280;
+font-size: 12px;
+cursor: pointer;
+}
+.link-btn:hover {
+color: #111827;
+text-decoration: underline;
+}
 </style>

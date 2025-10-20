@@ -2,59 +2,42 @@
   <div class="workout-summary-overlay" @click.self="$emit('close')">
     <div class="workout-summary">
       <h2>Summary</h2>
-      
+
+      <!-- 顶部三卡：Accuracy / Smoothness / Duration -->
       <div class="summary-stats">
         <div class="stat-card">
           <div class="stat-icon">🎯</div>
           <div class="stat-info">
-            <div class="stat-value">{{ mediapipeStore.count }}</div>
-            <div class="stat-label">Counts</div>
+            <div class="stat-value">{{ accuracy }}%</div>
+            <div class="stat-label">動作質素指數</div>
           </div>
         </div>
-        
+
         <div class="stat-card">
-          <div class="stat-icon">⚡</div>
+          <div class="stat-icon">🪄</div>
           <div class="stat-info">
-            <div class="stat-value">{{ mediapipeStore.energy }}%</div>
-            <div class="stat-label">Energy</div>
+            <div class="stat-value">{{ smoothnessPercent }}%</div>
+            <div class="stat-label">動作流暢指數</div>
           </div>
         </div>
-        
+
         <div class="stat-card">
           <div class="stat-icon">⏱️</div>
           <div class="stat-info">
             <div class="stat-value">{{ duration }}</div>
-            <div class="stat-label">Duration</div>
+            <div class="stat-label">運動時長</div>
           </div>
         </div>
       </div>
-      
-      <div class="performance-analysis">
-        <h3>Analysis</h3>
-        <div class="analysis-item">
-          <span class="analysis-label">Accuracy</span>
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: accuracy + '%' }"></div>
-          </div>
-          <span class="analysis-value">{{ accuracy }}%</span>
-        </div>
-        
-        <div class="analysis-item">
-          <span class="analysis-label">Smoothness</span>
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: smoothnessPercent + '%' }"></div>
-          </div>
-          <span class="analysis-value">{{ smoothnessPercent }}%</span>
-        </div>
-      </div>
-      
+
+      <!-- 将原 Analysis 位置改为 Advice -->
       <div class="feedback">
         <h3>Advice</h3>
         <ul>
           <li v-for="tip in tips" :key="tip">{{ tip }}</li>
         </ul>
       </div>
-      
+
       <div class="actions">
         <button @click="$emit('continue')" class="btn-primary">Again</button>
         <button @click="$emit('end')" class="btn-secondary">Finish</button>
@@ -64,67 +47,56 @@
 </template>
 
 <script setup>
-import { computed} from 'vue'
+import { computed } from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 
 const mediapipeStore = useMediapipeStore()
-const exerciseStore = useExerciseStore()  
+const exerciseStore = useExerciseStore()
 
-// 从 store 获取当前运动类型
 const exerciseType = computed(() => exerciseStore.currentExercise)
 
 const duration = computed(() => {
-if (!exerciseStore.startTime || !exerciseStore.endTime) {
-    return '0:00'
-  }
-
+  if (!exerciseStore.startTime || !exerciseStore.endTime) return '0:00'
   const seconds = Math.floor((exerciseStore.endTime - exerciseStore.startTime) / 1000)
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
 })
 
-const accuracy = computed(() => 
-  mediapipeStore.accuracy || 0
-)
+const accuracy = computed(() => Number(mediapipeStore.accuracy) || 0)
+const smoothnessPercent = computed(() => Number(mediapipeStore.smoothness) || 0)
 
-const smoothnessPercent = computed(() => 
-  Number(mediapipeStore.smoothness) || 0
-)  
-
-
+// 基于 accuracy 与 smoothness 的针对性建议
 const tips = computed(() => {
-  const tipsList = []
-  
-  if (accuracy.value < 80) {
-    tipsList.push('注意保持動作標準，可以適當降低速度')
+  const t = []
+
+  // Accuracy 建议
+  if (accuracy.value < 60) {
+    t.push('動作準確度偏低：放慢節奏，專注關節對齊與完整活動範圍。')
+  } else if (accuracy.value < 80) {
+    t.push('準確度可再提升：注意核心穩定，保持關節角度在提示範圍內。')
+  } else {
+    t.push('準確度良好：維持當前節奏，逐步增加組數或阻力。')
   }
-  
-  if (mediapipeStore.count < 10) {
-    tipsList.push('建議增加運動次數，以達到更好的運動效果')
+
+  // Smoothness 建議
+  if (smoothnessPercent.value < 50) {
+    t.push('動作不夠順暢：嘗試均勻呼吸，控制離心階段，避免忽快忽慢。')
+  } else if (smoothnessPercent.value < 80) {
+    t.push('順暢度中等：在最高點短暫停留，感受肌肉張力後再回程。')
+  } else {
+    t.push('動作流暢：可微幅加快但保持穩定節奏，追求更佳效率。')
   }
-  
-  if (mediapipeStore.energy < 50) {
-    tipsList.push('能量消耗較低，可以嘗試增加動作幅度')
-  }
-  
-  // 根据不同运动类型添加特定建议
+
+  // 依運動類型附加一條提示（示例）
   if (exerciseType.value === 'lateral_raise') {
-    if (accuracy.value < 85) {
-      tipsList.push('側平舉時注意保持手臂在身體側面')
-    }
+    t.push('側平舉：肩膀放鬆下沉，手肘略彎，手腕中立，抬至與肩同高即可。')
   } else if (exerciseType.value === 'chest_pull') {
-    if (accuracy.value < 85) {
-      tipsList.push('拉胸時注意肩胛骨的收縮')
-    }
+    t.push('拉胸：啟動肩胛骨後收，胸口打開，避免聳肩代償。')
   }
-  
-  if (tipsList.length === 0) {
-    tipsList.push('繼續加油！')
-  }
-  
-  return tipsList
+
+  return t
 })
 </script>
 
@@ -154,14 +126,8 @@ const tips = computed(() => {
 }
 
 @keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .workout-summary h2 {
@@ -202,49 +168,7 @@ const tips = computed(() => {
   margin-top: 5px;
 }
 
-.performance-analysis {
-  margin-bottom: 30px;
-}
-
-.performance-analysis h3 {
-  margin-bottom: 20px;
-  color: #333;
-}
-
-.analysis-item {
-  display: flex;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.analysis-label {
-  width: 120px;
-  color: #666;
-  font-size: 14px;
-}
-
-.progress-bar {
-  flex: 1;
-  height: 8px;
-  background: #f0f0f0;
-  border-radius: 4px;
-  margin: 0 15px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  transition: width 0.5s ease;
-}
-
-.analysis-value {
-  width: 50px;
-  text-align: right;
-  font-weight: 600;
-  color: #333;
-}
-
+/* 移除了原 Analysis 區塊樣式，直接使用 Advice 區塊 */
 .feedback {
   margin-bottom: 30px;
 }
@@ -305,11 +229,9 @@ const tips = computed(() => {
   .summary-stats {
     grid-template-columns: 1fr;
   }
-  
   .actions {
     flex-direction: column;
   }
-  
   .btn-primary,
   .btn-secondary {
     width: 100%;

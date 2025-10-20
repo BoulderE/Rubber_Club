@@ -47,10 +47,11 @@
         class="exercise-card"
         @click="openDifficultyModal(exercise)"
       >
-        <div class="card-icon">{{ exercise.icon }}</div>
+        <div class="card-hero">
+        <img :src="exercise.imageUrl" :alt="exercise.name" />
+        </div>
         <h3>{{ exercise.name }}</h3>
         <p>{{ exercise.description }}</p>
-        <span class="card-arrow">→</span>
       </div>
     </div>
     <button @click="isChatbotVisible = true" id="need-help-fab">?</button>
@@ -78,33 +79,33 @@ function openDifficultyModal(exercise) {
 const exercises = ref([
   { 
     id: 'bicep_curl', 
-    name: 'Bicep Curl', 
+    name: '二頭肌彎舉 - 把手從大腿旁提到肩膀的彎手動作', 
     description: '溫和啟動胸背與肩部穩定肌群，幫助長者改善肩帶穩定與姿勢控制。', 
-    icon: '🏋️' 
+    imageUrl: '/images/bicep_curl_image_1.png' 
   },
   { 
     id: 'lateral_raise', 
-    name: 'Lateral Raise', 
+    name: '側平舉 - 把手從身體兩側平舉到肩膀高度', 
     description: '針對三角肌外側的輕量訓練，協助長者提升抬臂與側向拿取物品的能力。', 
-    icon: '💪' 
+    imageUrl: '/images/lateral_raise_image_1.png' 
   },
   { 
     id: 'chest_pull', 
-    name: 'Chest Pull', 
+    name: '胸部側拉 - 模擬打開櫃子門的動作', 
     description: '強化上背與肩後肌群的穩健訓練，協助長者改善肩胛後收與挺胸姿勢', 
-    icon: '💪' 
+    imageUrl: '/images/chest_pull_image_1.png' 
   },
   { 
     id: 'front_raise', 
-    name: 'Front Raise', 
+    name: '前平舉 - 把手從大腿前方平舉到眼前高度', 
     description: '強化前三角肌與肩前穩定度，幫助長者安全抬手至胸前/眼前高度', 
-    icon: '💪' 
+    imageUrl: '/images/front_raise_image_1.png'
   },
   { 
     id: 'overhead_press', 
-    name: 'Overhead Press', 
+    name: '過頭推舉 - 把手從肩膀以下推舉到頭頂上方', 
     description: '逐步訓練肩部與上背推舉能力，協助長者改善頭上取物與伸手動作。', 
-    icon: '🏋️' 
+    imageUrl: '/images/overhead_press_image_1.png'
   }
 ]);
 
@@ -174,9 +175,20 @@ function startExercise() {
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
 }
 
-.card-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+.card-hero {
+aspect-ratio: 16 / 9;
+border-radius: 12px;
+overflow: hidden;
+margin-bottom: 16px;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+.card-hero img {
+width: 100%;
+height: 100%;
+object-fit: contain;
+object-position: center;
 }
 
 .exercise-card h3 {
@@ -188,16 +200,6 @@ function startExercise() {
 .exercise-card p {
   color: #666;
   margin-bottom: 0;
-}
-
-.card-arrow {
-  position: absolute;
-  right: 30px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 24px;
-  color: #667eea;
-  transition: transform 0.3s ease;
 }
 
 .exercise-card:hover .card-arrow {
