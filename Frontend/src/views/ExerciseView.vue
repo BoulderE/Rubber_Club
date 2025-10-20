@@ -431,7 +431,7 @@ color: #111827;
 }
 
 .panel .hint {
-font-size: 40px; /* “當前訓練：xxx” */
+font-size: 40px;
 font-weight: 600;
 color: #1f2937;
 margin-top: 4px;
