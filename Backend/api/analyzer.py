@@ -10,16 +10,16 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_bicep_curl_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': -0.02,
-                'end_threshold_y': 0.02,
-                'over_extension_threshold_y': -0.2,
-                'min_distance': 0.02
-            },
-            'beginner': {
                 'start_threshold_y': -0.015,
                 'end_threshold_y': 0.03,
                 'over_extension_threshold_y': -0.18,
                 'min_distance': 0.015
+            },
+            'beginner': {
+                'start_threshold_y': -0.010,
+                'end_threshold_y': 0.04,
+                'over_extension_threshold_y': -0.16,
+                'min_distance': 0.010
             }
         }
     },
@@ -54,15 +54,15 @@ EXERCISE_CONFIG = {
         'params': {
             'intermediate': {
                 'start_threshold_x': 0.15,
-                'end_threshold_x': 0.20,
-                'over_extension_threshold_y': -0.2,
-                'min_distance': 0.02
-            },
-            'beginner': {
-                'start_threshold_x': 0.15,
                 'end_threshold_x': 0.18,
                 'over_extension_threshold_y': -0.18,
                 'min_distance': 0.02
+            },
+            'beginner': {
+                'start_threshold_x': 0.12,
+                'end_threshold_x': 0.16,
+                'over_extension_threshold_y': -0.16,
+                'min_distance': 0.015
             }
         }
     },
@@ -72,16 +72,16 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_front_raise_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': 0.18, 
-                'end_threshold_y': 0.15,   
-                'over_extension_threshold_y': -0.25,
-                'min_distance': 0.015
-            },
-            'beginner': {
                 'start_threshold_y': 0.25,
                 'end_threshold_y': 0.20,
                 'over_extension_threshold_y': -0.25,
                 'min_distance': 0.010
+            },
+            'beginner': {
+                'start_threshold_y': 0.28,
+                'end_threshold_y': 0.23,
+                'over_extension_threshold_y': -0.22,
+                'min_distance': 0.008
             }
         }
     },
@@ -91,14 +91,14 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_overhead_press_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': 0.05, 
-                'end_threshold_y': -0.2,   
-                'min_distance': 0.02
-            },
-            'beginner': {
                 'start_threshold_y': 0.08,
                 'end_threshold_y': -0.18,
                 'min_distance': 0.01
+            },
+            'beginner': {
+                'start_threshold_y': 0.10,
+                'end_threshold_y': -0.15,
+                'min_distance': 0.008
             }
         }
     },

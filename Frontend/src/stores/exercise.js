@@ -10,7 +10,8 @@ export const useExerciseStore = defineStore('exercise', () => {
       description: '锻炼肩部中束',
       icon: '💪',
       tips: ['保持身體直立，核心收緊','手臂舉至肩高','控制下放','肘部微屈'],
-      imageUrl: '/images/lateral_raise_image_1.png'
+      imageUrl: '/images/lateral_raise_image_1.png',
+      orientation: 'landscape'
     },
     {
       id: 'bicep_curl',
@@ -18,7 +19,8 @@ export const useExerciseStore = defineStore('exercise', () => {
       description: '锻炼胸部肌肉',
       icon: '🏋️',
       tips: ['握住拉力器','肩胛後收','控制速度','拉時呼氣'],
-      imageUrl: '/images/bicep_curl_image_1.png'
+      imageUrl: '/images/bicep_curl_image_1.png',
+      orientation: 'portrait'
     },
     {
       id: 'front_raise',
@@ -26,7 +28,8 @@ export const useExerciseStore = defineStore('exercise', () => {
       description: '锻炼肩部前束',
       icon: '💪',
       tips: ['從大腿前抬至與肩同高','核心收緊避免後仰'],
-      imageUrl: '/images/front_raise_image_1.png'
+      imageUrl: '/images/front_raise_image_1.png',
+      orientation: 'portrait'
     },
     {
       id: 'overhead_press',
@@ -34,7 +37,8 @@ export const useExerciseStore = defineStore('exercise', () => {
       description: '綜合鍛鍊肩部和手臂力量',
       icon: '🏋️',
       tips: ['起於肩膀高','推至手腕過頭頂','避免過度後仰'],
-      imageUrl: '/images/overhead_press_image_1.png'
+      imageUrl: '/images/overhead_press_image_1.png',
+      orientation: 'portrait'
     },
     {
       id: 'chest_pull',
@@ -42,7 +46,8 @@ export const useExerciseStore = defineStore('exercise', () => {
       description: '鍛鍊腿部和臀部力量',
       icon: '🦵',
       tips: ['膝蓋對齊腳尖','髖向後坐','站起伸直髖膝'],
-      imageUrl: '/images/chest_pull_image_1.png'
+      imageUrl: '/images/chest_pull_image_1.png',
+      orientation: 'landscape'
     },
   ])
 

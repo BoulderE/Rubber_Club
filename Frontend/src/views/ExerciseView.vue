@@ -36,6 +36,7 @@
           v-if="isWorkoutActive"
           ref="analyzer"
           :analyze-interval="50"
+          :orientation="orientation"
           @frame-analyzed="handleFrameAnalyzed"
           @error="handleError"
         />
@@ -121,7 +122,7 @@ const feedbackText = ref("隨時準備！");
 const isOverextended = ref(false);
 
 const MAX_REPS = 15;
-
+const orientation = computed(() => exerciseData.value?.orientation || 'landscape');
 const progressPercent = computed(() => {
 const total = Number(MAX_REPS || 0);
 const done = Number(mediapipeStore.count || 0);
@@ -330,6 +331,25 @@ function handleEndWorkout() {
 .header h1 { margin: 0; color: #333; }
 .content { display: grid; grid-template-columns: 1fr 350px; gap: 30px; }
 .main-section, .stats-section { display: flex; flex-direction: column; gap: 20px; }
+
+.camera-shell { width: 100%; }
+.video-frame {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: #000;
+  border-radius: 12px;
+}
+.o-landscape .video-frame { aspect-ratio: 16 / 9; }
+.o-portrait  .video-frame { aspect-ratio: 9 / 16; }
+
+.video-frame video,
+.video-frame canvas,
+.video-frame .webcam-placeholder {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
 .feedback-container {
   background-color: #2d3748; /* 深灰色背景 */

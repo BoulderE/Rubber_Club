@@ -27,78 +27,94 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import { getApiBase } from '@/api/base';
 
-// --- 1. 响应式状态定义 ---
-const currentPin = ref(''); // 使用 ref 创建响应式变量
+const currentPin = ref('');
 const message = ref('');
-const messageColor = ref('#e74c3c'); // 默认是错误颜色
+const messageColor = ref('#e74c3c');
 const isShaking = ref(false);
-const router = useRouter(); // 获取router实例
-const isLoggedIn = ref(false); // 登录状态
+const isLoggedIn = ref(false);
+const isSubmitting = ref(false);
+
+const router = useRouter();
 const base = getApiBase();
-// --- 2. 逻辑与计算属性 ---
 
 const keypadLayout = [1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, 'delete'];
 
-// --- 3. 方法定义 ---
 const handleKeyPress = (key) => {
-  if (isLoggedIn.value) return; // 已登录则不响应按键
-  if (key === null) return; // 点击了空白格
+  if (isLoggedIn.value || isSubmitting.value) return;
+  if (key === null) return;
 
-  message.value = ''; // 每次按键都清除消息
+  message.value = '';
 
   if (key === 'delete') {
     currentPin.value = currentPin.value.slice(0, -1);
   } else if (currentPin.value.length < 4) {
-    currentPin.value += key;
+    currentPin.value += String(key);
   }
 
-  // 当输入满4位时，自动触发登录检查
   if (currentPin.value.length === 4) {
     checkPin();
   }
 };
 
 const checkPin = async () => {
+  if (isSubmitting.value) return;
+  isSubmitting.value = true;
+
   try {
+    // 這裡改成送出使用者實際輸入的 PIN
     const response = await axios.post(`${base}/api/login`, {
       pin: currentPin.value
-    });
+    }, { timeout: 8000 });
 
-    if (response.data?.token) {
-      loginSuccess(response.data.token);
+    const token = response.data?.token || response.data?.access_token || response.data?.data?.token;
+    if (token) {
+      await loginSuccess(token);
     } else {
-      throw new Error('Invalid response');
+      throw new Error('Invalid response shape');
     }
   } catch (error) {
     console.error('Login request failed:', error);
-    loginFailure();
+    // 401 當成 PIN 錯；其餘顯示系統錯誤
+    if (error?.response?.status === 401) {
+      loginFailure('PIN碼錯誤，請重試');
+    } else {
+      loginFailure('登入失敗，請稍後再試');
+    }
+  } finally {
+    isSubmitting.value = false;
   }
 };
 
-const loginSuccess = (token) => {
+const loginSuccess = async (token) => {
   message.value = '登入成功！';
-  messageColor.value = '#2ecc71'; // 成功消息颜色
-  isLoggedIn.value = true; 
-  
-  localStorage.setItem('user-token', token)
+  messageColor.value = '#2ecc71';
+  isLoggedIn.value = true;
+
+  try {
+    localStorage.setItem('user-token', token);
+  } catch (e) {
+    console.warn('localStorage 寫入失敗：', e);
+  }
+
+  await nextTick();
   setTimeout(() => {
-    router.push('/home'); 
-  }, 50);
+    router.push('/home');
+  }, 300);
 };
 
-const loginFailure = () => {
-  message.value = 'PIN碼錯誤，請重試';
+const loginFailure = (msg = 'PIN碼錯誤，請重試') => {
+  message.value = msg;
   messageColor.value = '#e74c3c';
-  isShaking.value = true; // 触发抖动动画
+  isShaking.value = true;
 
   setTimeout(() => {
     isShaking.value = false;
-    currentPin.value = ""; // 自动清空
+    currentPin.value = '';
   }, 600);
 };
 </script>

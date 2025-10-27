@@ -1,32 +1,38 @@
 <template>
-  <div class="webcam-analyzer">
-    <div class="video-container">
-      <video 
-        ref="videoElement" 
-        class="video-feed"
-        :class="{ 'mirror': mirror }"
-        autoplay
-        playsinline
-      ></video>
-      
-      <canvas 
-        ref="canvasElement" 
-        class="pose-overlay"
-        :class="{ 'mirror': mirror }"
-      ></canvas>
-      
-      <div v-if="!isStreaming" class="video-placeholder">
-        <div class="placeholder-content">
-          <p>📹 Camera Off</p>
-          <button @click="startCamera" class="start-button">Camera On</button>
+  <div
+    class="webcam-analyzer"
+    :class="['o-' + orientation]"
+    :style="orientation === 'portrait'
+      ? { '--p-video-height': pSize.height, '--p-scale': pSize.scale, '--p-max-w': pSize.maxW }
+      : { '--l-video-height': lSize.height, '--l-max-w': lSize.maxW }"
+  >
+    <div class="video-frame">
+      <div class="video-container" ref="containerEl">
+        <!-- video 仅作为输入，不渲染到用户眼前 -->
+        <video
+          ref="videoElement"
+          class="video-feed"
+          autoplay
+          playsinline
+          muted
+        ></video>
+
+        <!-- 可见画面都在 canvas -->
+        <canvas ref="canvasElement" class="pose-overlay"></canvas>
+
+        <div v-if="!isStreaming" class="video-placeholder">
+          <div class="placeholder-content">
+            <p>📹 Camera Off</p>
+            <button @click="startCamera" class="start-button">Camera On</button>
+          </div>
+        </div>
+
+        <div v-if="error" class="error-message">
+          {{ error }}
         </div>
       </div>
-      
-      <div v-if="error" class="error-message">
-        {{ error }}
-      </div>
     </div>
-    
+
     <div class="controls">
       <button @click="toggleCamera" class="control-button">
         {{ isStreaming ? 'Stop' : 'Begin' }}
@@ -36,20 +42,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 
 const props = defineProps({
-  analyzeInterval: {
-    type: Number,
-    default: 100
-  }
+  analyzeInterval: { type: Number, default: 100 },
+  orientation: {
+    type: String,
+    default: 'landscape',
+    validator: v => ['portrait', 'landscape'].includes(v)
+  },
+  landscapeSize: { type: Object, default: () => ({ height: '56vh', maxW: '980px' }) },
+  portraitSize:  { type: Object, default: () => ({ height: '52vh', scale: 1.08, maxW: '640px' }) }
 })
 
-const emit = defineEmits(['frame-analyzed', 'error'])
+const lSize = computed(() => ({ height: props.landscapeSize.height, maxW: props.landscapeSize.maxW }))
+const pSize = computed(() => ({ height: props.portraitSize.height, scale: props.portraitSize.scale ?? 1.08, maxW: props.portraitSize.maxW }))
+
+const targetRatio = computed(() => props.orientation === 'portrait' ? 9/16 : 16/9)
 
 const mediapipeStore = useMediapipeStore()
 
+const containerEl = ref(null)
 const videoElement = ref(null)
 const canvasElement = ref(null)
 const isStreaming = ref(false)
@@ -57,79 +71,92 @@ const mirror = ref(true)
 const error = ref('')
 const stream = ref(null)
 const analyzeTimer = ref(null)
+let ro
+
+// 关键点：Canvas 跟随容器 CSS 尺寸，而不是视频源分辨率，避免系统切换显示模式
+function attachResizeObserver() {
+  if (!containerEl.value || !canvasElement.value) return
+  const canvas = canvasElement.value
+  const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true })
+  const update = () => {
+    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2)) // 限制过高 DPR
+    const rect = containerEl.value.getBoundingClientRect()
+    canvas.style.width = rect.width + 'px'
+    canvas.style.height = rect.height + 'px'
+    canvas.width = Math.round(rect.width * dpr)
+    canvas.height = Math.round(rect.height * dpr)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  }
+  ro = new ResizeObserver(update)
+  ro.observe(containerEl.value)
+  update()
+}
 
 async function startCamera() {
   try {
     error.value = ''
-    
-    // 获取摄像头权限
-    stream.value = await navigator.mediaDevices.getUserMedia({
+
+    // 关键点：避免请求过高分辨率/帧率，减少 macOS 触发显示切换
+    // 同时设置 exact frameRate 范围，关闭 HDR/高带宽倾向
+    const base = {
+      facingMode: 'user',
+      frameRate: { ideal: 24, max: 24 }, // 不用 60
+      width:  { ideal: props.orientation === 'portrait' ? 720 : 1280, max: 1280 },
+      height: { ideal: props.orientation === 'portrait' ? 1280 : 720, max: 1280 },
+      resizeMode: 'none', 
+    }
+
+    // 某些浏览器在设置 aspectRatio 更稳定
+    const constraints = {
+      audio: false,
       video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
-    })
-    
-    if (videoElement.value) {
-      videoElement.value.srcObject = stream.value
-      isStreaming.value = true
-      
-      // 等待视频元数据加载
-      videoElement.value.onloadedmetadata = () => {
-        // 设置画布大小
-        if (canvasElement.value) {
-          canvasElement.value.width = videoElement.value.videoWidth
-          canvasElement.value.height = videoElement.value.videoHeight
-        }
-        
-        // 开始分析
-        startAnalysis()
+        ...base,
+        aspectRatio: props.orientation === 'portrait' ? { ideal: 9/16 } : { ideal: 16/9 },
+        // 这些属性可降低能耗与切换概率（兼容性允许时）
+        resizeMode: 'crop-and-scale', // Safari 16+ 支持
+        advanced: [
+          { exposureMode: 'continuous' },
+          { focusMode: 'continuous' },
+          { whiteBalanceMode: 'continuous' },
+          { torch: false }
+        ]
       }
     }
+
+    stream.value = await navigator.mediaDevices.getUserMedia(constraints)
+
+    if (videoElement.value) {
+      // 不在页面显示 video，避免浏览器为“清晰度”强行拉伸
+      videoElement.value.srcObject = stream.value
+      videoElement.value.playsInline = true
+      videoElement.value.muted = true
+      await videoElement.value.play().catch(() => {})
+
+      isStreaming.value = true
+      startAnalysis()
+    }
   } catch (err) {
-    error.value = '无法访问摄像头：' + err.message
-    emit('error', err)
+    error.value = '无法访问摄像头：' + (err?.message || err)
   }
 }
 
 function stopCamera() {
   if (stream.value) {
-    stream.value.getTracks().forEach(track => track.stop())
+    stream.value.getTracks().forEach(t => t.stop())
     stream.value = null
   }
-  
-  if (videoElement.value) {
-    videoElement.value.srcObject = null
-  }
-  
+  if (videoElement.value) videoElement.value.srcObject = null
   isStreaming.value = false
   stopAnalysis()
 }
 
 function toggleCamera() {
-  if (isStreaming.value) {
-    stopCamera()
-  } else {
-    startCamera()
-  }
+  isStreaming.value ? stopCamera() : startCamera()
 }
 
 function startAnalysis() {
-  if (!videoElement.value || !isStreaming.value) {
-    console.log('视频流未准备好，延迟启动分析')
-    setTimeout(() => startAnalysis(), 100)
-    return
-  }
-
-  if (analyzeTimer.value) {
-    clearInterval(analyzeTimer.value)
-  }
-  
-  analyzeTimer.value = setInterval(async () => {
-    if (videoElement.value && isStreaming.value) {
-      await analyzeFrame()
-    }
-  }, props.analyzeInterval)
+  if (analyzeTimer.value) clearInterval(analyzeTimer.value)
+  analyzeTimer.value = setInterval(analyzeFrame, props.analyzeInterval)
 }
 
 function stopAnalysis() {
@@ -139,222 +166,190 @@ function stopAnalysis() {
   }
 }
 
+function computeCenteredCrop(sw, sh, targetRatio) {
+  const srcRatio = sw / sh
+  let sx = 0, sy = 0, sWidth = sw, sHeight = sh
+  if (srcRatio > targetRatio) {
+    sWidth = Math.round(sh * targetRatio)
+    sx = Math.round((sw - sWidth) / 2)
+  } else if (srcRatio < targetRatio) {
+    sHeight = Math.round(sw / targetRatio)
+    sy = Math.round((sh - sHeight) / 2)
+  }
+  return { sx, sy, sWidth, sHeight }
+}
+
 async function analyzeFrame() {
-  if (!videoElement.value || !canvasElement.value) return
-  
+  const v = videoElement.value
+  const canvas = canvasElement.value
+  if (!v || !canvas || !isStreaming.value) return
+  const ctx = canvas.getContext('2d')
+
+  const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2))
+  const cw = canvas.width / dpr
+  const ch = canvas.height / dpr
+
+  const sw = v.videoWidth
+  const sh = v.videoHeight
+  if (!sw || !sh) return
+
+  // 居中裁切到目标比例，避免拉伸
+  const { sx, sy, sWidth, sHeight } = computeCenteredCrop(sw, sh, targetRatio.value)
+
+  ctx.clearRect(0, 0, cw, ch)
+  ctx.save()
+  if (mirror.value) {
+    ctx.translate(cw, 0)
+    ctx.scale(-1, 1)
+  }
+  ctx.drawImage(v, sx, sy, sWidth, sHeight, 0, 0, cw, ch)
+  ctx.restore()
+
   try {
-    const ctx = canvasElement.value.getContext('2d')
-    
-    // 如果是镜像模式，翻转画布
-    if (mirror.value) {
-      ctx.save()
-      ctx.scale(-1, 1)
-      ctx.drawImage(
-        videoElement.value, 
-        -canvasElement.value.width, 
-        0, 
-        canvasElement.value.width, 
-        canvasElement.value.height
-      )
-      ctx.restore()
-    } else {
-      ctx.drawImage(
-        videoElement.value, 
-        0, 
-        0, 
-        canvasElement.value.width, 
-        canvasElement.value.height
-      )
-    }
-    
-    // 获取图像数据
-    const imageData = canvasElement.value.toDataURL('image/jpeg', 0.8)
-    
-    // 调用 store 中的分析方法
+    const imageData = canvas.toDataURL('image/jpeg', 0.8)
     const result = await mediapipeStore.analyzeFrame(imageData)
-    
-    if (result) {
-      emit('frame-analyzed', result)
-      
-      // 在画布上绘制骨架（如果有姿势数据）
-      if (result.pose_landmarks) {
-        drawPose(ctx, result.pose_landmarks)
-      }
-    }
-  } catch (err) {
-    console.error('Frame analysis error:', err)
-    emit('error', err)
+    if (result?.pose_landmarks) drawPose(ctx, result.pose_landmarks, cw, ch)
+  } catch (e) {
+    // 静默失败以防阻塞
   }
 }
 
-function drawPose(ctx, landmarks) {
-  if (!landmarks || landmarks.length === 0) return
-  
+function drawPose(ctx, landmarks, cw, ch) {
+  if (!landmarks?.length) return
   ctx.strokeStyle = '#00ff00'
   ctx.lineWidth = 2
   ctx.fillStyle = '#ff0000'
-  
-  // 绘制关键点
-  landmarks.forEach(landmark => {
-    if (landmark.visibility > 0.5) {
-      const x = mirror.value 
-        ? canvasElement.value.width - (landmark.x * canvasElement.value.width)
-        : landmark.x * canvasElement.value.width
-      const y = landmark.y * canvasElement.value.height
-      
+
+  // 点
+  for (const p of landmarks) {
+    if (p.visibility > 0.5) {
+      const x = mirror.value ? cw - p.x * cw : p.x * cw
+      const y = p.y * ch
       ctx.beginPath()
-      ctx.arc(x, y, 5, 0, 2 * Math.PI)
+      ctx.arc(x, y, 4, 0, Math.PI * 2)
       ctx.fill()
     }
-  })
-  
-  // 绘制骨架连接线
+  }
+  // 线
   const connections = [
-    [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // 上半身
-    [11, 23], [12, 24], [23, 24], [23, 25], [24, 26], [25, 27], [26, 28] // 下半身
+    [11,12],[11,13],[13,15],[12,14],[14,16],
+    [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28]
   ]
-  
   ctx.beginPath()
-  connections.forEach(([start, end]) => {
-    if (landmarks[start]?.visibility > 0.5 && landmarks[end]?.visibility > 0.5) {
-      const x1 = mirror.value 
-        ? canvasElement.value.width - (landmarks[start].x * canvasElement.value.width)
-        : landmarks[start].x * canvasElement.value.width
-      const y1 = landmarks[start].y * canvasElement.value.height
-      const x2 = mirror.value 
-        ? canvasElement.value.width - (landmarks[end].x * canvasElement.value.width)
-        : landmarks[end].x * canvasElement.value.width
-      const y2 = landmarks[end].y * canvasElement.value.height
-      
+  for (const [a,b] of connections) {
+    if (landmarks[a]?.visibility > 0.5 && landmarks[b]?.visibility > 0.5) {
+      const x1 = mirror.value ? cw - landmarks[a].x * cw : landmarks[a].x * cw
+      const y1 = landmarks[a].y * ch
+      const x2 = mirror.value ? cw - landmarks[b].x * cw : landmarks[b].x * cw
+      const y2 = landmarks[b].y * ch
       ctx.moveTo(x1, y1)
       ctx.lineTo(x2, y2)
     }
-  })
+  }
   ctx.stroke()
 }
 
-// 公开方法给父组件
-defineExpose({
-  startAnalysis,
-  stopAnalysis
-})
+// 暴露方法
+defineExpose({ startAnalysis, stopAnalysis })
 
 onMounted(() => {
-  // 自动启动摄像头
+  attachResizeObserver()
   startCamera()
+})
+
+watch(() => props.orientation, async () => {
+  stopAnalysis()
+  stopCamera()
+  await startCamera()
 })
 
 onUnmounted(() => {
   stopCamera()
+  if (ro) ro.disconnect()
 })
 </script>
 
 <style scoped>
+/* 可独立控制两种朝向的尺寸 */
 .webcam-analyzer {
+  --l-video-height: 56vh;  /* landscape 容器高度（短边） */
+  --l-max-w: 980px;        /* landscape 最大宽度 */
+
+  --p-video-height: 52vh;  /* portrait 容器高度（短边） */
+  --p-scale: 1.08;         /* portrait 额外缩放 */
+  --p-max-w: 640px;        /* portrait 最大宽度 */
+
   width: 100%;
   background: white;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+
+.video-frame {
+  width: 100%;
+  display: flex;
 }
 
 .video-container {
   position: relative;
-  width: 100%;
-  padding-bottom: 56.25%; /* 16:9 比例 */
   background: #000;
   overflow: hidden;
+  height: auto;
+  margin-inline: auto;
+  width: 100%;
 }
 
-.video-feed,
+/* 比例 */
+.o-landscape .video-container { aspect-ratio: 16 / 9; }
+.o-portrait  .video-container { aspect-ratio: 9 / 16; }
+
+/* landscape 宽度推导：W = H * 16/9，并限制最大宽度 */
+.o-landscape .video-container {
+  width: min(100%, calc(var(--l-video-height) * 16 / 9), var(--l-max-w));
+}
+
+/* portrait 宽度推导：W = scale * H * 9/16，并限制最大宽度 */
+.o-portrait .video-container {
+  width: min(100%, calc(var(--p-scale) * var(--p-video-height) * 9 / 16), var(--p-max-w));
+}
+
+/* 将 video 隐藏，只把 canvas 当显示层，避免浏览器为适配 video 触发缩放 */
+.video-feed { display: none !important; }
+
 .pose-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-}
-
-.pose-overlay {
   pointer-events: none;
 }
 
-.mirror {
-  transform: scaleX(-1);
+/* 小屏调优 */
+@media (max-width: 1024px) {
+  .webcam-analyzer { --l-video-height: 50vh; --p-video-height: 48vh; --p-scale: 1.05; }
+}
+@media (max-width: 640px) {
+  .webcam-analyzer { --l-video-height: 44vh; --p-video-height: 42vh; --p-scale: 1.0; }
 }
 
 .video-placeholder {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
   background: #f5f5f5;
 }
-
-.placeholder-content {
-  text-align: center;
-}
-
-.placeholder-content p {
-  font-size: 24px;
-  margin-bottom: 20px;
-  color: #666;
-}
-
+.placeholder-content { text-align: center; }
+.placeholder-content p { font-size: 18px; margin-bottom: 14px; color: #666; }
 .start-button {
-  padding: 12px 30px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.3s;
+  padding: 10px 22px; background: #2f6fed; color: #fff; border: 0; border-radius: 8px; cursor: pointer;
 }
-
-.start-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-}
-
 .error-message {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  right: 20px;
-  background: #ff4757;
-  color: white;
-  padding: 10px 15px;
-  border-radius: 8px;
-  font-size: 14px;
+  position: absolute; left: 20px; right: 20px; top: 20px;
+  background: #ff4757; color: #fff; padding: 10px 15px; border-radius: 8px; font-size: 14px;
 }
-
-.controls {
-  display: flex;
-  gap: 10px;
-  padding: 15px;
-  background: #f8f9fa;
-}
-
+.controls { display: flex; gap: 10px; padding: 12px; background: #f8f9fa; }
 .control-button {
-  flex: 1;
-  padding: 10px 20px;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.3s;
+  flex: 1; padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; font-size: 14px; cursor: pointer;
 }
-
-.control-button:hover {
-  background: #f0f0f0;
-  border-color: #667eea;
-  color: #667eea;
-}
+.control-button:hover { background: #f0f0f0; border-color: #2f6fed; color: #2f6fed; }
 </style>
