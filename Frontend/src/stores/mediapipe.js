@@ -50,12 +50,94 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     }
   }
   
-  async function analyzeFrame(imageData) {
-    if (isAnalyzing.value) return null
+  // async function analyzeFrame(imageData) {
+  //   if (isAnalyzing.value) return null
     
-    try {
-      isAnalyzing.value = true
+  //   try {
+  //     isAnalyzing.value = true
       
+  //   const base64Data = imageData.split(',')[1]
+  //   const byteCharacters = atob(base64Data)
+  //   const byteNumbers = new Array(byteCharacters.length)
+  //   for (let i = 0; i < byteCharacters.length; i++) {
+  //     byteNumbers[i] = byteCharacters.charCodeAt(i)
+  //   }
+  //   const byteArray = new Uint8Array(byteNumbers)
+  //   const blob = new Blob([byteArray], { type: 'image/jpeg' })
+
+  //   const formData = new FormData()
+  //   formData.append('file', blob, 'frame.jpg')
+    
+  //   const response = await fetch(`${API_URL}/mediapipe/analyze-stream`, {
+  //     method: 'POST',
+  //     body: formData
+  //   })
+      
+  //     if (!response.ok) {
+  //       throw new Error(`HTTP error! status: ${response.status}`)
+  //     }
+      
+  //     const result = await response.json()
+  //     console.log('[analyzeFrame] backend raw result:', result);
+  //     console.log('[analyzeFrame] keys:', Object.keys(result));
+      
+  //     analysisResults.value = result
+      
+  //     const exerciseStore = useExerciseStore();
+
+  //     const currentExerciseInfo = exerciseStore.getExerciseById(currentExercise.value);
+
+  //     if (!currentExerciseInfo) {
+  //       console.error("无法在 exerciseStore 中找到当前运动的配置！");
+  //       return result;
+  //     }
+
+  //     const dynamicKey = currentExerciseInfo.name;
+
+  //     if (result[dynamicKey]) {
+  //       const exerciseData = result[dynamicKey]; 
+  //       console.log('[analyzeFrame] currentExercise =', currentExercise.value);
+  //       console.log('[analyzeFrame] exerciseStore.name (dynamicKey) =', dynamicKey);
+  //       console.log('[analyzeFrame] result[dynamicKey] exists?', !!result[dynamicKey]);
+        
+  //       count.value = exerciseData.count;
+  //       energy.value = Math.round(exerciseData.energy);
+  //       isPaused.value = exerciseData.paused;
+
+  //       if (typeof exerciseData.smoothness !== 'undefined') {           
+  //         smoothness.value = Number(exerciseData.smoothness) || 0        
+  //       }                                                               
+  //       if (Array.isArray(exerciseData.rep_durations)) {                 
+  //         repDurations.value = exerciseData.rep_durations.slice()        
+  //       }  
+        
+  //       if (exerciseData.paused && status.value === 'active') {
+  //           status.value = 'paused';
+  //       } else if (!exerciseData.paused && status.value === 'paused') {
+  //           status.value = 'active';
+  //       }
+  //     }
+
+  //     if (count.value >= repetitionLimit) {
+  //       status.value = 'completed'
+  //     }
+      
+  //     return result
+      
+  //   } catch (error) {
+  //     console.error('Frame analysis error:', error)
+  //     return null
+  //   } finally {
+  //     isAnalyzing.value = false
+  //   }
+  // }
+
+  async function analyzeFrame(imageData) {
+  if (isAnalyzing.value) return null
+
+  try {
+    isAnalyzing.value = true
+
     const base64Data = imageData.split(',')[1]
     const byteCharacters = atob(base64Data)
     const byteNumbers = new Array(byteCharacters.length)
@@ -67,70 +149,64 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
 
     const formData = new FormData()
     formData.append('file', blob, 'frame.jpg')
-    
+
     const response = await fetch(`${API_URL}/mediapipe/analyze-stream`, {
       method: 'POST',
       body: formData
     })
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      
-      const result = await response.json()
-      console.log('[analyzeFrame] backend raw result:', result);
-      console.log('[analyzeFrame] keys:', Object.keys(result));
-      
-      analysisResults.value = result
-      
-      const exerciseStore = useExerciseStore();
 
-      const currentExerciseInfo = exerciseStore.getExerciseById(currentExercise.value);
-
-      if (!currentExerciseInfo) {
-        console.error("无法在 exerciseStore 中找到当前运动的配置！");
-        return result;
-      }
-
-      const dynamicKey = currentExerciseInfo.name;
-
-      if (result[dynamicKey]) {
-        const exerciseData = result[dynamicKey]; 
-        console.log('[analyzeFrame] currentExercise =', currentExercise.value);
-        console.log('[analyzeFrame] exerciseStore.name (dynamicKey) =', dynamicKey);
-        console.log('[analyzeFrame] result[dynamicKey] exists?', !!result[dynamicKey]);
-        
-        count.value = exerciseData.count;
-        energy.value = Math.round(exerciseData.energy);
-        isPaused.value = exerciseData.paused;
-
-        if (typeof exerciseData.smoothness !== 'undefined') {           
-          smoothness.value = Number(exerciseData.smoothness) || 0        
-        }                                                               
-        if (Array.isArray(exerciseData.rep_durations)) {                 
-          repDurations.value = exerciseData.rep_durations.slice()        
-        }  
-        
-        if (exerciseData.paused && status.value === 'active') {
-            status.value = 'paused';
-        } else if (!exerciseData.paused && status.value === 'paused') {
-            status.value = 'active';
-        }
-      }
-
-      if (count.value >= repetitionLimit) {
-        status.value = 'completed'
-      }
-      
-      return result
-      
-    } catch (error) {
-      console.error('Frame analysis error:', error)
-      return null
-    } finally {
-      isAnalyzing.value = false
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
+
+    const result = await response.json()
+    console.log('[analyzeFrame] backend raw result:', result)
+    console.log('[analyzeFrame] keys:', Object.keys(result))
+
+    analysisResults.value = result
+
+    const exerciseStore = useExerciseStore()
+    const currentExerciseInfo = exerciseStore.getExerciseById(currentExercise.value)
+
+    if (!currentExerciseInfo) {
+      console.error('无法在 exerciseStore 中找到当前运动的配置！')
+      return result
+    }
+
+    // 关键：优先用 type（更稳定），其次回退到 name
+    const keyByType = currentExercise.value
+    const keyByName = currentExerciseInfo.name
+    const exerciseData = result[keyByType] || result[keyByName]
+
+    console.log(
+      '[analyzeFrame] select key ->',
+      exerciseData ? (result[keyByType] ? 'type' : 'name') : 'none',
+      'keyByType=',
+      keyByType,
+      'keyByName=',
+      keyByName
+    )
+
+    if (exerciseData && typeof exerciseData === 'object') {
+      // 统一入口：交给 store 的 updateAnalysisData
+      updateAnalysisData(exerciseData)
+    } else {
+      console.warn('后端未返回匹配当前运动的键：', keyByType, '或', keyByName)
+    }
+
+    // 完成状态判定
+    if (count.value >= repetitionLimit) {
+      status.value = 'completed'
+    }
+
+    return result
+  } catch (error) {
+    console.error('Frame analysis error:', error)
+    return null
+  } finally {
+    isAnalyzing.value = false
   }
+}
 
   async function startExercise(exerciseType, style) {
     const success = await controlBackend({

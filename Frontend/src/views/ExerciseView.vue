@@ -1,12 +1,11 @@
 <template>
-  <div 
-    v-if="showIntro && style === 'motivator' && exerciseData" 
-    class="intro-modal-overlay" 
+  <div
+    v-if="showIntro && style === 'motivator' && exerciseData"
+    class="intro-modal-overlay"
     @click.self="closeIntroAndStart"
   >
     <div class="intro-modal-content">
       <button @click="closeIntroAndStart" class="close-button">&times;</button>
-      
       <div class="modal-body">
         <div class="image-container">
           <img :src="exerciseData.imageUrl" :alt="exerciseData.name" class="intro-image">
@@ -14,7 +13,6 @@
         <div class="info-container">
           <h2>{{ exerciseData.name }}</h2>
           <p>{{ exerciseData.description }}</p>
-          
           <h3 class="tips-title">動作要點</h3>
           <ul class="tips-list">
             <li v-for="tip in exerciseData.tips" :key="tip">{{ tip }}</li>
@@ -29,10 +27,10 @@
       <router-link to="/" class="back-button">← Back</router-link>
       <h1>{{ exerciseData?.title || 'Analysis' }}</h1>
     </div>
-    
+
     <div class="content">
       <div class="main-section">
-        <WebcamAnalyzer 
+        <WebcamAnalyzer
           v-if="isWorkoutActive"
           ref="analyzer"
           :analyze-interval="50"
@@ -44,12 +42,12 @@
           <p>{{ style === 'motivator' ? 'Standby...' : 'Loading...' }}</p>
         </div>
       </div>
-      
+
       <div class="stats-section">
-        <!-- Motion preview -->
-         <div class="feedback-container" :class="{ 'is-error': isOverextended }">
+        <div class="feedback-container" :class="{ 'is-error': isOverextended }">
           <p class="feedback-text">{{ feedbackText }}</p>
         </div>
+
         <section class="panel">
           <div class="section-title">動作示意</div>
           <div class="hint">當前訓練：{{ exerciseData.name }}</div>
@@ -63,30 +61,41 @@
             <div v-else class="motion-placeholder">請為該動作提供動圖/圖片</div>
           </div>
         </section>
+
         <section class="panel">
-            <div class="progress-block">
-              <div class="progress-label">
-                <span>進度</span>
-                <span class="progress-percent">{{ progressPercent }}%</span>
-              </div>
-            <div class="progress-bar" role="progressbar" :aria-valuenow="progressPercent" aria-valuemin="0" aria-valuemax="100">
-            <div class="progress-fill" :class="{ done: progressPercent === 100 }" :style="{ width: progressPercent + '%' }"></div>
+          <div class="progress-block">
+            <div class="progress-label">
+              <span>進度</span>
+              <span class="progress-percent">{{ progressPercent }}%</span>
+            </div>
+            <div
+              class="progress-bar"
+              role="progressbar"
+              :aria-valuenow="progressPercent"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div
+                class="progress-fill"
+                :class="{ done: progressPercent === 100 }"
+                :style="{ width: progressPercent + '%' }"
+              ></div>
             </div>
             <div class="progress-ratio">{{ mediapipeStore.count }}/{{ MAX_REPS }}</div>
-            <div class="progress-actions">
-            </div>
+            <div class="progress-actions"></div>
           </div>
         </section>
       </div>
     </div>
-    
-    <WorkoutSummary 
+
+    <WorkoutSummary
       v-if="showSummary"
       :exercise-type="exerciseType"
       @continue="handleContinueWorkout"
       @end="handleEndWorkout"
     />
   </div>
+
   <div v-else>
     <h1>加载中或运动类型无效...</h1>
   </div>
@@ -98,120 +107,154 @@ import { useRoute, useRouter } from 'vue-router'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
-// import WorkoutStats from '@/components/WorkoutStats.vue'
-// import AngleDisplay from '@/components/AngleDisplay.vue'
 import WorkoutSummary from '@/components/WorkoutSummary.vue'
 
 // --- 1. 从 URL 获取动态数据 ---
-const route = useRoute();
-const router = useRouter();
-const exerciseType = ref(route.params.type);
-const style = ref(route.query.style);       // 'motivator' 或 'guide'
+const route = useRoute()
+const router = useRouter()
+const exerciseType = ref(route.params.type)
+const style = ref(route.query.style) // 'motivator' 或 'guide'
 
 // --- 2. 状态管理和组件引用 ---
-const mediapipeStore = useMediapipeStore();
-const exerciseStore = useExerciseStore();
-const analyzer = ref(null);
-const currentAngles = ref(null);
-const showSummary = ref(false);
-const showIntro = ref(false);
-const isWorkoutActive = ref(false);
-const exerciseData = computed(() => exerciseStore.getExerciseById(exerciseType.value));
+const mediapipeStore = useMediapipeStore()
+const exerciseStore = useExerciseStore()
+const analyzer = ref(null)
+const currentAngles = ref(null)
+const showSummary = ref(false)
+const showIntro = ref(false)
+const isWorkoutActive = ref(false)
+const exerciseData = computed(() => exerciseStore.getExerciseById(exerciseType.value))
 
-const feedbackText = ref("隨時準備！");
-const isOverextended = ref(false);
+const feedbackText = ref('隨時準備！')
+const isOverextended = ref(false)
 
-const MAX_REPS = 15;
-const orientation = computed(() => exerciseData.value?.orientation || 'landscape');
+// 使用 store 的限制作为分母，避免常量分裂
+const MAX_REPS = computed(() => mediapipeStore.repetitionLimit || 15)
+
+const orientation = computed(() => exerciseData.value?.orientation || 'landscape')
+
+// 【修改】直接从 store 读取 count，确保响应式
 const progressPercent = computed(() => {
-const total = Number(MAX_REPS || 0);
-const done = Number(mediapipeStore.count || 0);
-if (!total) return 0;
-const p = Math.round((done / total) * 100);
-return Math.max(0, Math.min(100, p));
-});
-
+  const total = Number(MAX_REPS.value || 0)
+  const done = Number(mediapipeStore.count || 0) // 直接从 store 读取
+  if (!total) return 0
+  const p = Math.round((done / total) * 100)
+  console.log('[progressPercent] total:', total, 'done:', done, 'percent:', p) // 调试日志
+  return Math.max(0, Math.min(100, p))
+})
 
 async function startWorkoutFlow() {
-  isWorkoutActive.value = true;
-    await nextTick();
+  isWorkoutActive.value = true
+  await nextTick()
 
-  exerciseStore.startExercise();
+  exerciseStore.startExercise()
   setTimeout(() => {
-    analyzer.value?.startAnalysis(); // 开始摄像头分析
-  }, 100);
-  mediapipeStore.startExercise(exerciseType.value, style.value);
+    analyzer.value?.startAnalysis() // 开始摄像头分析
+  }, 100)
+  mediapipeStore.startExercise(exerciseType.value, style.value)
 }
 
 function closeIntroAndStart() {
-  if (!showIntro.value) return;
-  showIntro.value = false; // 关闭弹窗
-  startWorkoutFlow();      // 执行开始流程
+  if (!showIntro.value) return
+  showIntro.value = false
+  startWorkoutFlow()
 }
 
 onMounted(() => {
   if (!exerciseType.value || !style.value) {
-    router.push('/');
-    return;
+    router.push('/')
+    return
   }
-  
-  exerciseStore.selectExercise(exerciseType.value);
-  
-  if (style.value === 'motivator') {
-    showIntro.value = true;
-  } else {
-    startWorkoutFlow();
-  }
-});
+  exerciseStore.selectExercise(exerciseType.value)
 
+  if (style.value === 'motivator') {
+    showIntro.value = true
+  } else {
+    startWorkoutFlow()
+  }
+})
+
+// 【关键修改】简化 handleFrameAnalyzed，让 store 的 analyzeFrame 完成所有逻辑
 function handleFrameAnalyzed(result) {
-    const analysisData = result[exerciseType.value];
-    if (analysisData) {
+  console.log('[handleFrameAnalyzed] received result keys:', Object.keys(result || {}))
+  
+  // 优先使用 'current' 键，否则尝试 type 键，最后尝试 name 键
+  const byCurrent = result?.current
+  const byType = result?.[exerciseType.value]
+  const byName = exerciseData.value?.name ? result?.[exerciseData.value.name] : undefined
+  const analysisData = byCurrent || byType || byName
+
+  console.log('[handleFrameAnalyzed] selected data source:', 
+    byCurrent ? 'current' : (byType ? 'type' : (byName ? 'name' : 'none')))
+  console.log('[handleFrameAnalyzed] analysisData:', analysisData)
+
+  if (analysisData && typeof analysisData === 'object') {
+    // 角度（存在则更新）
+    if (analysisData.shoulder_angle !== undefined || analysisData.elbow_angle !== undefined) {
       currentAngles.value = {
         shoulder: analysisData.shoulder_angle,
         elbow: analysisData.elbow_angle
-      };
-      mediapipeStore.updateAnalysisData(analysisData);
-      feedbackText.value = analysisData.feedback;
-      const nonStandard = analysisData.category === 'non_standard';
-      isOverextended.value = Boolean(analysisData.overextended || nonStandard);
-    } else {
-      console.log("当前帧未返回有效的分析数据");
+      }
     }
 
-    if (result.gesture_detected) {
-      console.log(`检测到手势: ${result.gesture_detected}`);
-    }
+    // 【关键】更新 store（这会触发响应式更新）
+    mediapipeStore.updateAnalysisData(analysisData)
+
+    // 反馈/错误态
+    feedbackText.value = analysisData.feedback || feedbackText.value
+    const nonStandard = analysisData.category === 'non_standard'
+    isOverextended.value = Boolean(analysisData.overextended || nonStandard)
+
+    console.log('[handleFrameAnalyzed] after update - store.count:', mediapipeStore.count)
+  } else {
+    // 关键日志：看是否命中键
+    console.warn(
+      '[handleFrameAnalyzed] 未命中 current/type/name。可用键:',
+      Object.keys(result || {})
+    )
+  }
+
+  if (result.gesture_detected) {
+    console.log(`检测到手势: ${result.gesture_detected}`)
+  }
 }
 
 function handleError(error) {
-  console.error('Analysis error:', error);
+  console.error('Analysis error:', error)
 }
 
-watch(() => mediapipeStore.count, (newCount, oldCount) => {
-  if (newCount > 0 && newCount % mediapipeStore.repetitionLimit === 0 && newCount !== oldCount) {
-    isWorkoutActive.value = false;
-    exerciseStore.endExercise()
-    showSummary.value = true;
-    // analyzer.value?.stopAnalysis();
+// 【修改】监听 store 的 count 变化
+watch(
+  () => mediapipeStore.count,
+  (newCount, oldCount) => {
+    console.log('[watch count] newCount:', newCount, 'oldCount:', oldCount, 'limit:', mediapipeStore.repetitionLimit)
+    if (
+      newCount > 0 &&
+      newCount % (mediapipeStore.repetitionLimit || 15) === 0 &&
+      newCount !== oldCount
+    ) {
+      isWorkoutActive.value = false
+      exerciseStore.endExercise()
+      showSummary.value = true
+    }
   }
-});
+)
 
 function handleContinueWorkout() {
-  showSummary.value = false;
-  isWorkoutActive.value = true;
-  mediapipeStore.reset();
-  exerciseStore.startExercise(); 
+  showSummary.value = false
+  isWorkoutActive.value = true
+  mediapipeStore.reset()
+  exerciseStore.startExercise()
   setTimeout(() => {
-    analyzer.value?.startAnalysis();
-  }, 100);
-  mediapipeStore.startExercise(exerciseType.value, style.value);
+    analyzer.value?.startAnalysis()
+  }, 100)
+  mediapipeStore.startExercise(exerciseType.value, style.value)
 }
 
 function handleEndWorkout() {
-  showSummary.value = false;
-  mediapipeStore.reset();
-  router.push('/');
+  showSummary.value = false
+  mediapipeStore.reset()
+  router.push('/')
 }
 </script>
 

@@ -209,7 +209,7 @@ async function analyzeFrame() {
     const imageData = canvas.toDataURL('image/jpeg', 0.8)
     const result = await mediapipeStore.analyzeFrame(imageData)
     if (result?.pose_landmarks) drawPose(ctx, result.pose_landmarks, cw, ch)
-  } catch (e) {
+  } catch {
     // 静默失败以防阻塞
   }
 }

@@ -68,23 +68,23 @@ EXERCISE_CONFIG = {
     },
     'front_raise': {
         'name': '前平举',
-        'landmarks_to_use': ['right_shoulder', 'right_wrist', 'right_elbow'],
+        'landmarks_to_use': ['right_shoulder', 'right_wrist', 'right_elbow', 'right_hip'],
         'logic_function': '_analyze_front_raise_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': 0.25,
+                'start_threshold_y': 0.70,
                 'end_threshold_y': 0.20,
-                'over_extension_threshold_y': -0.25,
-                'min_distance': 0.010
+                # 'over_extension_threshold_y': -0.30,
+                'min_distance': 0.015
             },
             'beginner': {
-                'start_threshold_y': 0.28,
-                'end_threshold_y': 0.23,
-                'over_extension_threshold_y': -0.22,
-                'min_distance': 0.008
+                'start_threshold_y': 0.75,
+                'end_threshold_y': 0.30,
+                # 'over_extension_threshold_y': -0.20,
+                'min_distance': 0.012
             }
         }
-    },
+},
     'overhead_press': {
         'name': '过顶举',
         'landmarks_to_use': ['right_shoulder', 'right_wrist', 'right_elbow'],
@@ -142,6 +142,7 @@ class WorkoutState:
         self._completed_this_frame = False
         self._completed_hold_frames = 0
         self._action_overextended = False
+        
 
 class ExerciseAnalyzer:
     def __init__(self):
@@ -151,13 +152,65 @@ class ExerciseAnalyzer:
         self.config = None
         self.style = 'intermediate'
         self.exercise_id = None
-        #new
+        
         self.last_rep_start = None
         self.repetition_durations = []  
         self.smoothness_score = 100
 
+        # new
+        self.phase_timings = []
+        self._phase_name = None
+        self._phase_start_time = None
+
     def _now(self):
         return time.time()
+    
+    def _finalize_open_phase(self):
+        # End current open phase when leaving tracking or pausing
+        if self._phase_name is not None and self._phase_start_time is not None:
+            duration = max(0.0, self._now() - self._phase_start_time)
+            if 0.1 <= duration <= 10.0:
+                self.phase_timings.append((self._phase_name, duration))
+                if len(self.phase_timings) > 200:
+                    self.phase_timings = self.phase_timings[-200:]
+        self._phase_name = None
+        self._phase_start_time = None
+
+    def _update_phase(self, is_up: bool, is_down: bool):
+        # Only switch phase when we are in up or down zones, ignore middle band
+        now_t = self._now()
+        target = None
+        if is_up:
+            target = 'up'
+        elif is_down:
+            target = 'down'
+        else:
+            # Option A: keep current phase running in middle zone (do nothing)
+            # Option B: end phase when exiting definitive zones:
+            # Here we choose to end the current phase when leaving up/down to middle to avoid overly long segments
+            if self._phase_name is not None and self._phase_start_time is not None:
+                duration = max(0.0, now_t - self._phase_start_time)
+                if 0.1 <= duration <= 10.0:
+                    self.phase_timings.append((self._phase_name, duration))
+                    if len(self.phase_timings) > 200:
+                        self.phase_timings = self.phase_timings[-200:]
+            self._phase_name = None
+            self._phase_start_time = None
+            return
+
+        if self._phase_name is not None and self._phase_name != target and self._phase_start_time is not None:
+            duration = max(0.0, now_t - self._phase_start_time)
+            if 0.1 <= duration <= 10.0:
+                self.phase_timings.append((self._phase_name, duration))
+                if len(self.phase_timings) > 200:
+                    self.phase_timings = self.phase_timings[-200:]
+            self._phase_start_time = None
+
+        if self._phase_name != target:
+            self._phase_name = target
+            self._phase_start_time = now_t
+        # else: still in same phase, keep running
+
 
     def _on_rep_completed(self):
         """
@@ -186,30 +239,41 @@ class ExerciseAnalyzer:
 
     def _compute_smoothness(self) -> int:
         """
-        使用 RSD = std/mean 将节奏一致性映射到 10–100。
-        - 少于 3 次时，返回 100（或你可以改成 None）
-        - rsd_min = 0.02（几乎完美），rsd_max = 0.5（非常不稳定）
+        基于相位时长的节奏一致性评分：
+        - 分别计算 up 与 down 的相对标准差 RSD = std/mean
+        - 将两者按样本数加权合成 10~100
+        - 少于3个样本时，返回 100（或使用另一侧的分数）
         """
-        n = len(self.repetition_durations)
-        if n < 3:
+        up_durs = [d for (p, d) in self.phase_timings if p == 'up'][-20:]
+        dn_durs = [d for (p, d) in self.phase_timings if p == 'down'][-20:]
+
+        def rsd_score(durs):
+            if len(durs) < 3:
+                return None
+            m = mean(durs)
+            if m <= 1e-6 or not math.isfinite(m):
+                return None
+            sigma = pstdev(durs)
+            rsd = sigma / m if m > 0 else float('inf')
+            rsd_min, rsd_max = 0.02, 0.5
+            rsd = max(rsd_min, min(rsd, rsd_max))
+            ratio = (rsd - rsd_min) / (rsd_max - rsd_min)  # 0（好）→1（差）
+            score = 10 + (100 - 10) * (1.0 - ratio)
+            return int(round(score))
+
+        up_score = rsd_score(up_durs)
+        dn_score = rsd_score(dn_durs)
+
+        if up_score is None and dn_score is None:
             return 100
+        if up_score is None:
+            return dn_score
+        if dn_score is None:
+            return up_score
 
-        m = mean(self.repetition_durations)
-        if m <= 1e-6 or not math.isfinite(m):
-            return 100
-
-        sigma = pstdev(self.repetition_durations)
-        # 变异系数（相对标准差），越小越稳定
-        rsd = sigma / m if m > 0 else float('inf')
-
-        # 标定区间与线性映射到 [10, 100]
-        rsd_min, rsd_max = 0.02, 0.5
-        rsd = max(rsd_min, min(rsd, rsd_max))
-        ratio = (rsd - rsd_min) / (rsd_max - rsd_min)  # 0（好）→1（差）
-        score = 10 + (100 - 10) * (1.0 - ratio)        # 10（差）→100（好）
-
-        # 四舍五入为整数
-        return int(round(score))
+        w_up = len(up_durs)
+        w_dn = len(dn_durs)
+        return int(round((up_score * w_up + dn_score * w_dn) / (w_up + w_dn)))
 
     def get_metrics(self):
         # 供路由返回
@@ -231,6 +295,12 @@ class ExerciseAnalyzer:
 
     def reset(self):
         self.state.reset()
+        self.last_rep_start = None
+        self.repetition_durations = []
+        self.smoothness_score = 100
+        self.phase_timings = []
+        self._phase_name = None
+        self._phase_start_time = None
 
     def _get_landmarks(self, results):
         landmarks = {}
@@ -250,7 +320,7 @@ class ExerciseAnalyzer:
         image_rgb = image
         results = self.pose.process(image_rgb)
         landmarks = self._get_landmarks(results)
-        smoothness = self.smoothness_score
+        
         # 重置当帧的过伸标记
         self.state._overextension_detected = False
         self.state._overextension_type = None
@@ -263,6 +333,7 @@ class ExerciseAnalyzer:
             self.state._last_completion_category = 'standard'
 
         if self.state.is_paused:
+            self._finalize_open_phase()
             self.state.feedback = "已暫停，做按讚手勢繼續"
             return {
                 'count': self.state.count,
@@ -281,6 +352,7 @@ class ExerciseAnalyzer:
             logic_function = getattr(self, self.config['logic_function'])
             logic_function(landmarks)
         else:
+            self._finalize_open_phase()
             self.state.feedback = "請確保身體關鍵部位在鏡頭內"
 
         self._generate_feedback()
@@ -295,7 +367,8 @@ class ExerciseAnalyzer:
             'completed': self.state._completed_this_frame,
             'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard'),
             'smoothness': self.smoothness_score,
-            'rep_durations': self.repetition_durations[-20:]
+            'rep_durations': self.repetition_durations[-20:],
+            'phase_timings': self.phase_timings[-20:]
         }
     
     
@@ -330,15 +403,22 @@ class ExerciseAnalyzer:
             if self.state._action_active:
                 self.state._action_overextended = True
 
-        is_pulled_down = y_diff > params['end_threshold_y']
-        self.state.stage = 'pulled' if is_pulled_down else 'start'
+        is_down = y_diff > params['end_threshold_y']          # 手较低
+        is_up = y_diff < params['start_threshold_y']          # 手较高（靠近肩上方）
+
+        self._update_phase(is_up, is_down)
+
+        if is_up:
+            self.state.stage = 'up'
+        elif is_down:
+            self.state.stage = 'down'
 
         if not self.state._action_active:
-            if y_diff < params['start_threshold_y']:
+            if is_up:
                 self.state._action_active = True
                 self.state._start_position = wrist
                 self.state._action_overextended = False
-        elif is_pulled_down:
+        elif is_down:
             distance = np.linalg.norm(wrist - self.state._start_position)
             min_dist = params.get('min_distance', 0.01)
             if distance > min_dist:
@@ -382,6 +462,8 @@ class ExerciseAnalyzer:
         # 滯回分區
         is_up = wx >= P['end_threshold_wx']
         is_down = wx <= P['start_threshold_wx']
+
+        self._update_phase(is_up, is_down)
 
         if is_up:
             self.state.stage = 'up'
@@ -440,62 +522,57 @@ class ExerciseAnalyzer:
     
     def _analyze_lateral_raise_logic(self, landmarks):
         """
-        修正后的侧平举分析逻辑。
-        使用“起始 -> 顶点 -> 起始”的完整周期检测，并采用更合理的阈值。
+        修正后的侧平举分析逻辑 - 修复过伸时重复计数问题
         """
         params = self.config['params'][self.style]
         shoulder = landmarks['right_shoulder']
         wrist = landmarks['right_wrist']
 
-        # 使用水平距离的绝对值，这样左右手都能适用
         x_abs_diff = abs(wrist[0] - shoulder[0])
-        # 垂直差用于判断过伸（y坐标越小，位置越高）
         y_diff = wrist[1] - shoulder[1]
 
-        # 1. 过伸检测 (Over-extension)
-        # 这个逻辑保持不变，因为它工作正常
+        # ========== 1. 过伸检测 ==========
         self.state._overextension_detected = False
         self.state._overextension_type = None
+        
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
             self.state._overextension_type = 'height_up'
-            # 如果在一次有效动作期间发生了过伸，记录下来
             if self.state._action_active:
                 self.state._action_overextended = True
 
-        # 2. 阶段判断 (Stage determination)
-        # 根据手臂是否打开到顶点阈值来判断当前阶段
+        # ========== 2. 阶段判断 ==========
         is_up = x_abs_diff > params['end_threshold_x']
         is_down = x_abs_diff < params['start_threshold_x']
+        
+        # 🔧 新增：安全区域判断 - 手腕必须低于肩膀才算真正的 down
+        is_safely_down = is_down and y_diff > -0.05  # y_diff > -0.05 表示手腕不高于肩膀太多
+
+        self._update_phase(is_up, is_down)
         
         if is_up:
             self.state.stage = 'up'
         elif is_down:
             self.state.stage = 'down'
-        # 在中间过程，stage保持不变
 
-        # 3. 计数逻辑 (Counting Logic) - 完整的状态机
-        # 状态: down -> (moving up) -> up -> (moving down) -> down (计数!)
-
-        # 如果当前在 'down' 阶段，并且一个动作周期没有被激活
-        # 这意味着我们准备好开始新的一次动作
-        if is_down and not self.state._action_active:
+        # ========== 3. 计数逻辑 ==========
+        
+        # 🔧 修复：只有在"安全的 down 区域"才能开始新动作
+        if is_safely_down and not self.state._action_active:
             self.state._action_active = True
-            self.state._in_up_phase = False  # 重置“到达顶点”标记
-            self.state._action_overextended = False # 重置本次动作的过伸标记
-            self.state._start_position = wrist
+            self.state._in_up_phase = False
+            self.state._action_overextended = False
+            self.state._start_position = wrist.copy()
 
-        # 如果动作已激活，并且我们首次达到了 'up' 阶段
+        # 到达顶点
         if self.state._action_active and not self.state._in_up_phase and is_up:
             self.state._in_up_phase = True
-            # 可以在这里记录到达顶点的时间等信息
 
-        # 如果动作已激活，并且已经到达过顶点(up)，现在又回到了起始(down)区域
-        if self.state._action_active and self.state._in_up_phase and is_down:
-            self.state._end_position = wrist
+        # 🔧 修复：完成动作时，也使用"安全的 down"判断
+        if self.state._action_active and self.state._in_up_phase and is_safely_down:
+            self.state._end_position = wrist.copy()
             distance = float(np.linalg.norm(self.state._end_position - self.state._start_position))
             
-            # 只有当位移足够大时才计数，防止微小抖动被误判
             if distance > params.get('min_distance', 0.02):
                 self.state.count += 1
                 self.state.total_distance += distance
@@ -503,94 +580,111 @@ class ExerciseAnalyzer:
 
                 self._on_rep_completed()
 
-                # 根据本次动作中是否发生过过伸来分类
                 is_non_standard = bool(getattr(self.state, '_action_overextended', False))
                 self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
 
-                # 触发完成动画
                 self.state._completed_this_frame = True
                 self.state._completed_hold_frames = 2
 
-            # 一次完整的动作结束，重置状态以便下一次计数
+            # 重置状态
             self.state._action_active = False
             self.state._in_up_phase = False
             self.state._action_overextended = False
 
     def _analyze_front_raise_logic(self, landmarks):
         """
-        重构后的前平举分析逻辑。
-        使用“放下 -> 举起 -> 放下” (down -> up -> down) 的完整周期检测。
+        重构后的前平举分析逻辑（距离归一化版本）
+        使用躯干长度归一化，适应不同距离的用户
         """
         params = self.config['params'][self.style]
-        shoulder, wrist, elbow = landmarks['right_shoulder'], landmarks['right_wrist'], landmarks['right_elbow']
+        shoulder = landmarks['right_shoulder']
+        wrist = landmarks['right_wrist']
+        elbow = landmarks['right_elbow']
+        hip = landmarks['right_hip']
         
-        # y_diff: 手腕相对于肩膀的垂直距离。y坐标向下为正，所以手臂越低，y_diff越大。
-        y_diff = wrist[1] - shoulder[1]
-
-        # 1. 过伸检测 (Over-extension)
-        # 如果手臂举得过高（y_diff 小于过伸阈值），则标记。
+        # ========== 归一化处理 ==========
+        # 使用躯干长度作为参考，使阈值不受用户与摄像头距离影响
+        torso_length = abs(shoulder[1] - hip[1])
+        
+        # 防御性编程：如果躯干长度异常小（检测错误），使用默认值
+        if torso_length < 0.05:
+            torso_length = 0.3
+        
+        # 计算手腕相对肩膀的垂直距离（原始值）
+        y_diff_raw = wrist[1] - shoulder[1]
+        
+        # 归一化：除以躯干长度，得到相对距离
+        y_diff = y_diff_raw / torso_length
+        
+        # ========== 1. 过伸检测 ==========
         self.state._overextension_detected = False
         self.state._overextension_type = None
+        
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
             self.state._overextension_type = 'height_up'
-            # 如果在一次有效动作期间发生了过伸，记录下来用于最终的动作质量评估。
             if self.state._action_active:
                 self.state._action_overextended = True
-
-        # 2. 阶段判断 (Stage determination)
-        # is_up: 手臂是否处于高位（顶点区域）。
-        # is_down: 手臂是否处于低位（起始/结束区域）。
+        
+        # ========== 2. 阶段判断 ==========
+        # is_up: 手臂是否举到高位（y_diff 小于阈值，手腕高于肩膀）
+        # is_down: 手臂是否放到低位（y_diff 大于阈值，手腕低于肩膀）
         is_up = y_diff < params['end_threshold_y']
         is_down = y_diff > params['start_threshold_y']
         
+        # 更新相位追踪（用于 smoothness 计算）
+        self._update_phase(is_up, is_down)
+        
+        # 更新显示的阶段状态
         if is_up:
             self.state.stage = 'up'
         elif is_down:
             self.state.stage = 'down'
-        # 在中间过程（从down到up或从up到down），stage保持不变，给用户一个稳定的状态反馈。
-
-        # 3. 计数逻辑 (Counting Logic) - 完整的 down -> up -> down 状态机
         
-        # 初始化内部状态变量（如果它们不存在）
+        # ========== 3. 初始化状态变量 ==========
         if not hasattr(self.state, '_in_up_phase'):
             self.state._in_up_phase = False
-
-        # 如果当前手臂在 'down' 状态，并且没有激活的动作，则准备开始新的一次动作。
+        
+        # ========== 4. 计数逻辑 - 状态机 ==========
+        # 状态机流程: down -> up -> down (完整的一次动作)
+        
+        # 4.1 动作开始：手臂在 down 位置，且没有正在进行的动作
         if is_down and not self.state._action_active:
             self.state._action_active = True
-            self.state._in_up_phase = False  # 重置“到达顶点”的标记
-            self.state._action_overextended = False # 重置本次动作的过伸标记
-            self.state._start_position = wrist # 记录起始位置用于计算位移和能量
-
-        # 如果动作已激活，并且我们首次达到了 'up' 阶段（顶点）。
+            self.state._in_up_phase = False
+            self.state._action_overextended = False
+            self.state._start_position = wrist.copy()
+        
+        # 4.2 到达顶点：动作进行中，首次达到 up 位置
         if self.state._action_active and not self.state._in_up_phase and is_up:
             self.state._in_up_phase = True
-            # 这里可以添加逻辑，例如记录到达顶点的时间，用于分析“顶峰收缩”。
-
-        # 如果动作已激活，并且已经到达过顶点(up)，现在又回到了起始(down)区域。
-        # 这是完成一次完整动作的信号！
+        
+        # 4.3 完成动作：已到达顶点，现在回到 down 位置
         if self.state._action_active and self.state._in_up_phase and is_down:
-            self.state._end_position = wrist
+            self.state._end_position = wrist.copy()
+            
+            # 计算位移距离
             distance = float(np.linalg.norm(self.state._end_position - self.state._start_position))
             
-            # 只有当位移足够大时才计数，防止微小的手臂抖动被误判为一次动作。
-            if distance > params.get('min_distance', 0.015):
+            # 只有位移足够大才计数（防止误触发）
+            if distance > params.get('min_distance', 0.010):
+                # 计数
                 self.state.count += 1
                 self.state.total_distance += distance
                 self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-
+                
+                # 触发 rep 完成回调（计算 smoothness）
                 self._on_rep_completed()
-
-                # 根据本次动作中是否发生过过伸来分类。
+                
+                # 分类：标准 vs 非标准（是否过伸）
                 is_non_standard = bool(getattr(self.state, '_action_overextended', False))
                 self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
-
-                # 触发完成动画效果（在UI上显示几帧）。
+                
+                # 触发完成动画
                 self.state._completed_this_frame = True
                 self.state._completed_hold_frames = 2
-
-            # 一次完整的动作结束，重置所有状态，为下一次动作做准备。
+            
+            # 重置状态，准备下一次动作
             self.state._action_active = False
             self.state._in_up_phase = False
             self.state._action_overextended = False
@@ -604,11 +698,12 @@ class ExerciseAnalyzer:
         is_up = y_diff < params['end_threshold_y']
         is_down = abs(y_diff) < params['start_threshold_y']
 
+        self._update_phase(is_up, is_down)
+
         if is_up:
             self.state.stage = 'up'
         elif is_down:
             self.state.stage = 'down'
-
 
         if not self.state._action_active:
             self.state._in_up_phase = False
