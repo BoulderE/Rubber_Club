@@ -6,7 +6,7 @@ export const useExerciseStore = defineStore('exercise', () => {
   const exerciseTypes = ref([
     {
       id: 'lateral_raise',
-      name: '侧平举',
+      name: '二頭肌彎舉',
       description: '锻炼肩部中束',
       icon: '💪',
       tips: ['保持身體直立，核心收緊','手臂舉至肩高','控制下放','肘部微屈'],
@@ -15,7 +15,7 @@ export const useExerciseStore = defineStore('exercise', () => {
     },
     {
       id: 'bicep_curl',
-      name: '拉胸',
+      name: '側平舉',
       description: '锻炼胸部肌肉',
       icon: '🏋️',
       tips: ['握住拉力器','肩胛後收','控制速度','拉時呼氣'],
@@ -24,7 +24,7 @@ export const useExerciseStore = defineStore('exercise', () => {
     },
     {
       id: 'front_raise',
-      name: '前平举',
+      name: '前平舉',
       description: '锻炼肩部前束',
       icon: '💪',
       tips: ['從大腿前抬至與肩同高','核心收緊避免後仰'],
@@ -33,7 +33,7 @@ export const useExerciseStore = defineStore('exercise', () => {
     },
     {
       id: 'overhead_press',
-      name: '过顶举',
+      name: '過頭推舉',
       description: '綜合鍛鍊肩部和手臂力量',
       icon: '🏋️',
       tips: ['起於肩膀高','推至手腕過頭頂','避免過度後仰'],
@@ -42,8 +42,8 @@ export const useExerciseStore = defineStore('exercise', () => {
     },
     {
       id: 'chest_pull',
-      name: '拉胸',
-      description: '鍛鍊腿部和臀部力量',
+      name: '胸部側拉',
+      description: '強化上背與肩後肌群的穩健訓練，協助長者改善肩胛後收與挺胸姿勢。',
       icon: '🦵',
       tips: ['膝蓋對齊腳尖','髖向後坐','站起伸直髖膝'],
       imageUrl: '/images/chest_pull_image_1.png',

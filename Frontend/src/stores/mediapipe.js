@@ -12,22 +12,22 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   const currentExercise = ref('')
   const isAnalyzing = ref(false)
   const analysisResults = ref(null)
-  
   const isPaused = ref(false) 
   const currentStyle = ref(null)
-  // 运动限制
   const repetitionLimit = 15
-  
-  // 计算属性
   const isActive = computed(() => status.value === 'active')
 
   const accurateCount = ref(0)
   const accuracy = ref(0)
   const lastCount = ref(0)
 
-  //new
   const smoothness = ref(100)   
   const repDurations = ref([])
+
+  // 【新增】手势相关状态
+  const lastGesture = ref(null)           // 最后检测到的手势
+  const gestureMessage = ref('')          // 手势提示信息
+  const waitingForGesture = ref(false)    // 是否在等待手势
 
   async function controlBackend(payload) {
     try {
@@ -49,88 +49,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       return false;
     }
   }
-  
-  // async function analyzeFrame(imageData) {
-  //   if (isAnalyzing.value) return null
-    
-  //   try {
-  //     isAnalyzing.value = true
-      
-  //   const base64Data = imageData.split(',')[1]
-  //   const byteCharacters = atob(base64Data)
-  //   const byteNumbers = new Array(byteCharacters.length)
-  //   for (let i = 0; i < byteCharacters.length; i++) {
-  //     byteNumbers[i] = byteCharacters.charCodeAt(i)
-  //   }
-  //   const byteArray = new Uint8Array(byteNumbers)
-  //   const blob = new Blob([byteArray], { type: 'image/jpeg' })
-
-  //   const formData = new FormData()
-  //   formData.append('file', blob, 'frame.jpg')
-    
-  //   const response = await fetch(`${API_URL}/mediapipe/analyze-stream`, {
-  //     method: 'POST',
-  //     body: formData
-  //   })
-      
-  //     if (!response.ok) {
-  //       throw new Error(`HTTP error! status: ${response.status}`)
-  //     }
-      
-  //     const result = await response.json()
-  //     console.log('[analyzeFrame] backend raw result:', result);
-  //     console.log('[analyzeFrame] keys:', Object.keys(result));
-      
-  //     analysisResults.value = result
-      
-  //     const exerciseStore = useExerciseStore();
-
-  //     const currentExerciseInfo = exerciseStore.getExerciseById(currentExercise.value);
-
-  //     if (!currentExerciseInfo) {
-  //       console.error("无法在 exerciseStore 中找到当前运动的配置！");
-  //       return result;
-  //     }
-
-  //     const dynamicKey = currentExerciseInfo.name;
-
-  //     if (result[dynamicKey]) {
-  //       const exerciseData = result[dynamicKey]; 
-  //       console.log('[analyzeFrame] currentExercise =', currentExercise.value);
-  //       console.log('[analyzeFrame] exerciseStore.name (dynamicKey) =', dynamicKey);
-  //       console.log('[analyzeFrame] result[dynamicKey] exists?', !!result[dynamicKey]);
-        
-  //       count.value = exerciseData.count;
-  //       energy.value = Math.round(exerciseData.energy);
-  //       isPaused.value = exerciseData.paused;
-
-  //       if (typeof exerciseData.smoothness !== 'undefined') {           
-  //         smoothness.value = Number(exerciseData.smoothness) || 0        
-  //       }                                                               
-  //       if (Array.isArray(exerciseData.rep_durations)) {                 
-  //         repDurations.value = exerciseData.rep_durations.slice()        
-  //       }  
-        
-  //       if (exerciseData.paused && status.value === 'active') {
-  //           status.value = 'paused';
-  //       } else if (!exerciseData.paused && status.value === 'paused') {
-  //           status.value = 'active';
-  //       }
-  //     }
-
-  //     if (count.value >= repetitionLimit) {
-  //       status.value = 'completed'
-  //     }
-      
-  //     return result
-      
-  //   } catch (error) {
-  //     console.error('Frame analysis error:', error)
-  //     return null
-  //   } finally {
-  //     isAnalyzing.value = false
-  //   }
-  // }
 
   async function analyzeFrame(imageData) {
   if (isAnalyzing.value) return null
@@ -162,6 +80,12 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     const result = await response.json()
     console.log('[analyzeFrame] backend raw result:', result)
     console.log('[analyzeFrame] keys:', Object.keys(result))
+
+    //new
+    if (result.gesture_detected) {
+        lastGesture.value = result.gesture_detected
+        console.log(`[analyzeFrame] 检测到手势: ${result.gesture_detected}`)
+      }
 
     analysisResults.value = result
 
@@ -221,10 +145,10 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       lastCount.value = 0
       currentExercise.value = exerciseType
       currentStyle.value = style
-      status.value = 'active'
+      status.value = 'paused' //altered
       count.value = 0
       energy.value = 0
-      isPaused.value = false
+      isPaused.value = true    //altered
       analysisResults.value = null
       smoothness.value = 100          
       repDurations.value = []         
@@ -242,65 +166,83 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   function updateAnalysisData(analysisData) {
-  console.log('[updateAnalysisData] input:', analysisData)
+    console.log('[updateAnalysisData] input:', analysisData)
 
-  // 原有赋值（根据后端键名）
-  count.value = analysisData.count ?? count.value
-  energy.value = Math.round(analysisData.energy ?? energy.value)
-  isPaused.value = !!analysisData.paused
+    // 原有赋值（根据后端键名）
+    count.value = analysisData.count ?? count.value
+    energy.value = Math.round(analysisData.energy ?? energy.value)
+    const wasPaused = isPaused.value
+    isPaused.value = !!analysisData.paused
 
-  if (typeof analysisData.smoothness !== 'undefined') {           
-    smoothness.value = Number(analysisData.smoothness) || 0      
-  }                                                               
-  if (Array.isArray(analysisData.rep_durations)) {               
-    repDurations.value = analysisData.rep_durations.slice()       
-  }   
-
-  console.log(
-    '[updateAnalysisData] after update ->',
-    'count:', count.value,
-    'energy:', energy.value,
-    'paused:', isPaused.value,
-    'status:', status.value,
-    'smoothness:', smoothness.value
-  )
-
-  analysisResults.value = analysisData
-
-  // 状态机
-  if (isPaused.value) status.value = 'paused'
-  else status.value = 'active'
-  if (typeof repetitionLimit !== 'undefined' && repetitionLimit !== null && count.value >= repetitionLimit) {
-    status.value = 'completed'
-  }
-
-  // 只在 count 增长时统计一次，避免 hold=2 帧导致重复累计
-  const grew = Number(count.value) > Number(lastCount.value)
-  if (grew) {
-    const nonStandard = analysisData.category === 'non_standard'
-    if (!nonStandard) {
-      accurateCount.value = (accurateCount.value || 0) + 1
+    if (typeof analysisData.smoothness !== 'undefined') {           
+      smoothness.value = Number(analysisData.smoothness) || 0      
+    }                                                               
+    if (Array.isArray(analysisData.rep_durations)) {               
+      repDurations.value = analysisData.rep_durations.slice()       
     }
-  }
-  lastCount.value = Number(count.value)
+    
+    if (isPaused.value) {
+      waitingForGesture.value = true
+      gestureMessage.value = analysisData.feedback || '請做 👍 手勢開始運動'
+    } else {
+      waitingForGesture.value = false
+      gestureMessage.value = ''
+    }
 
-  // 计算准确率（0-100 的整数百分比）
-  const total = Number(count.value) || 0
-  if (total > 0) {
-    accuracy.value = Math.round((accurateCount.value / total) * 100)
-  } else {
-    accuracy.value = 0
-  }
+    // 【新增】检测暂停状态变化
+    if (wasPaused && !isPaused.value) {
+      console.log('[updateAnalysisData] 运动已通过手势恢复')
+    } else if (!wasPaused && isPaused.value) {
+      console.log('[updateAnalysisData] 运动已通过手势暂停')
+    }
 
-  console.log(
-    '[updateAnalysisData] after calc ->',
-    'count=', count.value,
-    'accurateCount=', accurateCount.value,
-    'accuracy=', accuracy.value,
-    'category=', analysisData.category,
-    'grew=', grew
-  )
-}
+    analysisResults.value = analysisData
+
+    console.log(
+      '[updateAnalysisData] after update ->',
+      'count:', count.value,
+      'energy:', energy.value,
+      'paused:', isPaused.value,
+      'status:', status.value,
+      'smoothness:', smoothness.value
+    )
+
+    analysisResults.value = analysisData
+
+    // 状态机
+    if (isPaused.value) status.value = 'paused'
+    else status.value = 'active'
+    if (typeof repetitionLimit !== 'undefined' && repetitionLimit !== null && count.value >= repetitionLimit) {
+      status.value = 'completed'
+    }
+
+    // 只在 count 增长时统计一次，避免 hold=2 帧导致重复累计
+    const grew = Number(count.value) > Number(lastCount.value)
+    if (grew) {
+      const nonStandard = analysisData.category === 'non_standard'
+      if (!nonStandard) {
+        accurateCount.value = (accurateCount.value || 0) + 1
+      }
+    }
+    lastCount.value = Number(count.value)
+
+    // 计算准确率（0-100 的整数百分比）
+    const total = Number(count.value) || 0
+    if (total > 0) {
+      accuracy.value = Math.round((accurateCount.value / total) * 100)
+    } else {
+      accuracy.value = 0
+    }
+
+    console.log(
+      '[updateAnalysisData] after calc ->',
+      'count=', count.value,
+      'accurateCount=', accurateCount.value,
+      'accuracy=', accuracy.value,
+      'category=', analysisData.category,
+      'grew=', grew
+    )
+  }
 
 
   async function reset() {
@@ -317,25 +259,32 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       currentStyle.value = null
       smoothness.value = 100
       repDurations.value = []
+
+      //new
+      lastGesture.value = null
+      gestureMessage.value = '請做 👍 手勢開始運動'
+      waitingForGesture.value = true
+      isPaused.value = true
+      status.value = 'paused'
     }
   }
   
-  async function pauseWorkout() {
-    const success = await controlBackend({ action: 'pause' });
-    if (success) {
-      console.log('[startExercise] set active. currentExercise:', currentExercise.value, 'style:', currentStyle.value);
-      status.value = 'paused';
-      isPaused.value = true;
-    }
-  }
+  // async function pauseWorkout() {
+  //   const success = await controlBackend({ action: 'pause' });
+  //   if (success) {
+  //     console.log('[startExercise] set active. currentExercise:', currentExercise.value, 'style:', currentStyle.value);
+  //     status.value = 'paused';
+  //     isPaused.value = true;
+  //   }
+  // }
 
-  async function resumeWorkout() {
-    const success = await controlBackend({ action: 'resume' });
-    if (success) {
-      status.value = 'active';
-      isPaused.value = false;
-    }
-  }
+  // async function resumeWorkout() {
+  //   const success = await controlBackend({ action: 'resume' });
+  //   if (success) {
+  //     status.value = 'active';
+  //     isPaused.value = false;
+  //   }
+  // }
   
   return {
     // 状态
@@ -357,14 +306,18 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     // new
     smoothness,   
     repDurations,
+
+    lastGesture,
+    gestureMessage,
+    waitingForGesture,
     
     // 方法
     analyzeFrame,
     startExercise,
     stopExercise,
     reset,
-    pauseWorkout,
-    resumeWorkout,
+    // pauseWorkout,
+    // resumeWorkout,
     updateAnalysisData
   }
 })

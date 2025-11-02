@@ -30,6 +30,17 @@
 
     <div class="content">
       <div class="main-section">
+        <div 
+          v-if="mediapipeStore.waitingForGesture" 
+          class="gesture-overlay"
+        >
+          <div class="gesture-prompt">
+            <div class="gesture-icon">👍</div>
+            <p class="gesture-text">{{ mediapipeStore.gestureMessage }}</p>
+            <p class="gesture-hint">做出手勢以繼續</p>
+          </div>
+        </div>
+
         <WebcamAnalyzer
           v-if="isWorkoutActive"
           ref="analyzer"
@@ -44,8 +55,15 @@
       </div>
 
       <div class="stats-section">
-        <div class="feedback-container" :class="{ 'is-error': isOverextended }">
-          <p class="feedback-text">{{ feedbackText }}</p>
+        <div class="feedback-container" 
+        :class="{ 
+          'is-error': isOverextended,
+          'is-paused': mediapipeStore.isPaused 
+           }">
+          <p class="feedback-text">{{ mediapipeStore.isPaused ? mediapipeStore.gestureMessage :feedbackText }}</p>
+          <p v-if="mediapipeStore.lastGesture" class="gesture-indicator">
+            检测到: {{ gestureEmoji(mediapipeStore.lastGesture) }}
+          </p>
         </div>
 
         <section class="panel">
@@ -143,6 +161,16 @@ const progressPercent = computed(() => {
   return Math.max(0, Math.min(100, p))
 })
 
+function gestureEmoji(gesture) {
+  const emojiMap = {
+    'like': '👍',
+    'stop': '✋',
+    'peace': '✌️',
+    'ok': '👌'
+  }
+  return emojiMap[gesture] || gesture
+}
+
 async function startWorkoutFlow() {
   isWorkoutActive.value = true
   await nextTick()
@@ -201,9 +229,11 @@ function handleFrameAnalyzed(result) {
     mediapipeStore.updateAnalysisData(analysisData)
 
     // 反馈/错误态
-    feedbackText.value = analysisData.feedback || feedbackText.value
-    const nonStandard = analysisData.category === 'non_standard'
-    isOverextended.value = Boolean(analysisData.overextended || nonStandard)
+    if (!mediapipeStore.isPaused) {
+      feedbackText.value = analysisData.feedback || feedbackText.value
+      const nonStandard = analysisData.category === 'non_standard'
+      isOverextended.value = Boolean(analysisData.overextended || nonStandard)
+    }
 
     console.log('[handleFrameAnalyzed] after update - store.count:', mediapipeStore.count)
   } else {
@@ -259,6 +289,44 @@ function handleEndWorkout() {
 </script>
 
 <style scoped>
+/* New */
+.gesture-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border-radius: 12px;
+  animation: fadeIn 0.3s ease;
+}
+.gesture-prompt {
+  text-align: center;
+  color: white;
+  animation: pulse 2s ease-in-out infinite;
+}
+.gesture-text {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.gesture-hint {
+  font-size: 1.2rem;
+  opacity: 0.8;
+}
+
+.gesture-indicator {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  opacity: 0.7;
+  animation: fadeIn 0.3s ease;
+}
 .intro-modal-overlay {
   position: fixed;
   top: 0;
@@ -421,6 +489,17 @@ function handleEndWorkout() {
   color: #fed7d7; /* 浅红色文字 */
   font-weight: 700;
 }
+
+/* Paused Container */
+.feedback-container.is-paused {
+  background-color: #2c5282;
+  border-color: #4299e1;
+}
+
+.feedback-container.is-paused .feedback-text {
+  color: #bee3f8;
+}
+
 /* 动画 */
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -433,6 +512,15 @@ function handleEndWorkout() {
   20%, 80% { transform: translate3d(2px, 0, 0); }
   30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
   40%, 60% { transform: translate3d(3px, 0, 0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 @media (max-width: 1024px) { .content { grid-template-columns: 1fr; } }
 @media (max-width: 768px) {

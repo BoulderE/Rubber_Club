@@ -128,8 +128,8 @@ class WorkoutState:
     def reset(self):
         self.count = 0
         self.stage = None
-        self.feedback = "请准备开始"
-        self.is_paused = False
+        self.feedback = "請做 👍 手勢開始運動"  # ← 修改提示
+        self.is_paused = True
         self._start_position = None
         self._end_position = None
         self._overextension_detected = False

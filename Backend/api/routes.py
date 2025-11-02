@@ -5,22 +5,27 @@ import mediapipe as mp
 import numpy as np
 
 from .analyzer import ExerciseAnalyzer 
-from .gesture_classification import GestureDetector, is_wait_gesture, is_thumbs_up
+from .gesture_recognizer import get_gesture_recognizer  # ← 新增
 
 analyzer = ExerciseAnalyzer() 
+
 # 创建蓝图
 mediapipe_bp = Blueprint('mediapipe', __name__)
 CORS(mediapipe_bp)
 
-# 初始化 MediaPipe
+# 初始化 MediaPipe Pose
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=0)
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5, model_complexity=0)
 
-# 手势检测器
-wait_gesture_detector = GestureDetector(buffer_size=5)
-thumb_up_detector = GestureDetector(buffer_size=5)
+# ========== 移除旧的 MediaPipe Hands ==========
+# mp_hands = mp.solutions.hands
+# hands = mp_hands.Hands(...)
+# wait_gesture_detector = GestureDetector(...)
+# thumb_up_detector = GestureDetector(...)
+
+# ========== 新增：HuggingFace 手势识别器（懒加载）==========
+hf_gesture_recognizer = None
+
 
 @mediapipe_bp.route('/control', methods=['POST'])
 def control_workout():
@@ -28,7 +33,7 @@ def control_workout():
     action = data.get('action')
 
     if action == 'start':
-        exercise_id = data.get('exercise') # e.g., 'lateral_raise'
+        exercise_id = data.get('exercise')
         style = data.get('style')
         
         if not exercise_id:
@@ -36,79 +41,44 @@ def control_workout():
             
         try:
             analyzer.setup(exercise_id, style)
-            return jsonify({"status": "started", "exercise": exercise_id})
+            # analyzer.state.is_paused 已经通过 reset() 设置为 True
+            return jsonify({
+                "status": "started", 
+                "exercise": exercise_id,
+                "paused": True,
+                "message": "請做 👍 手勢開始運動"
+            })
         except ValueError as e:
             return jsonify({"status": "error", "message": str(e)}), 400
 
     elif action == 'reset':
         analyzer.reset()
+        # analyzer.state.is_paused 已经通过 reset() 设置为 True
         print("Analyzer reset.")
-        return jsonify({"status": "reset"})
+        return jsonify({
+            "status": "reset",
+            "paused": True,
+            "message": "請做 👍 手勢開始運動"
+        })
         
     return jsonify({"error": "Invalid action"}), 400
 
-# 路由：分析视频流
-# @mediapipe_bp.route('/analyze-stream', methods=['POST'])
-# def analyze_stream():
-#     if 'file' not in request.files:
-#         return jsonify({'error': 'No file uploaded'}), 400
-    
-#     file = request.files['file']
-
-#     # 【优化】直接从内存读取图像，避免磁盘I/O，效率更高
-#     try:
-#         in_memory_file = np.frombuffer(file.read(), np.uint8)
-#         frame = cv2.imdecode(in_memory_file, cv2.IMREAD_COLOR)
-#         if frame is None:
-#             return jsonify({'error': 'Invalid image file'}), 400
-#     except Exception as e:
-#         return jsonify({'error': f'Failed to process image: {str(e)}'}), 400
-
-#     if not analyzer.config:
-#         return jsonify({'error': 'Analyzer not configured. Please send a "start" command first.'}), 400
-
-#     image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-#     gesture_detected_type = None
-
-#     hands_results = hands.process(image_rgb)
-#     if hands_results.multi_hand_landmarks:
-#         for hand_landmarks in hands_results.multi_hand_landmarks:
-#             landmarks = hand_landmarks.landmark
-#             if wait_gesture_detector.detect_stable_gesture(is_wait_gesture, landmarks):
-#                 analyzer.state.is_paused = True # 直接控制状态
-#                 gesture_detected_type = 'wait'
-#             elif thumb_up_detector.detect_stable_gesture(is_thumbs_up, landmarks):
-#                 analyzer.state.is_paused = False # 直接控制状态
-#                 gesture_detected_type = 'thumbs_up'
-
-#     if analyzer.state.is_paused:
-#         analysis_results = {
-#             'count': analyzer.state.count,
-#             'stage': analyzer.state.stage,
-#             'feedback': "已暂停",
-#             'paused': True,
-#             'energy': analyzer.state.total_energy
-#         }
-#     else:
-#         # 调用您正确的 process 方法
-#         analysis_results = analyzer.process(image_rgb)
-
-#     response_data = {
-#         # 动态地使用当前运动的名称作为键
-#         analyzer.exercise_id: analysis_results,
-#         'gesture_detected': None
-#     }
-
-#     return jsonify(response_data)
 
 @mediapipe_bp.route('/analyze-stream', methods=['POST'])
 def analyze_stream():
+    """
+    分析视频流：
+    1. 检测手势（like → 继续，stop → 暂停）
+    2. 分析运动姿态
+    """
+    global hf_gesture_recognizer
+    
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
     
     file = request.files['file']
 
-    # 【优化】直接从内存读取图像，避免磁盘I/O，效率更高
+    # 读取图像
     try:
         in_memory_file = np.frombuffer(file.read(), np.uint8)
         frame = cv2.imdecode(in_memory_file, cv2.IMREAD_COLOR)
@@ -121,44 +91,66 @@ def analyze_stream():
         return jsonify({'error': 'Analyzer not configured. Please send a "start" command first.'}), 400
 
     image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+    # ========== 1. 手势识别（HuggingFace + MPS）==========
     gesture_detected_type = None
-
-    hands_results = hands.process(image_rgb)
-    if hands_results.multi_hand_landmarks:
-        for hand_landmarks in hands_results.multi_hand_landmarks:
-            landmarks = hand_landmarks.landmark
-            if wait_gesture_detector.detect_stable_gesture(is_wait_gesture, landmarks):
-                analyzer.state.is_paused = True  # 直接控制状态
-                gesture_detected_type = 'wait'
-            elif thumb_up_detector.detect_stable_gesture(is_thumbs_up, landmarks):
-                analyzer.state.is_paused = False  # 直接控制状态
-                gesture_detected_type = 'thumbs_up'
-
+    
+    # 懒加载手势识别器
+    if hf_gesture_recognizer is None:
+        hf_gesture_recognizer = get_gesture_recognizer()
+    
+    # 检测手势
+    gesture_result = hf_gesture_recognizer.predict(image_rgb, confidence_threshold=0.6)
+    current_gesture = gesture_result['gesture']
+    
+    # 检测稳定的 stop 手势（暂停）
+    if hf_gesture_recognizer.detect_stable_gesture(
+        image_rgb, 
+        target_gesture='stop',  # ← 根据你的模型，可能是 'stop' 或 'palm'
+        confidence_threshold=0.6
+    ):
+        analyzer.state.is_paused = True
+        gesture_detected_type = 'stop'
+        hf_gesture_recognizer.reset_buffer()
+    
+    # 检测稳定的 like 手势（继续）
+    elif hf_gesture_recognizer.detect_stable_gesture(
+        image_rgb,
+        target_gesture='like',
+        confidence_threshold=0.6
+    ):
+        analyzer.state.is_paused = False
+        gesture_detected_type = 'like'
+        hf_gesture_recognizer.reset_buffer()
+    
+    # ========== 2. 运动分析 ==========
     if analyzer.state.is_paused:
         analysis_results = {
             'count': analyzer.state.count,
             'stage': analyzer.state.stage,
-            'feedback': "已暂停",
+            'feedback': "已暂停，请做 👍 手势继续",
             'paused': True,
             'energy': analyzer.state.total_energy
         }
     else:
         analysis_results = analyzer.process(image_rgb)
 
-    # 兼容：保留“动态键”；同时提供稳定键 'exercise' 与 'analysis'
+    # ========== 3. 返回结果 ==========
     response_data = {
-        analyzer.exercise_id: analysis_results,   # 旧：动态键（向后兼容）
-        'exercise': analyzer.exercise_id,         # 新：稳定字段
-        'analysis': analysis_results,             # 新：稳定字段
-        'gesture_detected': gesture_detected_type
+        analyzer.exercise_id: analysis_results,   # 旧格式（向后兼容）
+        'exercise': analyzer.exercise_id,         # 新格式
+        'analysis': analysis_results,             # 新格式
+        'gesture_detected': gesture_detected_type,
+        'current_gesture': current_gesture,       # 新增：显示当前识别的手势（调试用）
+        'gesture_confidence': gesture_result['confidence']  # 新增：置信度
     }
 
     return jsonify(response_data)
 
-# 路由：获取训练状态
+
 @mediapipe_bp.route('/status', methods=['GET'])
 def get_status():
-    """【升级】获取统一分析器的当前状态"""
+    """获取统一分析器的当前状态"""
     if not analyzer.config:
         return jsonify({"status": "not_configured"})
 
@@ -171,4 +163,26 @@ def get_status():
         "is_paused": analyzer.state.is_paused,
         "current_feedback": analyzer.state.feedback,
         "total_energy": analyzer.state.total_energy
+    })
+
+
+@mediapipe_bp.route('/device-info', methods=['GET'])
+def get_device_info():
+    """获取手势识别器的设备信息（自动初始化）"""
+    global hf_gesture_recognizer
+    
+    # 自动初始化
+    if hf_gesture_recognizer is None:
+        try:
+            hf_gesture_recognizer = get_gesture_recognizer()
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "message": f"初始化失败: {str(e)}"
+            }), 500
+    
+    device_info = hf_gesture_recognizer.get_device_info()
+    return jsonify({
+        "status": "loaded",
+        **device_info
     })

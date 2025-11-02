@@ -6,7 +6,6 @@
       <!-- 顶部三卡：Accuracy / Smoothness / Duration -->
       <div class="summary-stats">
         <div class="stat-card">
-          <div class="stat-icon">🎯</div>
           <div class="stat-info">
             <div class="stat-value">{{ accuracy }}%</div>
             <div class="stat-label">動作質素指數</div>
@@ -14,7 +13,6 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon">🪄</div>
           <div class="stat-info">
             <div class="stat-value">{{ smoothnessPercent }}%</div>
             <div class="stat-label">動作流暢指數</div>
@@ -22,7 +20,6 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon">⏱️</div>
           <div class="stat-info">
             <div class="stat-value">{{ duration }}</div>
             <div class="stat-label">運動時長</div>
