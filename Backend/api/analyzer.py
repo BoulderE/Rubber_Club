@@ -84,7 +84,7 @@ EXERCISE_CONFIG = {
                 'min_distance': 0.012
             }
         }
-},
+    },
     'overhead_press': {
         'name': '过顶举',
         'landmarks_to_use': ['right_shoulder', 'right_wrist', 'right_elbow'],
@@ -99,6 +99,62 @@ EXERCISE_CONFIG = {
                 'start_threshold_y': 0.10,
                 'end_threshold_y': -0.15,
                 'min_distance': 0.008
+            }
+        }
+    },
+    'diagonal_lift': {
+        'name': '對角線動作',
+        'landmarks_to_use': [
+            'left_shoulder', 'right_shoulder',
+            'left_elbow', 'right_elbow', 
+            'left_wrist', 'right_wrist',
+            'left_hip', 'right_hip'
+        ],
+        'logic_function': '_analyze_diagonal_lift_logic',
+        'params': {
+            'intermediate': {
+                'start_threshold_y': 0.20,      # 手腕低於肩膀（放宽）
+            
+            # ===== 拉起位置（手臂斜向上）=====
+            'end_threshold_y': 0.00,        # 手腕与肩膀齐平即可（大幅降低）
+            
+            # ===== 对角线特征（关键！）=====
+            'min_horizontal_disp': 0.25,    # 相对肩宽的最小水平位移（提高要求）
+            'min_vertical_disp': 0.15,      # 最小垂直位移（新增：确保有向上分量）
+            
+            # ===== 总位移要求 =====
+            'min_distance': 0.30,           # 总位移（垂直+水平）
+            
+            # ===== 角度要求（新增）=====
+            'min_diagonal_angle': 25,       # 最小对角线角度（度）
+            'max_diagonal_angle': 65,       # 最大对角线角度（度）
+            # 25-65度范围确保是斜向，避免纯横向或纯纵向
+            
+            # ===== 肩膀稳定性（z轴）=====
+            'max_shoulder_z_diff': 0.08,    # 两肩z轴差异阈值（相对肩宽）
+            'shoulder_z_window': 10,        # z轴追踪窗口（帧数）
+        },
+        'beginner': {
+            # ===== 起始位置 =====
+            'start_threshold_y': 0.22,      # 更宽松的起始位置
+            
+            # ===== 拉起位置 =====
+            'end_threshold_y': 0.05,        # 略低于肩膀即可
+            
+            # ===== 对角线特征 =====
+            'min_horizontal_disp': 0.20,    # 稍低的水平位移要求
+            'min_vertical_disp': 0.12,      # 稍低的垂直位移要求
+            
+            # ===== 总位移要求 =====
+            'min_distance': 0.25,           # 较小的总位移
+            
+            # ===== 角度要求 =====
+            'min_diagonal_angle': 20,       # 更宽松的角度范围
+            'max_diagonal_angle': 70,       
+            
+            # ===== 肩膀稳定性 =====
+            'max_shoulder_z_diff': 0.10,    # 更宽松的肩膀稳定性
+            'shoulder_z_window': 10,
             }
         }
     },
@@ -142,6 +198,22 @@ class WorkoutState:
         self._completed_this_frame = False
         self._completed_hold_frames = 0
         self._action_overextended = False
+        #new
+        self._diag_left_state = {
+            'movement_state': 'down',
+            'start_wrist_y': None,
+            'start_wrist_x': None,
+            'shoulder_z_history': [],
+            'last_count_time': 0,
+        }
+        self._diag_right_state = {
+            'movement_state': 'down',
+            'start_wrist_y': None,
+            'start_wrist_x': None,
+            'shoulder_z_history': [],
+            'last_count_time': 0,
+        }
+        self._diag_active_side = None
         
 
 class ExerciseAnalyzer:
@@ -157,7 +229,6 @@ class ExerciseAnalyzer:
         self.repetition_durations = []  
         self.smoothness_score = 100
 
-        # new
         self.phase_timings = []
         self._phase_name = None
         self._phase_start_time = None
@@ -924,14 +995,180 @@ class ExerciseAnalyzer:
                 if hasattr(self.state, k):
                     delattr(self.state, k)
 
+    def _analyze_diagonal_lift_logic(self, landmarks):
+        P = self.config['params'][self.style]
+        
+        # ========== 1. 准备数据 ==========
+        ls = np.array(landmarks['left_shoulder'], dtype=float)
+        rs = np.array(landmarks['right_shoulder'], dtype=float)
+        le = np.array(landmarks['left_elbow'], dtype=float)
+        re = np.array(landmarks['right_elbow'], dtype=float)
+        lw = np.array(landmarks['left_wrist'], dtype=float)
+        rw = np.array(landmarks['right_wrist'], dtype=float)
+        lh = np.array(landmarks['left_hip'], dtype=float)
+        rh = np.array(landmarks['right_hip'], dtype=float)
+        
+        body_height = abs((ls[1] + rs[1]) / 2 - (lh[1] + rh[1]) / 2)
+        shoulder_width = abs(ls[0] - rs[0])
+        
+        # ========== 2. 调用双侧分析 ==========
+        left_result = self._analyze_diagonal_side(
+            'left', ls, le, lw, rs, body_height, shoulder_width, 
+            self.state._diag_left_state, P  # ← 传入左侧状态
+        )
+        
+        right_result = self._analyze_diagonal_side(
+            'right', rs, re, rw, ls, body_height, shoulder_width,
+            self.state._diag_right_state, P  # ← 传入右侧状态
+        )
+        
+        # ========== 3. 决策逻辑 ==========
+        if left_result['is_active'] and not right_result['is_active']:
+            self.state._diag_active_side = 'left'
+            active_result = left_result
+        elif right_result['is_active'] and not left_result['is_active']:
+            self.state._diag_active_side = 'right'
+            active_result = right_result
+        elif left_result['is_active'] and right_result['is_active']:
+            # 兩邊都活躍，選幅度大的
+            if left_result['total_disp'] > right_result['total_disp']:
+                self.state._diag_active_side = 'left'
+                active_result = left_result
+            else:
+                self.state._diag_active_side = 'right'
+                active_result = right_result
+        else:
+            self.state._diag_active_side = None
+            self.state.stage = None
+            return
+        
+        # ========== 4. 更新全局状态 ==========
+        if active_result['is_up']:
+            self.state.stage = 'up'
+        elif active_result['is_down']:
+            self.state.stage = 'down'
+        
+        self._update_phase(active_result['is_up'], active_result['is_down'])
+        
+        self.state._overextension_detected = not active_result['shoulder_stable']
+        if not active_result['shoulder_stable']:
+            self.state._overextension_type = 'shoulder_rotation'
+
+        if active_result['should_count']:
+            distance = active_result['total_disp'] * body_height
+            self.state.count += 1
+            self.state.total_distance += distance
+            self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
+            
+            self._on_rep_completed()
+            
+            is_non_standard = not active_result['shoulder_stable']
+            self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
+            
+            self.state._completed_this_frame = True
+            self.state._completed_hold_frames = 2
+
+    def _analyze_diagonal_side(self, side, shoulder, elbow, wrist, opp_shoulder,
+                               body_height, shoulder_width, state, params):
+        """分析單側對角線動作"""
+        current_time = time.time()
+        
+        # 計算垂直和水平位移（歸一化）
+        y_diff = (wrist[1] - shoulder[1]) / body_height
+        x_diff = abs(wrist[0] - shoulder[0]) / shoulder_width
+        
+        # 判斷位置
+        is_down = y_diff > params['start_threshold_y']
+        is_up = y_diff < params['end_threshold_y']
+        
+        # 計算肩膀z軸穩定性
+        shoulder_z_diff = abs(shoulder[2] - opp_shoulder[2]) / shoulder_width
+        state['shoulder_z_history'].append(shoulder_z_diff)
+        
+        if len(state['shoulder_z_history']) > params['shoulder_z_window']:
+            state['shoulder_z_history'].pop(0)
+        
+        if len(state['shoulder_z_history']) >= 3:
+            z_range = max(state['shoulder_z_history']) - min(state['shoulder_z_history'])
+            shoulder_stable = z_range <= params['max_shoulder_z_diff']
+        else:
+            shoulder_stable = True
+        
+        # 初始化起點
+        if state['start_wrist_y'] is None and is_down:
+            state['start_wrist_y'] = wrist[1]
+            state['start_wrist_x'] = wrist[0]
+        
+        # 計算總位移
+        vertical_disp = 0
+        horizontal_disp = 0
+        total_disp = 0
+        
+        if state['start_wrist_y'] is not None:
+            vertical_disp = abs(wrist[1] - state['start_wrist_y']) / body_height
+            horizontal_disp = abs(wrist[0] - state['start_wrist_x']) / shoulder_width
+            total_disp = vertical_disp + horizontal_disp
+        
+        # 判斷活躍
+        is_active = (
+            total_disp >= params['min_distance'] * 0.5
+            or is_up
+            or is_down
+        )
+        
+        # 檢查對角線特徵
+        is_diagonal = horizontal_disp >= params['min_horizontal_disp']
+        
+        # 狀態機計數
+        should_count = False
+        debounce_time = 0.5
+        
+        if (state['movement_state'] == 'down' and is_up 
+            and current_time - state['last_count_time'] > debounce_time):
+            if total_disp >= params['min_distance'] and is_diagonal:
+                should_count = True
+                state['movement_state'] = 'up'
+                state['last_count_time'] = current_time
+                
+        elif state['movement_state'] == 'up' and is_down:
+            state['movement_state'] = 'down'
+            state['start_wrist_y'] = wrist[1]
+            state['start_wrist_x'] = wrist[0]
+        
+        return {
+            'side': side,
+            'is_active': is_active,
+            'is_up': is_up,
+            'is_down': is_down,
+            'vertical_disp': vertical_disp,
+            'horizontal_disp': horizontal_disp,
+            'total_disp': total_disp,
+            'is_diagonal': is_diagonal,
+            'shoulder_stable': shoulder_stable,
+            'should_count': should_count,
+        }
+
     def _generate_feedback(self):
         if self.state._overextension_detected:
             if self.state._overextension_type == 'height':
                 self.state.feedback = "手臂舉得太高了，請放低一些！"
             elif self.state._overextension_type == 'depth':
                 self.state.feedback = "手臂太靠後了，請往前一些！"
+            elif self.state._overextension_type == 'shoulder_rotation':
+                self.state.feedback = "⚠️ 軀幹過度轉動，保持肩膀穩定"
             else:
                 self.state.feedback = "動作幅度過大，請小心一點！"
+            return
+        
+         # 對角線動作專屬反饋
+        if self.exercise_id == 'diagonal_lift':
+            side_name = '左側' if self.state._diag_active_side == 'left' else '右側'
+            if self.state.stage == 'down':
+                self.state.feedback = f"✓ {side_name}準備好，開始對角線拉"
+            elif self.state.stage == 'up':
+                self.state.feedback = f"✓ {side_name}很好！保持對角線方向"
+            else:
+                self.state.feedback = "請開始動作"
             return
         
         # New exercise specific feedback

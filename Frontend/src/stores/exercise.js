@@ -49,6 +49,21 @@ export const useExerciseStore = defineStore('exercise', () => {
       imageUrl: '/images/chest_pull_image_1.png',
       orientation: 'landscape'
     },
+    {
+      id: 'diagonal_lift',
+      name: '對角線推舉',
+      description: '進階肩部與核心穩定訓練,強化單側肩部力量與身體協調性,改善日常生活中斜向抬舉物品的能力。',
+      icon: '🎯',
+      tips: [
+        '單手持啞鈴,從肩膀斜向推至對側上方',
+        '保持核心穩定,避免身體過度旋轉',
+        '非訓練側肩膀保持穩定,不可聳肩',
+        '控制速度,感受肩部與核心發力',
+        '兩側交替訓練,保持平衡'
+      ],
+      imageUrl: '/images/diagonal_lift_image_1.png',
+      orientation: 'landscape' // 横向拍摄
+    },
   ])
 
   const selectedExercise = ref('lateral_raise')

@@ -128,7 +128,7 @@ def analyze_stream():
         analysis_results = {
             'count': analyzer.state.count,
             'stage': analyzer.state.stage,
-            'feedback': "已暂停，请做 👍 手势继续",
+            'feedback': "已暫停，請做 👍 手勢繼續",
             'paused': True,
             'energy': analyzer.state.total_energy
         }

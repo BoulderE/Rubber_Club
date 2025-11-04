@@ -222,6 +222,22 @@ const exercises = ref([
       '推舉時保持肘部向前',
       '頂端時手臂接近伸直'
     ]
+  },
+  { 
+    id: 'diagonal_lift', 
+    name: '對角線啞鈴推舉 - 單手從肩膀斜向推至對側上方',
+    displayName: '對角線推舉',
+    description: '進階肩部與核心穩定訓練,強化單側肩部力量與身體協調性,改善日常生活中斜向抬舉物品的能力。', 
+    imageUrl: '/images/diagonal_lift_image_1.png',
+    videoUrl: '/videos/diagonal_lift_demo.mp4',
+    orientation: 'landscape', // 横向拍摄
+    tips: [
+      '單手持啞鈴,從肩膀斜向推至對側上方',
+      '保持核心穩定,避免身體過度旋轉',
+      '非訓練側肩膀保持穩定,不可聳肩',
+      '控制速度,感受肩部與核心發力',
+      '兩側交替訓練,保持平衡'
+    ]
   }
 ]);
 
