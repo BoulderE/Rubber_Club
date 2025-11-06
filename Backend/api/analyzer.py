@@ -198,7 +198,6 @@ class WorkoutState:
         self._completed_this_frame = False
         self._completed_hold_frames = 0
         self._action_overextended = False
-        #new
         self._diag_left_state = {
             'movement_state': 'down',
             'start_wrist_y': None,
@@ -214,6 +213,12 @@ class WorkoutState:
             'last_count_time': 0,
         }
         self._diag_active_side = None
+
+        #new
+        self.up_durations = []      
+        self.down_durations = []    
+        self.current_phase = None   
+        self.phase_start_time = None  
         
 
 class ExerciseAnalyzer:
@@ -237,50 +242,73 @@ class ExerciseAnalyzer:
         return time.time()
     
     def _finalize_open_phase(self):
-        # End current open phase when leaving tracking or pausing
-        if self._phase_name is not None and self._phase_start_time is not None:
-            duration = max(0.0, self._now() - self._phase_start_time)
+        """
+        在离开追踪或暂停时，结束当前正在进行的阶段
+        """
+        if self.state.current_phase is not None and self.state.phase_start_time is not None:
+            duration = self._now() - self.state.phase_start_time
+            
             if 0.1 <= duration <= 10.0:
-                self.phase_timings.append((self._phase_name, duration))
-                if len(self.phase_timings) > 200:
-                    self.phase_timings = self.phase_timings[-200:]
-        self._phase_name = None
-        self._phase_start_time = None
+                if self.state.current_phase == 'up':
+                    self.state.up_durations.append(duration)
+                    if len(self.state.up_durations) > 50:
+                        self.state.up_durations.pop(0)
+                elif self.state.current_phase == 'down':
+                    self.state.down_durations.append(duration)
+                    if len(self.state.down_durations) > 50:
+                        self.state.down_durations.pop(0)
+        
+        # 重置阶段状态
+        self.state.current_phase = None
+        self.state.phase_start_time = None
 
     def _update_phase(self, is_up: bool, is_down: bool):
-        # Only switch phase when we are in up or down zones, ignore middle band
+        """
+        更新运动阶段并记录各阶段时长
+        
+        Args:
+            is_up: 是否在 up 区域
+            is_down: 是否在 down 区域
+        """
         now_t = self._now()
-        target = None
+        
+        # 🔹 确定当前应该处于的阶段
+        target_phase = None
         if is_up:
-            target = 'up'
+            target_phase = 'up'
         elif is_down:
-            target = 'down'
+            target_phase = 'down'
         else:
-            # Option A: keep current phase running in middle zone (do nothing)
-            # Option B: end phase when exiting definitive zones:
-            # Here we choose to end the current phase when leaving up/down to middle to avoid overly long segments
-            if self._phase_name is not None and self._phase_start_time is not None:
-                duration = max(0.0, now_t - self._phase_start_time)
-                if 0.1 <= duration <= 10.0:
-                    self.phase_timings.append((self._phase_name, duration))
-                    if len(self.phase_timings) > 200:
-                        self.phase_timings = self.phase_timings[-200:]
-            self._phase_name = None
-            self._phase_start_time = None
+            # 🔹 在中间过渡区域
+            # 选项 A: 保持当前阶段（不做任何事）
+            # 选项 B: 结束当前阶段（这里我们选择 A，更稳定）
             return
-
-        if self._phase_name is not None and self._phase_name != target and self._phase_start_time is not None:
-            duration = max(0.0, now_t - self._phase_start_time)
-            if 0.1 <= duration <= 10.0:
-                self.phase_timings.append((self._phase_name, duration))
-                if len(self.phase_timings) > 200:
-                    self.phase_timings = self.phase_timings[-200:]
-            self._phase_start_time = None
-
-        if self._phase_name != target:
-            self._phase_name = target
-            self._phase_start_time = now_t
-        # else: still in same phase, keep running
+        
+        # 🔹 检测阶段切换
+        if self.state.current_phase != target_phase:
+            
+            # 🔸 结束旧阶段，记录时长
+            if self.state.current_phase is not None and self.state.phase_start_time is not None:
+                duration = now_t - self.state.phase_start_time
+                
+                # 🔸 过滤异常值（太短或太长的都不记录）
+                if 0.1 <= duration <= 10.0:
+                    if self.state.current_phase == 'up':
+                        self.state.up_durations.append(duration)
+                        # 限制列表长度
+                        if len(self.state.up_durations) > 50:
+                            self.state.up_durations.pop(0)
+                        print(f"[DEBUG] UP 阶段时长: {duration:.2f}秒")
+                    
+                    elif self.state.current_phase == 'down':
+                        self.state.down_durations.append(duration)
+                        if len(self.state.down_durations) > 50:
+                            self.state.down_durations.pop(0)
+                        print(f"[DEBUG] DOWN 阶段时长: {duration:.2f}秒")
+            
+            # 🔸 开始新阶段
+            self.state.current_phase = target_phase
+            self.state.phase_start_time = now_t
 
 
     def _on_rep_completed(self):
@@ -310,41 +338,100 @@ class ExerciseAnalyzer:
 
     def _compute_smoothness(self) -> int:
         """
-        基于相位时长的节奏一致性评分：
-        - 分别计算 up 与 down 的相对标准差 RSD = std/mean
-        - 将两者按样本数加权合成 10~100
-        - 少于3个样本时，返回 100（或使用另一侧的分数）
+        基于 up 和 down 阶段时长的稳定性评分（分阶段版本）
+        
+        流程：
+        1. 分别取最近 10-15 个 up 和 down 阶段时长
+        2. 对每个阶段，用 median 归一化并计算标准差
+        3. 用 sigmoid 将标准差映射到分数
+        4. 按样本数加权平均得到最终分数
         """
-        up_durs = [d for (p, d) in self.phase_timings if p == 'up'][-20:]
-        dn_durs = [d for (p, d) in self.phase_timings if p == 'down'][-20:]
+        import statistics
+        
+        def phase_score(durations, phase_name):
+            """
+            计算单个阶段的稳定性分数
+            
+            Args:
+                durations: 时长列表 [1.2, 1.3, 1.1, ...]
+                phase_name: 阶段名称（用于调试输出）
+            
+            Returns:
+                int: 10-100 的分数，或 None（样本不足）
+            """
+            if len(durations) < 3:
+                return None
+            
+            if len(durations) >= 5:  # 样本足够多时才过滤
+                q1 = statistics.quantiles(durations, n=4)[0]  # 25分位
+                q3 = statistics.quantiles(durations, n=4)[2]  # 75分位
+                iqr = q3 - q1
+                
+                lower = q1 - 1.5 * iqr
+                upper = q3 + 1.5 * iqr
+                
+                filtered = [d for d in durations if lower <= d <= upper]
 
-        def rsd_score(durs):
-            if len(durs) < 3:
+                if len(filtered) >= 3:
+                    durations = filtered
+                            
+            # 🔹 计算 median（中位数更稳健，不受极端值影响）
+            med = statistics.median(durations)
+            if med <= 1e-6 or not math.isfinite(med):
                 return None
-            m = mean(durs)
-            if m <= 1e-6 or not math.isfinite(m):
-                return None
-            sigma = pstdev(durs)
-            rsd = sigma / m if m > 0 else float('inf')
-            rsd_min, rsd_max = 0.02, 0.5
-            rsd = max(rsd_min, min(rsd, rsd_max))
-            ratio = (rsd - rsd_min) / (rsd_max - rsd_min)  # 0（好）→1（差）
-            score = 10 + (100 - 10) * (1.0 - ratio)
+            
+            # 🔹 归一化每个值：normalized = value / median
+            # 这样可以消除"up 天然比 down 快"的影响
+            normalized = [d / med for d in durations]
+            
+            # 🔹 计算归一化标准差
+            # 标准差越小 = 节奏越稳定 = 分数越高
+            std_normalized = statistics.pstdev(normalized)
+            
+            print(f"[DEBUG] {phase_name} 阶段:")
+            print(f"        中位数: {med:.2f}秒")
+            print(f"        归一化标准差: {std_normalized:.3f}")
+            
+            # 🔹 Sigmoid 映射到 10-100
+            # 参数说明：
+            # - x0: 中心点（标准差为 x0 时得 55 分）
+            # - k: 陡峭度（越大越敏感）
+            x0 = 0.20  # 标准差 < 20% 为优秀
+            k = 15     # 陡峭度系数
+            
+            sigmoid_value = 1.0 / (1.0 + math.exp(k * (std_normalized - x0)))
+            score = 10 + 90 * sigmoid_value
+            
+            print(f"        分数: {int(round(score))}")
+            
             return int(round(score))
-
-        up_score = rsd_score(up_durs)
-        dn_score = rsd_score(dn_durs)
-
-        if up_score is None and dn_score is None:
-            return 100
+        
+        # 🔸 获取最近的时长数据
+        recent_up = self.state.up_durations[-15:]    # 最近 15 个 up
+        recent_down = self.state.down_durations[-15:]  # 最近 15 个 down
+        
+        # 🔸 计算各阶段分数
+        up_score = phase_score(recent_up, "UP")
+        down_score = phase_score(recent_down, "DOWN")
+        
+        # 🔸 合并分数
+        if up_score is None and down_score is None:
+            return 100  # 样本不足，返回满分
+        
         if up_score is None:
-            return dn_score
-        if dn_score is None:
+            return down_score
+        
+        if down_score is None:
             return up_score
-
-        w_up = len(up_durs)
-        w_dn = len(dn_durs)
-        return int(round((up_score * w_up + dn_score * w_dn) / (w_up + w_dn)))
+        
+        # 🔸 加权平均（按样本数加权）
+        w_up = len(recent_up)
+        w_down = len(recent_down)
+        final_score = (up_score * w_up + down_score * w_down) / (w_up + w_down)
+        
+        print(f"[DEBUG] 最终 Smoothness: {int(round(final_score))}")
+        
+        return int(round(final_score))
 
     def get_metrics(self):
         # 供路由返回
@@ -439,7 +526,9 @@ class ExerciseAnalyzer:
             'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard'),
             'smoothness': self.smoothness_score,
             'rep_durations': self.repetition_durations[-20:],
-            'phase_timings': self.phase_timings[-20:]
+            'phase_timings': self.phase_timings[-20:],
+            'up_durations': self.state.up_durations[-10:],
+            'down_durations': self.state.down_durations[-10:],
         }
     
     

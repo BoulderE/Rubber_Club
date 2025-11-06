@@ -188,7 +188,7 @@ const exercises = ref([
     description: '強化上背與肩後肌群的穩健訓練，協助長者改善肩胛後收與挺胸姿勢。', 
     imageUrl: '/images/chest_pull_image_1.png',
     videoUrl: '/videos/chest_pull_demo.mp4',
-    orientation: 'portrait',
+    orientation: 'landscape',
     tips: [
       '挺胸收腹，保持良好姿勢',
       '肩胛骨向後夾緊',
