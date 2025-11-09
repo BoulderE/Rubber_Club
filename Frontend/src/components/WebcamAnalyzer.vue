@@ -20,6 +20,23 @@
         <!-- 可见画面都在 canvas -->
         <canvas ref="canvasElement" class="pose-overlay"></canvas>
 
+        <!-- 🆕 橙色检测框 -->
+        <div 
+          v-if="startupMode" 
+          class="detection-frame"
+          :class="{ 'person-detected': personInFrame }"
+        >
+          <div class="frame-corners">
+            <span class="corner top-left"></span>
+            <span class="corner top-right"></span>
+            <span class="corner bottom-left"></span>
+            <span class="corner bottom-right"></span>
+          </div>
+          <div class="frame-label">
+            {{ personInFrame ? '✓ 已检测到' : '请站入框内' }}
+          </div>
+        </div>
+
         <div v-if="!isStreaming" class="video-placeholder">
           <div class="placeholder-content">
             <p>📹 Camera Off</p>
@@ -53,8 +70,11 @@ const props = defineProps({
     validator: v => ['portrait', 'landscape'].includes(v)
   },
   landscapeSize: { type: Object, default: () => ({ height: '56vh', maxW: '980px' }) },
-  portraitSize:  { type: Object, default: () => ({ height: '52vh', scale: 1.08, maxW: '640px' }) }
+  portraitSize:  { type: Object, default: () => ({ height: '52vh', scale: 1.08, maxW: '640px' }) },
+  startupMode: { type: Boolean, default: false } // 🆕 启动模式
 })
+
+const emit = defineEmits(['startup-confirmed', 'person-detected', 'person-lost', 'frame-analyzed'])
 
 const lSize = computed(() => ({ height: props.landscapeSize.height, maxW: props.landscapeSize.maxW }))
 const pSize = computed(() => ({ height: props.portraitSize.height, scale: props.portraitSize.scale ?? 1.08, maxW: props.portraitSize.maxW }))
@@ -73,13 +93,20 @@ const stream = ref(null)
 const analyzeTimer = ref(null)
 let ro
 
-// 关键点：Canvas 跟随容器 CSS 尺寸，而不是视频源分辨率，避免系统切换显示模式
+// 🆕 人体检测状态
+const personInFrame = ref(false)
+const thumbsUpDetected = ref(false)
+let personDetectedFrames = 0
+let personLostFrames = 0
+const DETECTION_THRESHOLD = 3 // 连续3帧确认
+const LOST_THRESHOLD = 5 // 连续5帧丢失
+
 function attachResizeObserver() {
   if (!containerEl.value || !canvasElement.value) return
   const canvas = canvasElement.value
   const ctx = canvas.getContext('2d', { alpha: true, desynchronized: true })
   const update = () => {
-    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2)) // 限制过高 DPR
+    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2))
     const rect = containerEl.value.getBoundingClientRect()
     canvas.style.width = rect.width + 'px'
     canvas.style.height = rect.height + 'px'
@@ -96,24 +123,20 @@ async function startCamera() {
   try {
     error.value = ''
 
-    // 关键点：避免请求过高分辨率/帧率，减少 macOS 触发显示切换
-    // 同时设置 exact frameRate 范围，关闭 HDR/高带宽倾向
     const base = {
       facingMode: 'user',
-      frameRate: { ideal: 24, max: 24 }, // 不用 60
+      frameRate: { ideal: 24, max: 24 },
       width:  { ideal: props.orientation === 'portrait' ? 720 : 1280, max: 1280 },
       height: { ideal: props.orientation === 'portrait' ? 1280 : 720, max: 1280 },
       resizeMode: 'none', 
     }
 
-    // 某些浏览器在设置 aspectRatio 更稳定
     const constraints = {
       audio: false,
       video: {
         ...base,
         aspectRatio: props.orientation === 'portrait' ? { ideal: 9/16 } : { ideal: 16/9 },
-        // 这些属性可降低能耗与切换概率（兼容性允许时）
-        resizeMode: 'crop-and-scale', // Safari 16+ 支持
+        resizeMode: 'crop-and-scale',
         advanced: [
           { exposureMode: 'continuous' },
           { focusMode: 'continuous' },
@@ -126,7 +149,6 @@ async function startCamera() {
     stream.value = await navigator.mediaDevices.getUserMedia(constraints)
 
     if (videoElement.value) {
-      // 不在页面显示 video，避免浏览器为“清晰度”强行拉伸
       videoElement.value.srcObject = stream.value
       videoElement.value.playsInline = true
       videoElement.value.muted = true
@@ -179,6 +201,34 @@ function computeCenteredCrop(sw, sh, targetRatio) {
   return { sx, sy, sWidth, sHeight }
 }
 
+// 🆕 检测人是否在框内
+function checkPersonInFrame(landmarks, cw, ch) {
+  if (!landmarks?.length) return false
+  
+  // 检测框区域（中心60%区域）
+  const frameLeft = cw * 0.2
+  const frameRight = cw * 0.8
+  const frameTop = ch * 0.15
+  const frameBottom = ch * 0.85
+  
+  // 检查关键点（鼻子、肩膀、髋部）是否在框内
+  const keyPoints = [0, 11, 12, 23, 24] // nose, shoulders, hips
+  let inFrameCount = 0
+  
+  for (const idx of keyPoints) {
+    const p = landmarks[idx]
+    if (p?.visibility > 0.5) {
+      const x = mirror.value ? cw - p.x * cw : p.x * cw
+      const y = p.y * ch
+      if (x >= frameLeft && x <= frameRight && y >= frameTop && y <= frameBottom) {
+        inFrameCount++
+      }
+    }
+  }
+  
+  return inFrameCount >= 3 // 至少3个关键点在框内
+}
+
 async function analyzeFrame() {
   const v = videoElement.value
   const canvas = canvasElement.value
@@ -193,7 +243,6 @@ async function analyzeFrame() {
   const sh = v.videoHeight
   if (!sw || !sh) return
 
-  // 居中裁切到目标比例，避免拉伸
   const { sx, sy, sWidth, sHeight } = computeCenteredCrop(sw, sh, targetRatio.value)
 
   ctx.clearRect(0, 0, cw, ch)
@@ -208,7 +257,49 @@ async function analyzeFrame() {
   try {
     const imageData = canvas.toDataURL('image/jpeg', 0.8)
     const result = await mediapipeStore.analyzeFrame(imageData)
-    if (result?.pose_landmarks) drawPose(ctx, result.pose_landmarks, cw, ch)
+
+    emit('frame-analyzed', result)
+    
+    if (result?.pose_landmarks) {
+      drawPose(ctx, result.pose_landmarks, cw, ch)
+      
+      // 🆕 启动模式下检测人体位置
+      if (props.startupMode) {
+        const isInFrame = checkPersonInFrame(result.pose_landmarks, cw, ch)
+        
+        if (isInFrame) {
+          personDetectedFrames++
+          personLostFrames = 0
+          
+          if (personDetectedFrames >= DETECTION_THRESHOLD && !personInFrame.value) {
+            personInFrame.value = true
+            emit('person-detected')
+            console.log('[WebcamAnalyzer] ✅ 人体进入框内')
+          }
+        } else {
+          personLostFrames++
+          personDetectedFrames = 0
+          
+          if (personLostFrames >= LOST_THRESHOLD && personInFrame.value) {
+            personInFrame.value = false
+            emit('person-lost')
+            console.log('[WebcamAnalyzer] ⚠️ 人体离开框内')
+          }
+        }
+      }
+    } else {
+      // 没有检测到姿态
+      if (props.startupMode) {
+        personLostFrames++
+        personDetectedFrames = 0
+        
+        if (personLostFrames >= LOST_THRESHOLD && personInFrame.value) {
+          personInFrame.value = false
+          emit('person-lost')
+          console.log('[WebcamAnalyzer] ⚠️ 人体丢失')
+        }
+      }
+    }
   } catch {
     // 静默失败以防阻塞
   }
@@ -220,7 +311,6 @@ function drawPose(ctx, landmarks, cw, ch) {
   ctx.lineWidth = 2
   ctx.fillStyle = '#ff0000'
 
-  // 点
   for (const p of landmarks) {
     if (p.visibility > 0.5) {
       const x = mirror.value ? cw - p.x * cw : p.x * cw
@@ -230,7 +320,7 @@ function drawPose(ctx, landmarks, cw, ch) {
       ctx.fill()
     }
   }
-  // 线
+  
   const connections = [
     [11,12],[11,13],[13,15],[12,14],[14,16],
     [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28]
@@ -249,7 +339,6 @@ function drawPose(ctx, landmarks, cw, ch) {
   ctx.stroke()
 }
 
-// 暴露方法
 defineExpose({ startAnalysis, stopAnalysis })
 
 onMounted(() => {
@@ -263,6 +352,14 @@ watch(() => props.orientation, async () => {
   await startCamera()
 })
 
+watch(() => props.startupMode, (newVal) => {
+  if (!newVal) {
+    personInFrame.value = false
+    personDetectedFrames = 0
+    personLostFrames = 0
+  }
+})
+
 onUnmounted(() => {
   stopCamera()
   if (ro) ro.disconnect()
@@ -270,14 +367,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 可独立控制两种朝向的尺寸 */
 .webcam-analyzer {
-  --l-video-height: 56vh;  /* landscape 容器高度（短边） */
-  --l-max-w: 980px;        /* landscape 最大宽度 */
-
-  --p-video-height: 52vh;  /* portrait 容器高度（短边） */
-  --p-scale: 1.08;         /* portrait 额外缩放 */
-  --p-max-w: 640px;        /* portrait 最大宽度 */
+  --l-video-height: 56vh;
+  --l-max-w: 980px;
+  --p-video-height: 52vh;
+  --p-scale: 1.08;
+  --p-max-w: 640px;
 
   width: 100%;
   background: white;
@@ -300,21 +395,17 @@ onUnmounted(() => {
   width: 100%;
 }
 
-/* 比例 */
 .o-landscape .video-container { aspect-ratio: 16 / 9; }
 .o-portrait  .video-container { aspect-ratio: 9 / 16; }
 
-/* landscape 宽度推导：W = H * 16/9，并限制最大宽度 */
 .o-landscape .video-container {
   width: min(100%, calc(var(--l-video-height) * 16 / 9), var(--l-max-w));
 }
 
-/* portrait 宽度推导：W = scale * H * 9/16，并限制最大宽度 */
 .o-portrait .video-container {
   width: min(100%, calc(var(--p-scale) * var(--p-video-height) * 9 / 16), var(--p-max-w));
 }
 
-/* 将 video 隐藏，只把 canvas 当显示层，避免浏览器为适配 video 触发缩放 */
 .video-feed { display: none !important; }
 
 .pose-overlay {
@@ -325,12 +416,105 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-/* 小屏调优 */
+/* 🆕 橙色检测框 */
+.detection-frame {
+  position: absolute;
+  left: 20%;
+  top: 15%;
+  width: 60%;
+  height: 70%;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.frame-corners {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: 2px dashed rgba(255, 152, 0, 0.6);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.detection-frame.person-detected .frame-corners {
+  border-color: rgba(76, 175, 80, 0.8);
+  border-style: solid;
+}
+
+.corner {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-color: #ff9800;
+  transition: all 0.3s ease;
+}
+
+.detection-frame.person-detected .corner {
+  border-color: #4caf50;
+}
+
+.corner.top-left {
+  top: -2px;
+  left: -2px;
+  border-top: 4px solid;
+  border-left: 4px solid;
+  border-top-left-radius: 8px;
+}
+
+.corner.top-right {
+  top: -2px;
+  right: -2px;
+  border-top: 4px solid;
+  border-right: 4px solid;
+  border-top-right-radius: 8px;
+}
+
+.corner.bottom-left {
+  bottom: -2px;
+  left: -2px;
+  border-bottom: 4px solid;
+  border-left: 4px solid;
+  border-bottom-left-radius: 8px;
+}
+
+.corner.bottom-right {
+  bottom: -2px;
+  right: -2px;
+  border-bottom: 4px solid;
+  border-right: 4px solid;
+  border-bottom-right-radius: 8px;
+}
+
+.frame-label {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 152, 0, 0.9);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  transition: all 0.3s ease;
+}
+
+.detection-frame.person-detected .frame-label {
+  background: rgba(76, 175, 80, 0.9);
+}
+
 @media (max-width: 1024px) {
   .webcam-analyzer { --l-video-height: 50vh; --p-video-height: 48vh; --p-scale: 1.05; }
+  .frame-label { font-size: 12px; padding: 6px 16px; }
+  .corner { width: 25px; height: 25px; }
 }
+
 @media (max-width: 640px) {
   .webcam-analyzer { --l-video-height: 44vh; --p-video-height: 42vh; --p-scale: 1.0; }
+  .frame-label { font-size: 11px; padding: 5px 12px; top: -35px; }
+  .corner { width: 20px; height: 20px; }
 }
 
 .video-placeholder {
@@ -338,18 +522,24 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center;
   background: #f5f5f5;
 }
+
 .placeholder-content { text-align: center; }
 .placeholder-content p { font-size: 18px; margin-bottom: 14px; color: #666; }
+
 .start-button {
   padding: 10px 22px; background: #2f6fed; color: #fff; border: 0; border-radius: 8px; cursor: pointer;
 }
+
 .error-message {
   position: absolute; left: 20px; right: 20px; top: 20px;
   background: #ff4757; color: #fff; padding: 10px 15px; border-radius: 8px; font-size: 14px;
 }
+
 .controls { display: flex; gap: 10px; padding: 12px; background: #f8f9fa; }
+
 .control-button {
   flex: 1; padding: 10px 20px; border: 1px solid #ddd; background: white; border-radius: 6px; font-size: 14px; cursor: pointer;
 }
+
 .control-button:hover { background: #f0f0f0; border-color: #2f6fed; color: #2f6fed; }
 </style>

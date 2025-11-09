@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="showIntro && style === 'motivator' && exerciseData"
+    v-if="showIntro && style === 'beginner' && exerciseData"
     class="intro-modal-overlay"
     @click.self="closeIntroAndStart"
   >
@@ -30,22 +30,23 @@
 
     <div class="content">
       <div class="main-section">
-        <div 
-          v-if="mediapipeStore.waitingForGesture" 
-          class="gesture-overlay"
-        >
-          <div class="gesture-prompt">
-            <div class="gesture-icon">👍</div>
-            <p class="gesture-text">{{ mediapipeStore.gestureMessage }}</p>
-            <p class="gesture-hint">做出手勢以繼續</p>
+        <div v-if="showStartupGuide" class="startup-guide-overlay" @click="showStartupGuide = false">
+        <div class="startup-guide-content">
+          <div class="startup-icon">
+            {{ personDetected ? (thumbsUpDetected ? '🚀' : '👍') : '🧍' }}
           </div>
+          <h2 class="startup-title">{{ startupTitle }}</h2>
+          <p class="startup-instruction">{{ startupInstruction }}</p>
         </div>
-
+      </div>
         <WebcamAnalyzer
           v-if="isWorkoutActive"
           ref="analyzer"
           :analyze-interval="50"
           :orientation="orientation"
+          :startup-mode="showStartupGuide"
+          @person-detected="handlePersonDetected"
+          @person-lost="handlePersonLost"
           @frame-analyzed="handleFrameAnalyzed"
           @error="handleError"
         />
@@ -126,14 +127,13 @@ import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
 import WorkoutSummary from '@/components/WorkoutSummary.vue'
+import confetti from 'canvas-confetti'
 
-// --- 1. 从 URL 获取动态数据 ---
 const route = useRoute()
 const router = useRouter()
 const exerciseType = ref(route.params.type)
-const style = ref(route.query.style) // 'motivator' 或 'guide'
+const style = ref(route.query.style)
 
-// --- 2. 状态管理和组件引用 ---
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()
 const analyzer = ref(null)
@@ -141,23 +141,27 @@ const currentAngles = ref(null)
 const showSummary = ref(false)
 const showIntro = ref(false)
 const isWorkoutActive = ref(false)
+const showStartupGuide = ref(false)
 const exerciseData = computed(() => exerciseStore.getExerciseById(exerciseType.value))
+
+const personDetected = ref(false)
+const thumbsUpDetected = ref(false)
 
 const feedbackText = ref('隨時準備！')
 const isOverextended = ref(false)
 
-// 使用 store 的限制作为分母，避免常量分裂
+// ✅ 修复：确保使用 .value 访问 ref
 const MAX_REPS = computed(() => mediapipeStore.repetitionLimit || 15)
 
 const orientation = computed(() => exerciseData.value?.orientation || 'landscape')
 
-// 【修改】直接从 store 读取 count，确保响应式
+// ✅ 修复：确保进度条响应式更新
 const progressPercent = computed(() => {
   const total = Number(MAX_REPS.value || 0)
-  const done = Number(mediapipeStore.count || 0) // 直接从 store 读取
+  const done = Number(mediapipeStore.count || 0)
   if (!total) return 0
   const p = Math.round((done / total) * 100)
-  console.log('[progressPercent] total:', total, 'done:', done, 'percent:', p) // 调试日志
+  console.log('[progressPercent] total:', total, 'done:', done, 'percent:', p)
   return Math.max(0, Math.min(100, p))
 })
 
@@ -165,22 +169,66 @@ function gestureEmoji(gesture) {
   const emojiMap = {
     'like': '👍',
     'stop': '✋',
-    'peace': '✌️',
-    'ok': '👌'
   }
   return emojiMap[gesture] || gesture
 }
 
 async function startWorkoutFlow() {
+  console.log('[view] startWorkoutFlow route.style =', style.value)
+  // 先设置 store（可先把它提前于 analyzer）
+  await mediapipeStore.startExercise(exerciseType.value, String(style.value).toLowerCase())
+  // 再启动本地流程
   isWorkoutActive.value = true
-  await nextTick()
-
+  showStartupGuide.value = true
   exerciseStore.startExercise()
-  setTimeout(() => {
-    analyzer.value?.startAnalysis() // 开始摄像头分析
-  }, 100)
-  mediapipeStore.startExercise(exerciseType.value, style.value)
+  await nextTick()
+  setTimeout(() => analyzer.value?.startAnalysis(), 100)
 }
+
+const startupTitle = computed(() => {
+  if (!personDetected.value) {
+    return '请站入橙色框内'
+  } else if (!thumbsUpDetected.value) {
+    return '准备开始'
+  } else {
+    return '正在启动...'
+  }
+})
+
+const startupInstruction = computed(() => {
+  if (!personDetected.value) {
+    return '请调整位置，确保身体完整出现在橙色检测框内'
+  } else if (!thumbsUpDetected.value) {
+    return '做出 👍 手势以开始训练'
+  } else {
+    return '即将开始您的训练'
+  }
+})
+
+function handlePersonDetected() {
+  console.log('[ExerciseView] 检测到人体进入框内')
+  personDetected.value = true
+}
+
+function handlePersonLost() {
+  console.log('[ExerciseView] 人体离开框内')
+  personDetected.value = false
+  thumbsUpDetected.value = false
+}
+
+watch(() => mediapipeStore.gestureDetected, (gesture) => {
+  if (showStartupGuide.value && personDetected.value && gesture === 'thumbs_up') {
+    console.log('[ExerciseView] 检测到👍手势，准备启动训练')
+    thumbsUpDetected.value = true
+    
+    setTimeout(() => {
+      showStartupGuide.value = false
+      personDetected.value = false
+      thumbsUpDetected.value = false
+      console.log('[ExerciseView] 启动引导结束，开始正式训练')
+    }, 800)
+  }
+})
 
 function closeIntroAndStart() {
   if (!showIntro.value) return
@@ -202,11 +250,9 @@ onMounted(() => {
   }
 })
 
-// 【关键修改】简化 handleFrameAnalyzed，让 store 的 analyzeFrame 完成所有逻辑
 function handleFrameAnalyzed(result) {
   console.log('[handleFrameAnalyzed] received result keys:', Object.keys(result || {}))
   
-  // 优先使用 'current' 键，否则尝试 type 键，最后尝试 name 键
   const byCurrent = result?.current
   const byType = result?.[exerciseType.value]
   const byName = exerciseData.value?.name ? result?.[exerciseData.value.name] : undefined
@@ -217,7 +263,6 @@ function handleFrameAnalyzed(result) {
   console.log('[handleFrameAnalyzed] analysisData:', analysisData)
 
   if (analysisData && typeof analysisData === 'object') {
-    // 角度（存在则更新）
     if (analysisData.shoulder_angle !== undefined || analysisData.elbow_angle !== undefined) {
       currentAngles.value = {
         shoulder: analysisData.shoulder_angle,
@@ -225,10 +270,8 @@ function handleFrameAnalyzed(result) {
       }
     }
 
-    // 【关键】更新 store（这会触发响应式更新）
     mediapipeStore.updateAnalysisData(analysisData)
 
-    // 反馈/错误态
     if (!mediapipeStore.isPaused) {
       feedbackText.value = analysisData.feedback || feedbackText.value
       const nonStandard = analysisData.category === 'non_standard'
@@ -237,7 +280,6 @@ function handleFrameAnalyzed(result) {
 
     console.log('[handleFrameAnalyzed] after update - store.count:', mediapipeStore.count)
   } else {
-    // 关键日志：看是否命中键
     console.warn(
       '[handleFrameAnalyzed] 未命中 current/type/name。可用键:',
       Object.keys(result || {})
@@ -253,32 +295,66 @@ function handleError(error) {
   console.error('Analysis error:', error)
 }
 
-// 【修改】监听 store 的 count 变化
+function blastConfetti(options = {}) {
+  // 全屏、在下一帧触发，避免与 UI 切换抢帧
+  requestAnimationFrame(() => {
+    const duration = options.duration ?? 2000 // ms
+    const end = Date.now() + duration
+
+    // 统一的发射参数
+    const base = {
+      particleCount: 50,
+      spread: 60,
+      startVelocity: 45,
+      gravity: 0.9,
+      ticks: 250,
+      origin: { y: 0.6 }
+    }
+
+    // 连续喷射一段时间
+    const interval = setInterval(() => {
+      confetti({ ...base, angle: 60, origin: { x: 0, y: Math.random() * 0.3 + 0.1 } })
+      confetti({ ...base, angle: 120, origin: { x: 1, y: Math.random() * 0.3 + 0.1 } })
+      // 中央一波
+      confetti({
+        ...base,
+        particleCount: 80,
+        spread: 90,
+        origin: { x: 0.5, y: 0.3 },
+        scalar: 1.1,
+        colors: ['#34d399', '#3b82f6', '#f59e0b', '#ef4444', '#a78bfa']
+      })
+      if (Date.now() > end) clearInterval(interval)
+    }, 250)
+  })
+}
+
 watch(
   () => mediapipeStore.count,
-  (newCount, oldCount) => {
-    console.log('[watch count] newCount:', newCount, 'oldCount:', oldCount, 'limit:', mediapipeStore.repetitionLimit)
-    if (
-      newCount > 0 &&
-      newCount % (mediapipeStore.repetitionLimit || 15) === 0 &&
-      newCount !== oldCount
-    ) {
+  (newCount) => {
+    const limit = Number(mediapipeStore.repetitionLimit || 15) 
+    console.log('[watch count] newCount:', newCount, 'limit:', limit)
+    if (newCount >= limit && limit > 0) {
+      console.log('[watch count] 🎉 达到目标次数，显示总结！')
+      // 先停掉分析，避免继续加数
+      try { analyzer.value?.stopAnalysis?.() } catch (e) { console.warn(e) }
+      blastConfetti({ duration: 2500 })
       isWorkoutActive.value = false
       exerciseStore.endExercise()
       showSummary.value = true
+      mediapipeStore.pause?.() // 如果有 pause 动作的话
     }
   }
 )
 
-function handleContinueWorkout() {
+async function handleContinueWorkout() {
   showSummary.value = false
-  isWorkoutActive.value = true
   mediapipeStore.reset()
+  await mediapipeStore.startExercise(exerciseType.value, String(style.value).toLowerCase())
   exerciseStore.startExercise()
-  setTimeout(() => {
-    analyzer.value?.startAnalysis()
-  }, 100)
-  mediapipeStore.startExercise(exerciseType.value, style.value)
+  isWorkoutActive.value = true
+  await nextTick()
+  analyzer.value?.startAnalysis()
 }
 
 function handleEndWorkout() {
@@ -500,6 +576,48 @@ function handleEndWorkout() {
   color: #bee3f8;
 }
 
+.startup-guide-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(103, 58, 183, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.startup-guide-content {
+  text-align: center;
+  color: white;
+  max-width: 500px;
+  padding: 40px 30px;
+}
+
+.startup-icon {
+  font-size: 80px;
+  margin-bottom: 24px;
+  animation: bounce 1s ease-in-out infinite;
+}
+
+.startup-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.startup-instruction {
+  font-size: 16px;
+  line-height: 1.6;
+  opacity: 0.95;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
 /* 动画 */
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -528,6 +646,36 @@ function handleEndWorkout() {
   .intro-modal-content { padding: 30px; }
   .info-container h2 { font-size: 1.5rem; }
   .feedback-text { font-size: 1.2rem; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@media (max-width: 768px) {
+  .startup-guide-content {
+    padding: 30px 20px;
+  }
+  
+  .startup-icon {
+    font-size: 60px;
+    margin-bottom: 20px;
+  }
+  
+  .startup-title {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+  
+  .startup-instruction {
+    font-size: 14px;
+  }
 }
 
 .image-container {
@@ -644,5 +792,68 @@ cursor: pointer;
 .link-btn:hover {
 color: #111827;
 text-decoration: underline;
+}
+
+/* 🆕 新增样式 - 启动引导遮罩 */
+.startup-guide-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.95), rgba(118, 75, 162, 0.95));
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  border-radius: 12px;
+  animation: fadeIn 0.5s ease;
+}
+
+.startup-guide-content {
+  text-align: center;
+  color: white;
+  padding: 40px;
+  max-width: 500px;
+}
+
+.startup-icon {
+  font-size: 6rem;
+  margin-bottom: 20px;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+.startup-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.startup-instruction {
+  font-size: 1.3rem;
+  margin-bottom: 12px;
+  opacity: 0.95;
+  line-height: 1.6;
+}
+
+/* 🆕 响应式 - 启动引导 */
+@media (max-width: 768px) {
+  .startup-icon {
+    font-size: 4rem;
+  }
+  
+  .startup-title {
+    font-size: 2rem;
+  }
+  
+  .startup-instruction {
+    font-size: 1.1rem;
+  }
+  
+  .startup-guide-content {
+    padding: 30px 20px;
+  }
 }
 </style>

@@ -14,7 +14,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   const analysisResults = ref(null)
   const isPaused = ref(false) 
   const currentStyle = ref(null)
-  const repetitionLimit = 15
+  const repetitionLimit = ref(15)
   const isActive = computed(() => status.value === 'active')
 
   const accurateCount = ref(0)
@@ -119,7 +119,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     }
 
     // 完成状态判定
-    if (count.value >= repetitionLimit) {
+    if (count.value >= repetitionLimit.value) {
       status.value = 'completed'
     }
 
@@ -145,14 +145,17 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       lastCount.value = 0
       currentExercise.value = exerciseType
       currentStyle.value = style
-      status.value = 'paused' //altered
+      //new
+      repetitionLimit.value = (style === 'beginner') ? 10 : 15
+    
+      status.value = 'paused' 
       count.value = 0
       energy.value = 0
-      isPaused.value = true    //altered
+      isPaused.value = true    
       analysisResults.value = null
       smoothness.value = 100          
       repDurations.value = []         
-      console.log(`Exercise '${exerciseType}' started with style '${style}'.`);
+      console.log(`Exercise '${exerciseType}' started with style '${style}'. max reps: ${repetitionLimit.value}`);
     } else {
       console.error("Failed to start exercise on the backend.");
     }
@@ -212,7 +215,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     // 状态机
     if (isPaused.value) status.value = 'paused'
     else status.value = 'active'
-    if (typeof repetitionLimit !== 'undefined' && repetitionLimit !== null && count.value >= repetitionLimit) {
+    if (typeof repetitionLimit.value !== 'undefined' && repetitionLimit.value !== null && count.value >= repetitionLimit.value) {
       status.value = 'completed'
     }
 
@@ -268,23 +271,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       status.value = 'paused'
     }
   }
-  
-  // async function pauseWorkout() {
-  //   const success = await controlBackend({ action: 'pause' });
-  //   if (success) {
-  //     console.log('[startExercise] set active. currentExercise:', currentExercise.value, 'style:', currentStyle.value);
-  //     status.value = 'paused';
-  //     isPaused.value = true;
-  //   }
-  // }
-
-  // async function resumeWorkout() {
-  //   const success = await controlBackend({ action: 'resume' });
-  //   if (success) {
-  //     status.value = 'active';
-  //     isPaused.value = false;
-  //   }
-  // }
   
   return {
     // 状态

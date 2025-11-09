@@ -112,51 +112,36 @@ EXERCISE_CONFIG = {
         ],
         'logic_function': '_analyze_diagonal_lift_logic',
         'params': {
-            'intermediate': {
-                'start_threshold_y': 0.20,      # 手腕低於肩膀（放宽）
-            
-            # ===== 拉起位置（手臂斜向上）=====
-            'end_threshold_y': 0.00,        # 手腕与肩膀齐平即可（大幅降低）
-            
-            # ===== 对角线特征（关键！）=====
-            'min_horizontal_disp': 0.25,    # 相对肩宽的最小水平位移（提高要求）
-            'min_vertical_disp': 0.15,      # 最小垂直位移（新增：确保有向上分量）
-            
-            # ===== 总位移要求 =====
-            'min_distance': 0.30,           # 总位移（垂直+水平）
-            
-            # ===== 角度要求（新增）=====
-            'min_diagonal_angle': 25,       # 最小对角线角度（度）
-            'max_diagonal_angle': 65,       # 最大对角线角度（度）
-            # 25-65度范围确保是斜向，避免纯横向或纯纵向
-            
-            # ===== 肩膀稳定性（z轴）=====
-            'max_shoulder_z_diff': 0.08,    # 两肩z轴差异阈值（相对肩宽）
-            'shoulder_z_window': 10,        # z轴追踪窗口（帧数）
-        },
-        'beginner': {
-            # ===== 起始位置 =====
-            'start_threshold_y': 0.22,      # 更宽松的起始位置
-            
-            # ===== 拉起位置 =====
-            'end_threshold_y': 0.05,        # 略低于肩膀即可
-            
-            # ===== 对角线特征 =====
-            'min_horizontal_disp': 0.20,    # 稍低的水平位移要求
-            'min_vertical_disp': 0.12,      # 稍低的垂直位移要求
-            
-            # ===== 总位移要求 =====
-            'min_distance': 0.25,           # 较小的总位移
-            
-            # ===== 角度要求 =====
-            'min_diagonal_angle': 20,       # 更宽松的角度范围
-            'max_diagonal_angle': 70,       
-            
-            # ===== 肩膀稳定性 =====
-            'max_shoulder_z_diff': 0.10,    # 更宽松的肩膀稳定性
-            'shoulder_z_window': 10,
-            }
-        }
+    'intermediate': {
+        'start_threshold_y': 0.20,
+        'end_threshold_y': 0.00,
+
+        'min_horizontal_disp': 0.08,   # 原 0.20
+        'min_vertical_disp':   0.10,
+        'min_distance':        0.18,
+
+        'min_diagonal_angle':  8,
+        'max_diagonal_angle':  85,
+
+        'max_shoulder_z_diff': 0.20,   # 原 0.10
+        'shoulder_z_window':   15,     # 原 10
+    },
+    'beginner': {
+        'start_threshold_y': 0.22,
+        'end_threshold_y': 0.05,
+
+        # 初学更宽松
+        'min_horizontal_disp': 0.08,   # 原 0.20
+        'min_vertical_disp':   0.10,
+        'min_distance':        0.18,
+
+        'min_diagonal_angle':  8,
+        'max_diagonal_angle':  85,
+
+        'max_shoulder_z_diff': 0.20,   # 原 0.10
+        'shoulder_z_window':   15,     # 原 10
+    }
+}
     },
     'squat': {
         'name': '深蹲',
@@ -1099,6 +1084,10 @@ class ExerciseAnalyzer:
         
         body_height = abs((ls[1] + rs[1]) / 2 - (lh[1] + rh[1]) / 2)
         shoulder_width = abs(ls[0] - rs[0])
+
+        if not hasattr(self.state, '_diag_start_time'):
+            self.state._diag_start_time = time.time()
+        startup_grace = (time.time() - self.state._diag_start_time) < 0.8
         
         # ========== 2. 调用双侧分析 ==========
         left_result = self._analyze_diagonal_side(
@@ -1139,8 +1128,8 @@ class ExerciseAnalyzer:
         
         self._update_phase(active_result['is_up'], active_result['is_down'])
         
-        self.state._overextension_detected = not active_result['shoulder_stable']
-        if not active_result['shoulder_stable']:
+        self.state._overextension_detected = (not active_result['shoulder_stable']) and (not startup_grace)
+        if not active_result['shoulder_stable'] and not startup_grace:
             self.state._overextension_type = 'shoulder_rotation'
 
         if active_result['should_count']:
@@ -1158,72 +1147,86 @@ class ExerciseAnalyzer:
             self.state._completed_hold_frames = 2
 
     def _analyze_diagonal_side(self, side, shoulder, elbow, wrist, opp_shoulder,
-                               body_height, shoulder_width, state, params):
-        """分析單側對角線動作"""
+                           body_height, shoulder_width, state, params):
+        """分析單側對角線動作（更贴身、更宽容的版本）"""
         current_time = time.time()
-        
-        # 計算垂直和水平位移（歸一化）
+
+        # 归一化位移
         y_diff = (wrist[1] - shoulder[1]) / body_height
         x_diff = abs(wrist[0] - shoulder[0]) / shoulder_width
-        
-        # 判斷位置
+
+        # 分区
         is_down = y_diff > params['start_threshold_y']
         is_up = y_diff < params['end_threshold_y']
-        
-        # 計算肩膀z軸穩定性
-        shoulder_z_diff = abs(shoulder[2] - opp_shoulder[2]) / shoulder_width
+
+        # 肩膀 z 轴稳定性（放宽 + 平滑）
+        shoulder_z_diff = abs(shoulder[2] - opp_shoulder[2]) / max(shoulder_width, 1e-6)
         state['shoulder_z_history'].append(shoulder_z_diff)
-        
         if len(state['shoulder_z_history']) > params['shoulder_z_window']:
             state['shoulder_z_history'].pop(0)
-        
+
+        # 基础容差偏移：对极小值直接容忍
+        base_tolerance = 0.02  # 额外宽容
         if len(state['shoulder_z_history']) >= 3:
-            z_range = max(state['shoulder_z_history']) - min(state['shoulder_z_history'])
-            shoulder_stable = z_range <= params['max_shoulder_z_diff']
+            z_vals = state['shoulder_z_history']
+            z_range = max(z_vals) - min(z_vals)
+            # 放宽：允许一个基础容差后再比较
+            shoulder_stable = (z_range <= (params['max_shoulder_z_diff'] + base_tolerance))
         else:
             shoulder_stable = True
-        
-        # 初始化起點
+
+        # 初始化起点
         if state['start_wrist_y'] is None and is_down:
             state['start_wrist_y'] = wrist[1]
             state['start_wrist_x'] = wrist[0]
-        
-        # 計算總位移
-        vertical_disp = 0
-        horizontal_disp = 0
-        total_disp = 0
-        
+
+        vertical_disp = 0.0
+        horizontal_disp = 0.0
+        total_disp = 0.0
+        total_disp_weighted = 0.0
         if state['start_wrist_y'] is not None:
             vertical_disp = abs(wrist[1] - state['start_wrist_y']) / body_height
-            horizontal_disp = abs(wrist[0] - state['start_wrist_x']) / shoulder_width
+            horizontal_disp = abs(wrist[0] - state['start_wrist_x']) / max(shoulder_width, 1e-6)
             total_disp = vertical_disp + horizontal_disp
-        
-        # 判斷活躍
-        is_active = (
-            total_disp >= params['min_distance'] * 0.5
-            or is_up
-            or is_down
-        )
-        
-        # 檢查對角線特徵
-        is_diagonal = horizontal_disp >= params['min_horizontal_disp']
-        
-        # 狀態機計數
+            # 竖直权重更高，贴身也能过
+            total_disp_weighted = 0.75 * vertical_disp + 0.25 * horizontal_disp
+
+        # 活跃性（用于 UI 阶段/提示，不影响正确性归类）
+        is_active = (total_disp >= params['min_distance'] * 0.5) or is_up or is_down
+
+        # 角度辅助（放宽范围）
+        diagonal_angle_ok = True
+        if state['start_wrist_y'] is not None:
+            dy = (wrist[1] - state['start_wrist_y']) / body_height
+            dx = (wrist[0] - state['start_wrist_x']) / max(shoulder_width, 1e-6)
+            angle_deg = abs(math.degrees(math.atan2(-dy, dx)))  # 0=水平，90=竖直
+            diagonal_angle_ok = (params['min_diagonal_angle'] <= angle_deg <= params['max_diagonal_angle'])
+
+        # 放宽对角特征：水平或角度满足其一
+        is_diagonal = (horizontal_disp >= params['min_horizontal_disp']) or diagonal_angle_ok
+
         should_count = False
         debounce_time = 0.5
-        
-        if (state['movement_state'] == 'down' and is_up 
+
+        if (state['movement_state'] == 'down' and is_up
             and current_time - state['last_count_time'] > debounce_time):
-            if total_disp >= params['min_distance'] and is_diagonal:
+            # 路径A：加权总位移达标 + 有对角线特征
+            path_a = (total_disp_weighted >= max(params['min_distance'] * 0.75, 0.14)) and is_diagonal
+            # 路径B：更偏竖直的贴身路径：竖直位移达到阈值 + 水平位移有个最小量
+            vertical_ok = vertical_disp >= max(params.get('min_vertical_disp', 0.10), 0.10)
+            horiz_min_ok = horizontal_disp >= max(params['min_horizontal_disp'] * 0.4, 0.035)
+            path_b = vertical_ok and horiz_min_ok
+
+            if path_a or path_b:
                 should_count = True
                 state['movement_state'] = 'up'
                 state['last_count_time'] = current_time
-                
+
         elif state['movement_state'] == 'up' and is_down:
             state['movement_state'] = 'down'
             state['start_wrist_y'] = wrist[1]
             state['start_wrist_x'] = wrist[0]
-        
+
         return {
             'side': side,
             'is_active': is_active,
