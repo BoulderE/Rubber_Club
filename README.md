@@ -15,8 +15,7 @@ The project is currently collaborating with Lutheran Church-Hong Kong Synod for 
 - [Overview](#overview)
 - [Features](#features)
 - [Tech Stack](#tech-stack)
-- [Backend Setup](#backend-setup)
-- [Frontend Setup](#frontend-setup)
+- [Getting Started](#getting-started)
 
 ---
 
