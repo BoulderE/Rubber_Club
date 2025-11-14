@@ -62,16 +62,6 @@ _This is a suggested list – adjust it to match your actual functionality._
 
 ---
 
-## Repository Structure
-
-Rubber_Club/
-├─ Backend/          # Python backend application
-├─ Frontend/         # Vue (and JS) frontend application
-├─ .github/
-│  └─ workflows/     # CI/CD GitHub Actions (linting, tests, deploys, etc.)
-├─ .vscode/          # Editor configuration (recommended workspace settings)
-├─ .gitignore        # Git ignore rules
-└─ .DS_Store         # macOS filesystem metadata (can be ignored/removed)
 
 ---
 
@@ -82,7 +72,7 @@ Replace any placeholders (like framework names or commands) with the exact ones 
 
 ---
 
-### 1. Prerequisites
+1. Prerequisites
 
 Before you begin, make sure you have the following installed:
 
@@ -102,11 +92,11 @@ npm --version
 ```
 ---
 
-### 2. Clone the Repository
+2. Clone the Repository
 git clone https://github.com/BoulderE/Rubber_Club.git
 cd Rubber_Club
 
-### 3. Backend Setup
+3. Backend Setup
 
 The backend lives in the Backend/ directory.
 The exact commands may differ depending on whether it uses Flask, FastAPI, Django, etc.—check the code (e.g., main.py, app.py, manage.py) and update the commands accordingly.
@@ -151,9 +141,7 @@ pipenv install
 pipenv shell
 (Check which file exists: requirements.txt, pyproject.toml, or Pipfile.)
 
----
-
-### 4. Frontend Setup
+4. Frontend Setup
 
 The frontend lives in the Frontend/ directory and is implemented with Vue.js.
 The exact commands depend on whether it uses Vite, Vue CLI, or another build tool (package.json will tell you).
