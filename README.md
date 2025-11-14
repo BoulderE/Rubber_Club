@@ -3,8 +3,8 @@
 Rubber_Club is a full‑stack web application with a Python backend and a Vue‑based frontend.  
 Use this README as a starting point and adjust the description, commands, and configuration details to match the actual implementation of your project.
 
-> ⚠️ **Note:** This README was drafted based only on the repository structure and language stats visible on GitHub (`Backend/`, `Frontend/`, Python + Vue).  
-> Please update framework names, commands, and any missing details to match your codebase.
+<img width="1624" height="1060" alt="image" src="https://github.com/user-attachments/assets/d5bec373-f07e-4984-abba-f81d9c8a111e" />
+
 
 ---
 
