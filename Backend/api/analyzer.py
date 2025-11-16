@@ -1277,10 +1277,12 @@ class ExerciseAnalyzer:
             elif self.state.stage == 'down':
                 self.state.feedback = "很好，準備下次"
             else:
-                self.state.feedback = "請開始動作"
+                self.state.feedback = "你已準備好，隨時開始運動"
         
         elif self.style == 'beginner':
             if self.state.stage == 'up':
                 self.state.feedback = "漂亮！你太棒了！"
-            else:
+            elif self.state.stage == 'down':
                 self.state.feedback = "加油！再來一個！"
+            else:
+                self.state.feedback = "你已準備好，隨時開始運動"

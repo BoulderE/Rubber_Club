@@ -5,32 +5,36 @@
       <p>Your Digital Fitness Helper</p>
     </div>
 
-    <!-- 难度选择弹窗 -->
+    <!-- 难度选择弹窗 - 使用 v-if 控制显示 -->
     <div v-if="showModal" class="modal-backdrop" @click.self="showModal = false">
       <div class="modal-content">
-        <h2 id="modal-title">選擇您的級別「{{ selectedExercise?.displayName }}」</h2>
+        <!-- 添加右上角关闭按钮 -->
+        <button @click="showModal = false" class="close-button">&times;</button>
+        
+        <h2 id="modal-title">選擇您的「{{ selectedExercise?.displayName }}」難度</h2>
+        
+        <!-- 改为可点击的卡片，移除 radio -->
         <div class="level-options">
-          <label>
-            <input type="radio" name="level" value="beginner" v-model="selectedLevel">
-            <div class="level-card">
-              <span class="emoji">🥳</span>
-              <div>初學者</div>
-              <p>輕鬆上手。</p>
-            </div>
-          </label>
-          <label>
-            <input type="radio" name="level" value="intermediate" v-model="selectedLevel">
-            <div class="level-card">
-              <span class="emoji">🎯</span>
-              <div>進階</div>
-              <p>嚴格指導。</p>
-            </div>
-          </label>
+          <div 
+            class="level-card"
+            :class="{ selected: selectedLevel === 'beginner' }"
+            @click="selectAndStart('beginner')"
+          >
+            <div>初學者</div>
+            <p>輕鬆上手。</p>
+          </div>
+          
+          <div 
+            class="level-card"
+            :class="{ selected: selectedLevel === 'advanced' }"
+            @click="selectAndStart('advanced')"
+          >
+            <div>進階</div>
+            <p>嚴格指導。</p>
+          </div>
         </div>
-        <div class="modal-buttons">
-          <button class="cancel-btn" @click="showModal = false">Cancel</button>
-          <button class="confirm-btn" @click="startExercise">Confirm Selection</button>
-        </div>
+        
+        <!-- 移除按钮组 -->
       </div>
     </div>
 
@@ -65,11 +69,6 @@
           <div class="info-section">
             <h2 class="detail-title">{{ detailExercise?.displayName }}</h2>
             
-            <div class="detail-field">
-              <span class="field-label">動作方向</span>
-              <span class="field-value">{{ detailExercise?.orientation === 'portrait' ? '縱向' : '橫向' }}</span>
-            </div>
-
             <div class="detail-field">
               <span class="field-label">動作說明</span>
               <p class="field-description">{{ detailExercise?.description }}</p>
@@ -143,10 +142,10 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 
 const isChatbotVisible = ref(false);
-const showModal = ref(false); 
-const showDetailModal = ref(false); // 详情弹窗控制
+const showModal = ref(false); // 🔥 保留这个状态
+const showDetailModal = ref(false);
 const selectedExercise = ref(null); 
-const detailExercise = ref(null); // 详情弹窗的运动数据
+const detailExercise = ref(null);
 const selectedLevel = ref('beginner');
 
 // 视频引用存储
@@ -230,7 +229,7 @@ const exercises = ref([
     description: '進階肩部與核心穩定訓練,強化單側肩部力量與身體協調性,改善日常生活中斜向抬舉物品的能力。', 
     imageUrl: '/images/diagonal_lift_image_1.png',
     videoUrl: '/videos/diagonal_lift_demo.mp4',
-    orientation: 'landscape', // 横向拍摄
+    orientation: 'landscape',
     tips: [
       '單手持啞鈴,從肩膀斜向推至對側上方',
       '保持核心穩定,避免身體過度旋轉',
@@ -268,14 +267,20 @@ const handleMouseLeave = (id) => {
   }
 };
 
-// 打开难度选择弹窗（点击整个卡片）
+// 打开难度选择弹窗
 function openDifficultyModal(exercise) {
   selectedExercise.value = exercise;
   selectedLevel.value = 'beginner';
-  showModal.value = true;
+  showModal.value = true; // 显示弹窗
 }
 
-// 打开详情弹窗（点击"更多..."）
+// 新增：点击卡片直接选择级别并跳转
+function selectAndStart(level) {
+  selectedLevel.value = level;
+  startExercise();
+}
+
+// 打开详情弹窗
 function openDetail(exercise) {
   detailExercise.value = exercise;
   showDetailModal.value = true;
@@ -287,15 +292,15 @@ function closeDetail() {
   detailExercise.value = null;
 }
 
-// 从详情页开始训练（先打开难度选择）
+// 从详情页开始训练
 function startFromDetail() {
   selectedExercise.value = detailExercise.value;
   selectedLevel.value = 'beginner';
   showDetailModal.value = false;
-  showModal.value = true;
+  showModal.value = true; // 打开难度选择弹窗
 }
 
-// 开始运动（从难度选择弹窗）
+// 开始运动
 function startExercise() {
   if (!selectedExercise.value) return;
 
@@ -305,7 +310,7 @@ function startExercise() {
     query: { style: selectedLevel.value }
   });
 
-  showModal.value = false;
+  showModal.value = false; // 关闭弹窗
 }
 
 // 组件卸载时清理视频
@@ -350,7 +355,7 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-/* ========== 网格布局 - 4列 ========== */
+/* ========== 网格布局 ========== */
 .exercises-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -364,7 +369,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  cursor: pointer; /* 添加指针光标 */
+  cursor: pointer;
 }
 
 .exercise-card:hover {
@@ -372,7 +377,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
-/* ========== 视频容器 - 9:16 纵向 ========== */
 .video-container {
   position: relative;
   width: 100%;
@@ -388,22 +392,6 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* 难度标签 */
-.difficulty-badge {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #6b7280;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* 卡片底部 */
 .card-footer {
   padding: 16px;
   display: flex;
@@ -460,111 +448,115 @@ onBeforeUnmount(() => {
 }
 
 .modal-content {
+  position: relative; /* 添加相对定位 */
   background: #ffffff;
-  border-radius: 16px;
+  border-radius: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  padding: 30px;
+  padding: 40px;
   width: 90%;
   max-width: 500px;
   text-align: center;
   animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* 右上角关闭按钮 */
+.modal-content .close-button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 50%;
+  font-size: 24px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.modal-content .close-button:hover {
+  background: #e5e7eb;
+  color: #374151;
+  transform: rotate(90deg);
+}
+
 .modal-content h2 { 
   margin-top: 0; 
-  margin-bottom: 25px;
-  font-size: 1.5rem;
+  margin-bottom: 30px;
+  font-size: 1.75rem;
   color: #111827;
+  padding-right: 30px; /* 给关闭按钮留空间 */
 }
 
+/* 改为卡片布局，移除 radio 样式 */
 .level-options { 
-  display: flex; 
-  gap: 20px; 
-  margin-bottom: 30px; 
-}
-
-.level-options input[type="radio"] { 
-  display: none; 
-}
-
-.level-options label { 
-  flex: 1; 
-  cursor: pointer; 
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 0; /* 移除底部间距 */
 }
 
 .level-card { 
-  padding: 20px; 
-  border: 2px solid #e0e0e0; 
-  border-radius: 12px; 
-  transition: all 0.2s ease; 
-  text-align: left; 
+  padding: 24px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
 }
 
-.level-card .emoji { 
-  font-size: 1.5em; 
-  margin-right: 10px; 
+/* 添加渐变背景效果 */
+.level-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.level-card:hover {
+  border-color: #667eea;
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+}
+
+.level-card:hover::before {
+  opacity: 1;
+}
+
+.level-card.selected {
+  border-color: #667eea;
+  background-color: #f3f1ff;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
 }
 
 .level-card div { 
-  font-weight: bold; 
-  font-size: 1.1em; 
-  color: #111827;
+  font-weight: 600;
+  font-size: 1.75rem;
+  color: #1f2937;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .level-card p { 
-  font-size: 0.9em; 
-  color: #6c757d; 
-  margin: 5px 0 0; 
-}
-
-.level-options input[type="radio"]:checked + .level-card {
-  border-color: #667eea;
-  background-color: #f3f1ff;
-  box-shadow: 0 0 10px rgba(102, 126, 234, 0.2);
-}
-
-.modal-buttons {
-  display: flex;
-  gap: 15px;
-}
-
-.confirm-btn {
-  flex: 1; 
-  padding: 15px;
-  font-size: 1.1em;
-  font-weight: bold;
-  color: white;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
-.confirm-btn:hover { 
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
-}
-
-.cancel-btn {
-  flex: 1; 
-  padding: 15px;
-  font-size: 1.1em;
-  font-weight: bold;
-  color: white; 
-  background-color: #e74c3c;
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
-}
-
-.cancel-btn:hover {
-  background-color: #c0392b;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(231, 76, 60, 0.4);
+  font-size: 1.25rem;
+  color: #6b7280;
+  margin: 0;
+  position: relative;
+  z-index: 1;
 }
 
 /* ========== 详情弹窗 ========== */
@@ -596,7 +588,7 @@ onBeforeUnmount(() => {
   animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.close-button {
+.detail-modal-content .close-button {
   position: absolute;
   top: 20px;
   right: 20px;
@@ -617,7 +609,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.close-button:hover {
+.detail-modal-content .close-button:hover {
   background: white;
   color: #111827;
   transform: rotate(90deg);
@@ -630,7 +622,6 @@ onBeforeUnmount(() => {
   min-height: 500px;
 }
 
-/* 左侧图片区域 */
 .image-section {
   background: #f9fafb;
   display: flex;
@@ -648,7 +639,6 @@ onBeforeUnmount(() => {
   border-radius: 12px;
 }
 
-/* 右侧信息区域 */
 .info-section {
   padding: 50px 40px;
   display: flex;
@@ -868,7 +858,11 @@ onBeforeUnmount(() => {
   }
 
   .level-options {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content {
+    padding: 32px 24px;
   }
 
   .detail-title {

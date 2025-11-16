@@ -23,18 +23,9 @@
         <!-- 🆕 橙色检测框 -->
         <div 
           v-if="startupMode" 
-          class="detection-frame"
-          :class="{ 'person-detected': personInFrame }"
+          class="detection-frame-container"
         >
-          <div class="frame-corners">
-            <span class="corner top-left"></span>
-            <span class="corner top-right"></span>
-            <span class="corner bottom-left"></span>
-            <span class="corner bottom-right"></span>
-          </div>
-          <div class="frame-label">
-            {{ personInFrame ? '✓ 已检测到' : '请站入框内' }}
-          </div>
+          <div class="detection-frame-text">請站入橘色框內</div>
         </div>
 
         <div v-if="!isStreaming" class="video-placeholder">
@@ -370,8 +361,8 @@ onUnmounted(() => {
 .webcam-analyzer {
   --l-video-height: 56vh;
   --l-max-w: 980px;
-  --p-video-height: 52vh;
-  --p-scale: 1.08;
+  --p-video-height: 60vh;
+  --p-scale: 1.0;
   --p-max-w: 640px;
 
   width: 100%;
@@ -416,105 +407,74 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-/* 🆕 橙色检测框 */
-.detection-frame {
+/* 🆕 简洁的橙色检测框 - 与上方提示框同色 */
+.detection-frame-container {
   position: absolute;
   left: 20%;
   top: 15%;
   width: 60%;
   height: 70%;
+  border: 5px solid #ff5e62; /* 与startup-hint同色 */
+  border-radius: 12px;
   pointer-events: none;
-  transition: all 0.3s ease;
 }
 
-.frame-corners {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  border: 2px dashed rgba(255, 152, 0, 0.6);
-  border-radius: 8px;
-  transition: all 0.3s ease;
+.o-landscape .detection-frame-container {
+  left: 15%;
+  top: 8%;
+  width: 70%;
+  height: 84%;
 }
 
-.detection-frame.person-detected .frame-corners {
-  border-color: rgba(76, 175, 80, 0.8);
-  border-style: solid;
+.o-portrait .detection-frame-container {
+  left: 10%;
+  top: 5%;
+  width: 80%;
+  height: 90%;
 }
 
-.corner {
-  position: absolute;
-  width: 30px;
-  height: 30px;
-  border-color: #ff9800;
-  transition: all 0.3s ease;
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
 }
 
-.detection-frame.person-detected .corner {
-  border-color: #4caf50;
-}
-
-.corner.top-left {
-  top: -2px;
-  left: -2px;
-  border-top: 4px solid;
-  border-left: 4px solid;
-  border-top-left-radius: 8px;
-}
-
-.corner.top-right {
-  top: -2px;
-  right: -2px;
-  border-top: 4px solid;
-  border-right: 4px solid;
-  border-top-right-radius: 8px;
-}
-
-.corner.bottom-left {
-  bottom: -2px;
-  left: -2px;
-  border-bottom: 4px solid;
-  border-left: 4px solid;
-  border-bottom-left-radius: 8px;
-}
-
-.corner.bottom-right {
-  bottom: -2px;
-  right: -2px;
-  border-bottom: 4px solid;
-  border-right: 4px solid;
-  border-bottom-right-radius: 8px;
-}
-
-.frame-label {
-  position: absolute;
-  top: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(255, 152, 0, 0.9);
-  color: white;
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-size: 14px;
-  font-weight: 600;
+.detection-frame-text {
+  font-weight: 700;
+  font-size: 1.8rem;
+  color: #ff5e62;
+  text-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 0 10px rgba(255, 94, 98, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+  text-align: center;
+  letter-spacing: 0.5px;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  transition: all 0.3s ease;
+  flex-shrink: 0;
+  /* 🔥 改为相对定位，放在容器顶部外侧 */
+  margin-bottom: 0.5rem;
+  order: -1; /* 确保在框上方 */
 }
 
-.detection-frame.person-detected .frame-label {
-  background: rgba(76, 175, 80, 0.9);
-}
+
 
 @media (max-width: 1024px) {
   .webcam-analyzer { --l-video-height: 50vh; --p-video-height: 48vh; --p-scale: 1.05; }
-  .frame-label { font-size: 12px; padding: 6px 16px; }
-  .corner { width: 25px; height: 25px; }
+  .detection-frame {
+    border-width: 4px;
+  }
 }
 
 @media (max-width: 640px) {
   .webcam-analyzer { --l-video-height: 44vh; --p-video-height: 42vh; --p-scale: 1.0; }
-  .frame-label { font-size: 11px; padding: 5px 12px; top: -35px; }
-  .corner { width: 20px; height: 20px; }
+  .detection-frame {
+    border-width: 3px;
+  }
 }
 
 .video-placeholder {

@@ -1,7 +1,7 @@
 <template>
   <div class="workout-summary-overlay" @click.self="$emit('close')">
     <div class="workout-summary">
-      <h2>Summary</h2>
+      <h2>訓練總結</h2>
 
       <!-- 顶部三卡：Accuracy / Smoothness / Duration -->
       <div class="summary-stats">
@@ -27,26 +27,27 @@
         </div>
       </div>
 
-      <!-- 将原 Analysis 位置改为 Advice -->
+      <!-- Advice 区域 -->
       <div class="feedback">
-        <h3>Advice</h3>
+        <h3>訓練建議</h3>
         <ul>
           <li v-for="tip in tips" :key="tip">{{ tip }}</li>
         </ul>
       </div>
 
       <div class="actions">
-        <button @click="$emit('continue')" class="btn-primary">Again</button>
-        <button @click="$emit('end')" class="btn-secondary">Finish</button>
+        <button @click="$emit('continue')" class="btn-primary">再來一組</button>
+        <button @click="$emit('end')" class="btn-secondary">結束訓練</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
+import confetti from 'canvas-confetti'
 
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()
@@ -95,6 +96,61 @@ const tips = computed(() => {
 
   return t
 })
+
+// 🎉 烟花效果函数
+function blastConfetti() {
+  // 🔧 关键修复：确保在下一个事件循环中执行
+  setTimeout(() => {
+    const duration = 2500
+    const end = Date.now() + duration
+
+    const base = {
+      particleCount: 50,
+      spread: 60,
+      startVelocity: 45,
+      gravity: 0.9,
+      ticks: 250,
+      origin: { y: 0.6 },
+      zIndex: 9999 // 🆕 确保烟花在最上层
+    }
+
+    const interval = setInterval(() => {
+      // 左侧发射
+      confetti({ 
+        ...base, 
+        angle: 60, 
+        origin: { x: 0, y: Math.random() * 0.3 + 0.1 } 
+      })
+      
+      // 右侧发射
+      confetti({ 
+        ...base, 
+        angle: 120, 
+        origin: { x: 1, y: Math.random() * 0.3 + 0.1 } 
+      })
+      
+      // 中央大爆发
+      confetti({
+        ...base,
+        particleCount: 80,
+        spread: 90,
+        origin: { x: 0.5, y: 0.3 },
+        scalar: 1.1,
+        colors: ['#34d399', '#3b82f6', '#f59e0b', '#ef4444', '#a78bfa']
+      })
+      
+      if (Date.now() > end) {
+        clearInterval(interval)
+      }
+    }, 250)
+  }, 100) // 🔧 延迟 100ms 确保 DOM 完全渲染
+}
+
+// 🎉 组件挂载时触发烟花
+onMounted(() => {
+  console.log('🎉 Summary 组件已挂载，准备发射烟花')
+  blastConfetti()
+})
 </script>
 
 <style scoped>
@@ -120,6 +176,8 @@ const tips = computed(() => {
   max-height: 90vh;
   overflow-y: auto;
   animation: slideIn 0.3s ease-out;
+  position: relative; /* 🆕 确保定位上下文 */
+  z-index: 1001; /* 🆕 确保在遮罩之上 */
 }
 
 @keyframes slideIn {
@@ -132,6 +190,8 @@ const tips = computed(() => {
   margin-bottom: 30px;
   text-align: center;
   color: #333;
+  font-size: 40px;
+  font-weight: 700;
 }
 
 .summary-stats {
@@ -154,35 +214,40 @@ const tips = computed(() => {
 }
 
 .stat-value {
-  font-size: 28px;
-  font-weight: bold;
+  font-size: 40px;
+  font-weight: 700;
   color: #667eea;
 }
 
 .stat-label {
-  font-size: 14px;
+  font-size: 18px;
   color: #666;
   margin-top: 5px;
+  font-weight: 500;
 }
 
-/* 移除了原 Analysis 區塊樣式，直接使用 Advice 區塊 */
 .feedback {
   margin-bottom: 30px;
 }
 
 .feedback h3 {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
   color: #333;
+  font-size: 32px;
+  font-weight: 700;
 }
 
 .feedback ul {
   margin: 0;
-  padding-left: 20px;
+  padding-left: 24px;
 }
 
 .feedback li {
-  color: #666;
-  margin-bottom: 8px;
+  color: #555;
+  margin-bottom: 16px;
+  font-size: 20px;
+  line-height: 1.7;
+  font-weight: 500;
 }
 
 .actions {
@@ -193,11 +258,11 @@ const tips = computed(() => {
 
 .btn-primary,
 .btn-secondary {
-  padding: 12px 30px;
+  padding: 14px 35px;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
 }
@@ -226,12 +291,36 @@ const tips = computed(() => {
   .summary-stats {
     grid-template-columns: 1fr;
   }
+  
+  .workout-summary h2 {
+    font-size: 32px;
+  }
+  
+  .stat-value {
+    font-size: 32px;
+  }
+  
+  .stat-label {
+    font-size: 16px;
+  }
+  
+  .feedback h3 {
+    font-size: 26px;
+  }
+  
+  .feedback li {
+    font-size: 17px;
+    margin-bottom: 14px;
+  }
+  
   .actions {
     flex-direction: column;
   }
+  
   .btn-primary,
   .btn-secondary {
     width: 100%;
+    font-size: 16px;
   }
 }
 </style>

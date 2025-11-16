@@ -6,7 +6,7 @@ export const useExerciseStore = defineStore('exercise', () => {
   const exerciseTypes = ref([
     {
       id: 'lateral_raise',
-      name: '二頭肌彎舉',
+      name: '側平舉',
       description: '锻炼肩部中束',
       icon: '💪',
       tips: ['保持身體直立，核心收緊','手臂舉至肩高','控制下放','肘部微屈'],
@@ -15,7 +15,7 @@ export const useExerciseStore = defineStore('exercise', () => {
     },
     {
       id: 'bicep_curl',
-      name: '側平舉',
+      name: '二頭肌彎舉',
       description: '锻炼胸部肌肉',
       icon: '🏋️',
       tips: ['握住拉力器','肩胛後收','控制速度','拉時呼氣'],
@@ -62,7 +62,7 @@ export const useExerciseStore = defineStore('exercise', () => {
         '兩側交替訓練,保持平衡'
       ],
       imageUrl: '/images/diagonal_lift_image_1.png',
-      orientation: 'landscape' // 横向拍摄
+      orientation: 'portrait'
     },
   ])
 
