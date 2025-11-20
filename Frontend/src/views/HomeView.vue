@@ -274,10 +274,10 @@ function openDifficultyModal(exercise) {
   showModal.value = true; // 显示弹窗
 }
 
-// 新增：点击卡片直接选择级别并跳转
+// 点击卡片直接选择级别并跳转
 function selectAndStart(level) {
   selectedLevel.value = level;
-  startExercise();
+  startExercise(); // 立即跳转，不在此处播放声音
 }
 
 // 打开详情弹窗
@@ -307,7 +307,11 @@ function startExercise() {
   router.push({ 
     name: 'exercise', 
     params: { type: selectedExercise.value.id },
-    query: { style: selectedLevel.value }
+    query: { 
+      style: selectedLevel.value,
+      // 添加这个参数，告诉下一个页面需要播放声音
+      autoPlayVoice: 'true' 
+    }
   });
 
   showModal.value = false; // 关闭弹窗

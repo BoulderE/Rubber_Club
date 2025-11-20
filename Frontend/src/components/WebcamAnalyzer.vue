@@ -86,7 +86,7 @@ let ro
 
 // 🆕 人体检测状态
 const personInFrame = ref(false)
-const thumbsUpDetected = ref(false)
+// const thumbsUpDetected = ref(false)
 let personDetectedFrames = 0
 let personLostFrames = 0
 const DETECTION_THRESHOLD = 3 // 连续3帧确认

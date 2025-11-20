@@ -110,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed, nextTick, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, computed, nextTick, onBeforeUnmount} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
@@ -154,7 +154,6 @@ const audioPlayer = new Audio();
 
 const previousCount = ref(0)
 const lastPlayedCount = ref(0)
-
 let lastRepSoundAt = 0
 
 const progressPercent = computed(() => {
@@ -195,42 +194,58 @@ function playRepCompleteThrottled() {
   const now = performance.now()
   if (now - lastRepSoundAt < 300) return
     lastRepSoundAt = now
-    playSound(repCompleteSoundPool, 'repComplete')
+    playSound(repCompleteSoundPool)
 }
 
-function getAvailableAudio(pool) {
-  let audio = pool.find(a => a.paused || a.ended)
+// function getAvailableAudio(pool) {
+//   let audio = pool.find(a => a.paused || a.ended)
+//   if (!audio) {
+//     audio = pool[0]
+//     audio.currentTime = 0
+//   }
+//   return audio
+// }
+
+function playSound(pool) {
+  if (!pool || pool.length === 0) {
+    console.warn('[playSound] Audio pool is empty or undefined');
+    return;
+  }
+
+  // 1. 找到一个当前没有在播放的 audio 对象
+  let audio = pool.find(a => a.paused || a.ended);
+
+  // 2. 如果都在播放（比如快速连击），则强制使用第一个并重置进度
   if (!audio) {
-    audio = pool[0]
-    audio.currentTime = 0
-  }
-  return audio
-}
-
-function playSound(type) {
-  // 1. 确保使用正确的 URL
-  // 注意：这里假设你的文件在 public/sounds/repComplete.mp3
-  const currentSrc = soundUrl; 
-
-  // 2. 如果当前正在播放，强制重置进度，实现连续播放
-  if (!audioPlayer.paused) {
-    audioPlayer.currentTime = 0;
-  }
-  
-  // 3. 设置源（如果还没设置）
-  if (audioPlayer.src !== currentSrc) {
-    audioPlayer.src = currentSrc;
+    audio = pool[0];
+    audio.currentTime = 0;
   }
 
-  // 4. 尝试播放
-  audioPlayer.play()
+  // 3. 播放
+  audio.play()
     .then(() => {
-      console.log(`[playSound] ✅ ${type} 播放成功`);
+      console.log(`[playSound] 🔊 播放成功: ${audio.src}`);
     })
     .catch((error) => {
-      console.error(`[playSound] ❌ 播放失败 (可能是浏览器阻挡):`, error);
+      console.error(`[playSound] ❌ 播放被浏览器阻挡:`, error);
     });
 }
+
+onMounted(() => {
+  // 检查 URL 中是否有 autoPlayVoice 参数
+  if (route.query.autoPlayVoice === 'true') {
+    
+    // 设置 3 秒 (3000毫秒) 的延迟
+    setTimeout(() => {
+      const startVoice = new Audio('/sounds/begin_with_instruction.mp3');
+      
+      startVoice.play().catch(err => {
+        console.log('自动播放被浏览器拦截或文件不存在:', err);
+      });
+      
+    }, 1000); // 3000 毫秒 = 3 秒
+  }
+});
 
 async function startWorkoutFlow() {
   console.log('[startWorkoutFlow] 开始初始化，style =', style.value)
@@ -290,7 +305,7 @@ watch(
         showStartupGuide.value = false
 
         // ✅ 播放開始音效
-        playSound(startSoundPool, 'begin')
+        playSound(startSoundPool)
 
         personDetected.value = false
         thumbsUpDetected.value = false

@@ -199,12 +199,12 @@ class WorkoutState:
         }
         self._diag_active_side = None
 
-        #new
         self.up_durations = []      
         self.down_durations = []    
         self.current_phase = None   
         self.phase_start_time = None  
-        
+        #new
+        self._is_first_phase_switch = True 
 
 class ExerciseAnalyzer:
     def __init__(self):
@@ -247,13 +247,58 @@ class ExerciseAnalyzer:
         self.state.current_phase = None
         self.state.phase_start_time = None
 
+    # def _update_phase(self, is_up: bool, is_down: bool):
+    #     """
+    #     更新运动阶段并记录各阶段时长
+        
+    #     Args:
+    #         is_up: 是否在 up 区域
+    #         is_down: 是否在 down 区域
+    #     """
+    #     now_t = self._now()
+        
+    #     # 🔹 确定当前应该处于的阶段
+    #     target_phase = None
+    #     if is_up:
+    #         target_phase = 'up'
+    #     elif is_down:
+    #         target_phase = 'down'
+    #     else:
+    #         # 🔹 在中间过渡区域
+    #         # 选项 A: 保持当前阶段（不做任何事）
+    #         # 选项 B: 结束当前阶段（这里我们选择 A，更稳定）
+    #         return
+        
+    #     # 🔹 检测阶段切换
+    #     if self.state.current_phase != target_phase:
+            
+    #         # 🔸 结束旧阶段，记录时长
+    #         if self.state.current_phase is not None and self.state.phase_start_time is not None:
+    #             duration = now_t - self.state.phase_start_time
+                
+    #             # 🔸 过滤异常值（太短或太长的都不记录）
+    #             if 0.1 <= duration <= 10.0:
+    #                 if self.state.current_phase == 'up':
+    #                     self.state.up_durations.append(duration)
+    #                     # 限制列表长度
+    #                     if len(self.state.up_durations) > 50:
+    #                         self.state.up_durations.pop(0)
+    #                     print(f"[DEBUG] UP 阶段时长: {duration:.2f}秒")
+                    
+    #                 elif self.state.current_phase == 'down':
+    #                     self.state.down_durations.append(duration)
+    #                     if len(self.state.down_durations) > 50:
+    #                         self.state.down_durations.pop(0)
+    #                     print(f"[DEBUG] DOWN 阶段时长: {duration:.2f}秒")
+            
+    #         # 🔸 开始新阶段
+    #         self.state.current_phase = target_phase
+    #         self.state.phase_start_time = now_t
+
     def _update_phase(self, is_up: bool, is_down: bool):
         """
         更新运动阶段并记录各阶段时长
-        
-        Args:
-            is_up: 是否在 up 区域
-            is_down: 是否在 down 区域
+        [修复版] 使用 Flag 机制，只忽略第一次准备时间，确保后续数据能正常录入
         """
         now_t = self._now()
         
@@ -264,9 +309,6 @@ class ExerciseAnalyzer:
         elif is_down:
             target_phase = 'down'
         else:
-            # 🔹 在中间过渡区域
-            # 选项 A: 保持当前阶段（不做任何事）
-            # 选项 B: 结束当前阶段（这里我们选择 A，更稳定）
             return
         
         # 🔹 检测阶段切换
@@ -276,11 +318,16 @@ class ExerciseAnalyzer:
             if self.state.current_phase is not None and self.state.phase_start_time is not None:
                 duration = now_t - self.state.phase_start_time
                 
-                # 🔸 过滤异常值（太短或太长的都不记录）
-                if 0.1 <= duration <= 10.0:
+                # === 核心修复逻辑 ===
+                # 如果是重置后的第一次切换（通常是用户从静止准备姿势开始动），忽略该时长
+                if self.state._is_first_phase_switch:
+                    self.state._is_first_phase_switch = False # 立即关闭开关，确保下一次能记录
+                    print(f"[DEBUG] 忽略起始准备时间 ({self.state.current_phase}): {duration:.2f}秒")
+                
+                # 正常的记录逻辑
+                elif 0.1 <= duration <= 10.0:
                     if self.state.current_phase == 'up':
                         self.state.up_durations.append(duration)
-                        # 限制列表长度
                         if len(self.state.up_durations) > 50:
                             self.state.up_durations.pop(0)
                         print(f"[DEBUG] UP 阶段时长: {duration:.2f}秒")
@@ -294,7 +341,6 @@ class ExerciseAnalyzer:
             # 🔸 开始新阶段
             self.state.current_phase = target_phase
             self.state.phase_start_time = now_t
-
 
     # def _on_rep_completed(self):
     #     """
