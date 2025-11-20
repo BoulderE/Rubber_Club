@@ -110,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed, nextTick } from 'vue'
+import { ref, watch, onMounted, computed, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
@@ -139,12 +139,23 @@ const thumbsUpDetected = ref(false)
 const feedbackText = ref('隨時準備！')
 const isOverextended = ref(false)
 
-// 🔥 新增：控制準備好訊息的顯示
 const showReadyMessage = ref(false)
 const readyMessageTimer = ref(null)
 
 const MAX_REPS = computed(() => mediapipeStore.repetitionLimit || 15)
 const orientation = computed(() => exerciseData.value?.orientation || 'landscape')
+
+// ====== 音效相關 ======
+const AUDIO_POOL_SIZE = 6
+let startSoundPool = []
+let finishSoundPool = []
+let repCompleteSoundPool = []
+const audioPlayer = new Audio();
+
+const previousCount = ref(0)
+const lastPlayedCount = ref(0)
+
+let lastRepSoundAt = 0
 
 const progressPercent = computed(() => {
   const total = Number(MAX_REPS.value || 0)
@@ -155,32 +166,74 @@ const progressPercent = computed(() => {
   return Math.max(0, Math.min(100, p))
 })
 
-// 新增：計算顯示的反饋文字
 const displayFeedback = computed(() => {
-  // 如果處於暫停狀態，優先顯示手勢訊息
   if (mediapipeStore.isPaused) {
     return mediapipeStore.gestureMessage
   }
-  
-  // 如果顯示準備好訊息
+
   if (showReadyMessage.value) {
     return '你已準備好，隨時開始運動'
   }
-  
-  // 否則顯示正常的反饋
+
   return feedbackText.value
 })
 
-function gestureEmoji(gesture) {
-  const emojiMap = {
-    'like': '👍',
-    'stop': '✋',
+function createAudioPool(src, size = AUDIO_POOL_SIZE) {
+  const pool = []
+  for (let i = 0; i < size; i++) {
+    const audio = new Audio(src)
+    audio.preload = 'auto'
+    pool.push(audio)
   }
-  return emojiMap[gesture] || gesture
+  return pool
+}
+
+const soundUrl = new URL('/sounds/repComplete.mp3', import.meta.url).href;
+audioPlayer.src = soundUrl;
+
+function playRepCompleteThrottled() {
+  const now = performance.now()
+  if (now - lastRepSoundAt < 300) return
+    lastRepSoundAt = now
+    playSound(repCompleteSoundPool, 'repComplete')
+}
+
+function getAvailableAudio(pool) {
+  let audio = pool.find(a => a.paused || a.ended)
+  if (!audio) {
+    audio = pool[0]
+    audio.currentTime = 0
+  }
+  return audio
+}
+
+function playSound(type) {
+  // 1. 确保使用正确的 URL
+  // 注意：这里假设你的文件在 public/sounds/repComplete.mp3
+  const currentSrc = soundUrl; 
+
+  // 2. 如果当前正在播放，强制重置进度，实现连续播放
+  if (!audioPlayer.paused) {
+    audioPlayer.currentTime = 0;
+  }
+  
+  // 3. 设置源（如果还没设置）
+  if (audioPlayer.src !== currentSrc) {
+    audioPlayer.src = currentSrc;
+  }
+
+  // 4. 尝试播放
+  audioPlayer.play()
+    .then(() => {
+      console.log(`[playSound] ✅ ${type} 播放成功`);
+    })
+    .catch((error) => {
+      console.error(`[playSound] ❌ 播放失败 (可能是浏览器阻挡):`, error);
+    });
 }
 
 async function startWorkoutFlow() {
-  console.log('[view] startWorkoutFlow route.style =', style.value)
+  console.log('[startWorkoutFlow] 开始初始化，style =', style.value)
   await mediapipeStore.startExercise(exerciseType.value, String(style.value).toLowerCase())
   isWorkoutActive.value = true
   showStartupGuide.value = true
@@ -188,26 +241,6 @@ async function startWorkoutFlow() {
   await nextTick()
   setTimeout(() => analyzer.value?.startAnalysis(), 100)
 }
-
-const startupTitle = computed(() => {
-  if (!personDetected.value) {
-    return '請站入橙色框內'
-  } else if (!thumbsUpDetected.value) {
-    return '準備開始'
-  } else {
-    return '正在啟動...'
-  }
-})
-
-const startupInstruction = computed(() => {
-  if (!personDetected.value) {
-    return '請調整位置，確保身體完整出現在橙色檢測框內'
-  } else if (!thumbsUpDetected.value) {
-    return '做出👍手勢以開始訓練'
-  } else {
-    return '即將開始你的訓練'
-  }
-})
 
 function handlePersonDetected() {
   console.log('[ExerciseView] 檢測到人體進入框內')
@@ -220,67 +253,20 @@ function handlePersonLost() {
   thumbsUpDetected.value = false
 }
 
-// 修改：監聽手勢檢測
-watch(() => mediapipeStore.gestureDetected, (gesture) => {
-  if (showStartupGuide.value && personDetected.value && gesture === 'thumbs_up') {
-    console.log('[ExerciseView] 檢測到👍手勢，準備啟動訓練')
-    thumbsUpDetected.value = true
-    
-    setTimeout(() => {
-      showStartupGuide.value = false
-      personDetected.value = false
-      thumbsUpDetected.value = false
-      console.log('[ExerciseView] 啟動引導結束，開始正式訓練')
-      
-      // 新增：顯示準備好訊息 3 秒
-      showReadyMessage.value = true
-      if (readyMessageTimer.value) {
-        clearTimeout(readyMessageTimer.value)
-      }
-      readyMessageTimer.value = setTimeout(() => {
-        showReadyMessage.value = false
-      }, 3000)
-    }, 800)
-  }
-})
-
-// 新增：監聽 count 變化，當開始運動時隱藏準備好訊息
-watch(() => mediapipeStore.count, (newCount) => {
-  // 當第一次計數時（從 0 變為 1），立即隱藏準備好訊息
-  if (newCount > 0 && showReadyMessage.value) {
-    showReadyMessage.value = false
-    if (readyMessageTimer.value) {
-      clearTimeout(readyMessageTimer.value)
-      readyMessageTimer.value = null
-    }
-  }
-  
-  // 原有的完成檢測邏輯
-  const limit = Number(mediapipeStore.repetitionLimit || 15) 
-  console.log('[watch count] newCount:', newCount, 'limit:', limit)
-  if (newCount >= limit && limit > 0) {
-    console.log('[watch count] 🎉 達到目標次數，顯示總結！')
-    try { analyzer.value?.stopAnalysis?.() } catch (e) { console.warn(e) }
-    blastConfetti({ duration: 2500 })
-    isWorkoutActive.value = false
-    exerciseStore.endExercise()
-    showSummary.value = true
-    mediapipeStore.pause?.()
-  }
-})
-
-function closeIntroAndStart() {
-  if (!showIntro.value) return
-  showIntro.value = false
-  startWorkoutFlow()
-}
-
 onMounted(() => {
+  console.log('[onMounted] 初始化音频')
+  startSoundPool = createAudioPool('/sounds/begin.mp3', 3)
+  finishSoundPool = createAudioPool('/sounds/finish.mp3', 3)
+  repCompleteSoundPool = createAudioPool('/sounds/repComplete.mp3', 5)
+
   if (!exerciseType.value || !style.value) {
     router.push('/')
     return
   }
   exerciseStore.selectExercise(exerciseType.value)
+
+  previousCount.value = 0
+  lastPlayedCount.value = 0
 
   if (style.value === 'motivator') {
     showIntro.value = true
@@ -289,17 +275,129 @@ onMounted(() => {
   }
 })
 
+// ✅：用你原本的 gestureDetected，而不是 lastGesture
+watch(
+  () => mediapipeStore.gestureDetected,
+  (gesture) => {
+    console.log('[watch gestureDetected] gesture =', gesture, 'showStartupGuide =', showStartupGuide.value)
+
+    if (showStartupGuide.value && personDetected.value && gesture === 'thumbs_up') {
+      console.log('[手势检测] ✅ 检测到 👍，准备启动训练')
+      thumbsUpDetected.value = true
+
+      setTimeout(() => {
+        console.log('[手势检测] 🎬 关闭启动引导，播放开始音效')
+        showStartupGuide.value = false
+
+        // ✅ 播放開始音效
+        playSound(startSoundPool, 'begin')
+
+        personDetected.value = false
+        thumbsUpDetected.value = false
+
+        showReadyMessage.value = true
+        if (readyMessageTimer.value) {
+          clearTimeout(readyMessageTimer.value)
+        }
+        readyMessageTimer.value = setTimeout(() => {
+          showReadyMessage.value = false
+          readyMessageTimer.value = null
+        }, 3000)
+
+        console.log('[手势检测] ✅ 训练正式开始')
+      }, 800)
+    }
+  },
+  { immediate: false }
+)
+
+// ✅：沿用你原本的 count 逻辑（先恢复声音）
+watch(
+  () => mediapipeStore.count,
+  (newCount, oldCount) => {
+    const current = Number(newCount) || 0
+    const prev = Number(oldCount) || 0
+    const limit = Number(mediapipeStore.repetitionLimit || 15)
+
+    console.log(`[watch count] ${prev} -> ${current}`)
+
+    // 第一次有计数就隐藏「你已準備好」提示
+    if (current > 0 && showReadyMessage.value) {
+      showReadyMessage.value = false
+      if (readyMessageTimer.value) {
+        clearTimeout(readyMessageTimer.value)
+        readyMessageTimer.value = null
+      }
+    }
+
+    // ⭐ 核心：只要 count 增加，就播放完成一趟的音效
+    if (current > prev) {
+      playRepCompleteThrottled()
+    }
+
+    // 達成目標次數時，播放 finish 並結束
+    if (current >= limit && limit > 0) {
+      console.log('[watch count] 🎉 達到目標次數，顯示總結！')
+      playSound(finishSoundPool, 'finish')
+      try { analyzer.value?.stopAnalysis?.() } catch (e) { console.warn(e) }
+      blastConfetti({ duration: 2500 })
+      isWorkoutActive.value = false
+      exerciseStore.endExercise()
+      showSummary.value = true
+      mediapipeStore.pause?.()
+    }
+  },
+  { immediate: false }
+)
+
+// let lastCompletedFlag = false
+// watch(
+//   () => mediapipeStore.completedThisFrame,
+//   (val) => {
+//     // 触发条件：false -> true
+//     if (val === true && lastCompletedFlag === false) {
+//     playRepCompleteThrottled()
+//     }
+//     lastCompletedFlag = !!val
+//   }
+// )
+
+function closeIntroAndStart() {
+  if (!showIntro.value) return
+  showIntro.value = false
+  startWorkoutFlow()
+}
+
+onBeforeUnmount(() => {
+  // ✅ 改成只停止，不清空 src，避免下一次進來沒有資源可以播放
+  const resetPool = (pool) => {
+    if (!pool) return
+    pool.forEach(audio => {
+      audio.pause()
+      audio.currentTime = 0
+    })
+  }
+
+  resetPool(startSoundPool)
+  resetPool(finishSoundPool)
+  resetPool(repCompleteSoundPool)
+
+  if (readyMessageTimer.value) {
+    clearTimeout(readyMessageTimer.value)
+  }
+})
+
 function handleFrameAnalyzed(result) {
   console.log('[handleFrameAnalyzed] received result keys:', Object.keys(result || {}))
-  
+
   const byCurrent = result?.current
   const byType = result?.[exerciseType.value]
   const byName = exerciseData.value?.name ? result?.[exerciseData.value.name] : undefined
-  const analysisData = byCurrent || byType || byName
+  const analysisData = byCurrent || byType || byName || result
 
-  console.log('[handleFrameAnalyzed] selected data source:', 
-    byCurrent ? 'current' : (byType ? 'type' : (byName ? 'name' : 'none')))
-  console.log('[handleFrameAnalyzed] analysisData:', analysisData)
+  console.log('[handleFrameAnalyzed] selected data source:',
+    byCurrent ? 'current' : (byType ? 'type' : (byName ? 'name' : 'none'))
+  )
 
   if (analysisData && typeof analysisData === 'object') {
     if (analysisData.shoulder_angle !== undefined || analysisData.elbow_angle !== undefined) {
@@ -311,23 +409,28 @@ function handleFrameAnalyzed(result) {
 
     mediapipeStore.updateAnalysisData(analysisData)
 
-    // 🔥 修改：只在不顯示準備好訊息時更新反饋
+    // const completedLike =
+    // analysisData?.completed ??
+    // result?.completed ??
+    // result?.current?.completed ??
+    // (exerciseType.value ? result?.[exerciseType.value]?.completed : undefined) ??
+    // (exerciseData.value?.name ? result?.[exerciseData.value.name]?.completed : undefined)
+
+    // if (completedLike === true) {
+    //   playRepCompleteThrottled()
+    // }
+
     if (!mediapipeStore.isPaused && !showReadyMessage.value) {
       feedbackText.value = analysisData.feedback || feedbackText.value
       const nonStandard = analysisData.category === 'non_standard'
       isOverextended.value = Boolean(analysisData.overextended || nonStandard)
     }
 
-    console.log('[handleFrameAnalyzed] after update - store.count:', mediapipeStore.count)
-  } else {
-    console.warn(
-      '[handleFrameAnalyzed] 未命中 current/type/name。可用鍵:',
-      Object.keys(result || {})
-    )
+    console.log('[handleFrameAnalyzed] count =', mediapipeStore.count)
   }
 
   if (result.gesture_detected) {
-    console.log(`檢測到手勢: ${result.gesture_detected}`)
+    console.log(`[handleFrameAnalyzed] 檢測到手勢: ${result.gesture_detected}`)
   }
 }
 
@@ -368,14 +471,16 @@ function blastConfetti(options = {}) {
 async function handleContinueWorkout() {
   showSummary.value = false
   mediapipeStore.reset()
-  
-  // 🔥 重置準備好訊息狀態
+
+  previousCount.value = 0
+  lastPlayedCount.value = 0
+
   showReadyMessage.value = false
   if (readyMessageTimer.value) {
     clearTimeout(readyMessageTimer.value)
     readyMessageTimer.value = null
   }
-  
+
   await mediapipeStore.startExercise(exerciseType.value, String(style.value).toLowerCase())
   exerciseStore.startExercise()
   isWorkoutActive.value = true
@@ -386,14 +491,16 @@ async function handleContinueWorkout() {
 function handleEndWorkout() {
   showSummary.value = false
   mediapipeStore.reset()
-  
-  // 清理準備好訊息狀態
+
+  previousCount.value = 0
+  lastPlayedCount.value = 0
+
   showReadyMessage.value = false
   if (readyMessageTimer.value) {
     clearTimeout(readyMessageTimer.value)
     readyMessageTimer.value = null
   }
-  
+
   router.push('/')
 }
 </script>
@@ -619,7 +726,7 @@ function handleEndWorkout() {
   color: #bee3f8;
 }
 
-/* 🔥 新增：準備好狀態的樣式 */
+/* 新增：準備好狀態的樣式 */
 .feedback-container.is-ready {
   background: linear-gradient(135deg, #10b981, #34d399);
   border-color: #34d399;

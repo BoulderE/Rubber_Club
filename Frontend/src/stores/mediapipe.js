@@ -12,7 +12,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   const currentExercise = ref('')
   const isAnalyzing = ref(false)
   const analysisResults = ref(null)
-  const isPaused = ref(false) 
+  const isPaused = ref(false)
   const currentStyle = ref(null)
   const repetitionLimit = ref(15)
   const isActive = computed(() => status.value === 'active')
@@ -29,6 +29,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   const gestureMessage = ref('')          // 手势提示信息
   const waitingForGesture = ref(false)    // 是否在等待手势
 
+  const completedThisFrame = ref(false)
   async function controlBackend(payload) {
     try {
       const response = await fetch(`${API_URL}/mediapipe/control`, {
@@ -51,9 +52,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   async function analyzeFrame(imageData) {
-  if (isAnalyzing.value) return null
+    if (isAnalyzing.value) return null
 
-  try {
+    try {
     isAnalyzing.value = true
 
     const base64Data = imageData.split(',')[1]
@@ -81,56 +82,77 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     console.log('[analyzeFrame] backend raw result:', result)
     console.log('[analyzeFrame] keys:', Object.keys(result))
 
-    //new
+    // 手势
     if (result.gesture_detected) {
-        lastGesture.value = result.gesture_detected
-        console.log(`[analyzeFrame] 检测到手势: ${result.gesture_detected}`)
-      }
-
-    analysisResults.value = result
-
-    const exerciseStore = useExerciseStore()
-    const currentExerciseInfo = exerciseStore.getExerciseById(currentExercise.value)
-
-    if (!currentExerciseInfo) {
-      console.error('无法在 exerciseStore 中找到当前运动的配置！')
-      return result
+      lastGesture.value = result.gesture_detected
     }
 
-    // 关键：优先用 type（更稳定），其次回退到 name
-    const keyByType = currentExercise.value
-    const keyByName = currentExerciseInfo.name
-    const exerciseData = result[keyByType] || result[keyByName]
+  //   analysisResults.value = result
 
-    console.log(
-      '[analyzeFrame] select key ->',
-      exerciseData ? (result[keyByType] ? 'type' : 'name') : 'none',
-      'keyByType=',
-      keyByType,
-      'keyByName=',
-      keyByName
-    )
+  //   const exerciseStore = useExerciseStore()
+  //   const currentExerciseInfo = exerciseStore.getExerciseById(currentExercise.value)
+  //   if (!currentExerciseInfo) {
+  //     console.error('无法在 exerciseStore 中找到当前运动的配置！')
+  //     return result
+  //   }
 
-    if (exerciseData && typeof exerciseData === 'object') {
-      // 统一入口：交给 store 的 updateAnalysisData
-      updateAnalysisData(exerciseData)
-    } else {
-      console.warn('后端未返回匹配当前运动的键：', keyByType, '或', keyByName)
-    }
+  //   // 优先 type，其次 name
+  //   const keyByType = currentExercise.value
+  //   const keyByName = currentExerciseInfo.name
+  //   const exerciseData = result[keyByType] || result[keyByName]
 
-    // 完成状态判定
-    if (count.value >= repetitionLimit.value) {
-      status.value = 'completed'
-    }
+  //   console.log(
+  //     '[analyzeFrame] select key ->',
+  //     exerciseData ? (result[keyByType] ? 'type' : 'name') : 'none',
+  //     'keyByType=',
+  //     keyByType,
+  //     'keyByName=',
+  //     keyByName
+  //   )
 
-    return result
+  //   // 1) 原路更新（保持你原有逻辑）
+  //   if (exerciseData && typeof exerciseData === 'object') {
+  //     updateAnalysisData(exerciseData)
+  //   } else {
+  //     console.warn('后端未返回匹配当前运动的键：', keyByType, '或', keyByName)
+  //   }
+
+  // // 2) 兜底解析 count 和 completed，确保无论放在哪层都能拿到
+  // const resolvedCount =
+  //   (exerciseData && typeof exerciseData.count === 'number' ? exerciseData.count : undefined) ??
+  //   (typeof result?.count === 'number' ? result.count : undefined) ??
+  //   (typeof result?.current?.count === 'number' ? result.current.count : undefined) ??
+  //   (keyByType && typeof result?.[keyByType]?.count === 'number' ? result[keyByType].count : undefined) ??
+  //   (keyByName && typeof result?.[keyByName]?.count === 'number' ? result[keyByName].count : undefined)
+
+  // if (typeof resolvedCount === 'number' && !Number.isNaN(resolvedCount)) {
+  //   count.value = resolvedCount
+  // }
+
+  // const resolvedCompleted =
+  //   (exerciseData ? exerciseData.completed : undefined) ??
+  //   result?.completed ??
+  //   result?.current?.completed ??
+  //   (keyByType ? result?.[keyByType]?.completed : undefined) ??
+  //   (keyByName ? result?.[keyByName]?.completed : undefined)
+
+  // completedThisFrame.value = !!resolvedCompleted
+
+  // console.log('[analyzeFrame] resolvedCount =', resolvedCount, 'resolvedCompleted =', completedThisFrame.value)
+
+  // // 完成状态判定
+  // if (count.value >= repetitionLimit.value) {
+  //   status.value = 'completed'
+  // }
+
+  return result
   } catch (error) {
-    console.error('Frame analysis error:', error)
-    return null
+  console.error('Frame analysis error:', error)
+  return null
   } finally {
-    isAnalyzing.value = false
+  isAnalyzing.value = false
   }
-}
+  }
 
   async function startExercise(exerciseType, style) {
     const success = await controlBackend({
@@ -171,9 +193,14 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   function updateAnalysisData(analysisData) {
     console.log('[updateAnalysisData] input:', analysisData)
 
+    //new
+    const newCount = analysisData.count ?? count.value
+    const oldCount = count.value
+    const grew = Number(newCount) > Number(oldCount)
     // 原有赋值（根据后端键名）
-    count.value = analysisData.count ?? count.value
+    count.value = newCount
     energy.value = Math.round(analysisData.energy ?? energy.value)
+    completedThisFrame.value = !!analysisData.completed || grew
     const wasPaused = isPaused.value
     isPaused.value = !!analysisData.paused
 
@@ -220,7 +247,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     }
 
     // 只在 count 增长时统计一次，避免 hold=2 帧导致重复累计
-    const grew = Number(count.value) > Number(lastCount.value)
+    
     if (grew) {
       const nonStandard = analysisData.category === 'non_standard'
       if (!nonStandard) {
@@ -269,6 +296,8 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       waitingForGesture.value = true
       isPaused.value = true
       status.value = 'paused'
+
+      completedThisFrame.value = false
     }
   }
   
@@ -296,6 +325,8 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     lastGesture,
     gestureMessage,
     waitingForGesture,
+
+    completedThisFrame,
     
     // 方法
     analyzeFrame,

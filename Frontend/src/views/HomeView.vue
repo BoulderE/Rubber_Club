@@ -142,7 +142,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 
 const isChatbotVisible = ref(false);
-const showModal = ref(false); // 🔥 保留这个状态
+const showModal = ref(false); 
 const showDetailModal = ref(false);
 const selectedExercise = ref(null); 
 const detailExercise = ref(null);

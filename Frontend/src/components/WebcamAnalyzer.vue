@@ -456,7 +456,7 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
   white-space: nowrap;
   flex-shrink: 0;
-  /* 🔥 改为相对定位，放在容器顶部外侧 */
+  /* 改为相对定位，放在容器顶部外侧 */
   margin-bottom: 0.5rem;
   order: -1; /* 确保在框上方 */
 }

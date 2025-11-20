@@ -296,127 +296,111 @@ class ExerciseAnalyzer:
             self.state.phase_start_time = now_t
 
 
+    # def _on_rep_completed(self):
+    #     """
+    #     在任意动作完成一次有效计数后调用。
+    #     负责：
+    #     - 计算本次 repetition 的时长并入库（以 last_rep_start 为基准）
+    #     - 更新 smoothness_score
+    #     - 重新设定 last_rep_start 作为下一次的起点
+    #     """
+    #     now_t = self._now()
+    #     # 第一次完成时若 last_rep_start 未设，直接将当前作为起点
+    #     if self.last_rep_start is None:
+    #         self.last_rep_start = now_t
+    #         return
+
+    #     # 计算本次时长
+    #     duration = max(0.0, now_t - self.last_rep_start)
+    #     # 合理区间过滤，避免误触发
+    #     if 0.2 <= duration <= 10.0:
+    #         self.repetition_durations.append(duration)
+    #     # 更新下一次计时起点
+    #     self.last_rep_start = now_t
+
+    #     # 更新平滑度分数
+    #     self.smoothness_score = self._compute_smoothness()
+    
     def _on_rep_completed(self):
-        """
-        在任意动作完成一次有效计数后调用。
-        负责：
-        - 计算本次 repetition 的时长并入库（以 last_rep_start 为基准）
-        - 更新 smoothness_score
-        - 重新设定 last_rep_start 作为下一次的起点
-        """
+        """完成一次动作的回调"""
         now_t = self._now()
-        # 第一次完成时若 last_rep_start 未设，直接将当前作为起点
-        if self.last_rep_start is None:
-            self.last_rep_start = now_t
-            return
-
-        # 计算本次时长
-        duration = max(0.0, now_t - self.last_rep_start)
-        # 合理区间过滤，避免误触发
-        if 0.2 <= duration <= 10.0:
-            self.repetition_durations.append(duration)
-        # 更新下一次计时起点
+        
+        # 修复：确保每次都正确记录
+        if self.last_rep_start is not None:
+            # 计算本次时长（如果不是第一次）
+            duration = max(0.0, now_t - self.last_rep_start)
+            if 0.2 <= duration <= 10.0:
+                self.repetition_durations.append(duration)
+        
+        # 无论是否是第一次，都更新起点
         self.last_rep_start = now_t
-
-        # 更新平滑度分数
+        
+        # 每次都更新平滑度
         self.smoothness_score = self._compute_smoothness()
 
     def _compute_smoothness(self) -> int:
         """
-        基于 up 和 down 阶段时长的稳定性评分（分阶段版本）
-        
-        流程：
-        1. 分别取最近 10-15 个 up 和 down 阶段时长
-        2. 对每个阶段，用 median 归一化并计算标准差
-        3. 用 sigmoid 将标准差映射到分数
-        4. 按样本数加权平均得到最终分数
+        计算平滑度分数 (简化版 + 详细Debug打印)
         """
         import statistics
-        
-        def phase_score(durations, phase_name):
-            """
-            计算单个阶段的稳定性分数
-            
-            Args:
-                durations: 时长列表 [1.2, 1.3, 1.1, ...]
-                phase_name: 阶段名称（用于调试输出）
-            
-            Returns:
-                int: 10-100 的分数，或 None（样本不足）
-            """
+
+        # 获取最近的数据
+        raw_up = self.state.up_durations[-20:]
+        raw_down = self.state.down_durations[-20:]
+
+        # ================== 🔍 DEBUG 打印 ==================
+        print("\n" + "="*30)
+        print(f"[DEBUG] 动作计数: {self.state.count}")
+        print(f"[DEBUG] UP   列表 ({len(raw_up)}): {[round(x, 2) for x in raw_up]}")
+        print(f"[DEBUG] DOWN 列表 ({len(raw_down)}): {[round(x, 2) for x in raw_down]}")
+        print("="*30 + "\n")
+        # =================================================
+
+        def calculate_phase_score(durations):
             if len(durations) < 3:
                 return None
             
-            if len(durations) >= 5:  # 样本足够多时才过滤
-                q1 = statistics.quantiles(durations, n=4)[0]  # 25分位
-                q3 = statistics.quantiles(durations, n=4)[2]  # 75分位
-                iqr = q3 - q1
-                
-                lower = q1 - 1.5 * iqr
-                upper = q3 + 1.5 * iqr
-                
-                filtered = [d for d in durations if lower <= d <= upper]
-
-                if len(filtered) >= 3:
-                    durations = filtered
-                            
-            # 🔹 计算 median（中位数更稳健，不受极端值影响）
+            # 1. 简单的异常值剔除 (剔除 > 2倍中位数的，认为是休息)
             med = statistics.median(durations)
-            if med <= 1e-6 or not math.isfinite(med):
+            if med < 0.1: return None
+            
+            valid_durations = [d for d in durations if d <= med * 2.5]
+            
+            if len(valid_durations) < 2:
                 return None
+
+            # 2. 计算变异系数 (Coefficient of Variation) = 标准差 / 平均值
+            # 这样可以消除动作本身快慢的影响，只看稳定性
+            avg = statistics.mean(valid_durations)
+            std = statistics.pstdev(valid_durations)
             
-            # 🔹 归一化每个值：normalized = value / median
-            # 这样可以消除"up 天然比 down 快"的影响
-            normalized = [d / med for d in durations]
+            cv = std / avg  # 变异系数，越小越好
             
-            # 🔹 计算归一化标准差
-            # 标准差越小 = 节奏越稳定 = 分数越高
-            std_normalized = statistics.pstdev(normalized)
+            # 3. 评分映射
+            # CV < 0.15 (15%波动) -> 优秀 (90-100分)
+            # CV > 0.50 (50%波动) -> 差 (10-40分)
             
-            print(f"[DEBUG] {phase_name} 阶段:")
-            print(f"        中位数: {med:.2f}秒")
-            print(f"        归一化标准差: {std_normalized:.3f}")
+            # 简单的线性映射: Score = 100 - (CV * 100 * 1.5)
+            # 例如 CV=0.2 -> 100 - 30 = 70分
+            score = 100 - (cv * 140)
             
-            # 🔹 Sigmoid 映射到 10-100
-            # 参数说明：
-            # - x0: 中心点（标准差为 x0 时得 55 分）
-            # - k: 陡峭度（越大越敏感）
-            x0 = 0.20  # 标准差 < 20% 为优秀
-            k = 15     # 陡峭度系数
+            return max(10, min(100, int(score)))
+
+        up_score = calculate_phase_score(raw_up)
+        down_score = calculate_phase_score(raw_down)
+
+        final_score = 100
+        
+        if up_score is not None and down_score is not None:
+            final_score = (up_score + down_score) / 2
+        elif up_score is not None:
+            final_score = up_score
+        elif down_score is not None:
+            final_score = down_score
             
-            sigmoid_value = 1.0 / (1.0 + math.exp(k * (std_normalized - x0)))
-            score = 10 + 90 * sigmoid_value
-            
-            print(f"        分数: {int(round(score))}")
-            
-            return int(round(score))
-        
-        # 🔸 获取最近的时长数据
-        recent_up = self.state.up_durations[-15:]    # 最近 15 个 up
-        recent_down = self.state.down_durations[-15:]  # 最近 15 个 down
-        
-        # 🔸 计算各阶段分数
-        up_score = phase_score(recent_up, "UP")
-        down_score = phase_score(recent_down, "DOWN")
-        
-        # 🔸 合并分数
-        if up_score is None and down_score is None:
-            return 100  # 样本不足，返回满分
-        
-        if up_score is None:
-            return down_score
-        
-        if down_score is None:
-            return up_score
-        
-        # 🔸 加权平均（按样本数加权）
-        w_up = len(recent_up)
-        w_down = len(recent_down)
-        final_score = (up_score * w_up + down_score * w_down) / (w_up + w_down)
-        
-        print(f"[DEBUG] 最终 Smoothness: {int(round(final_score))}")
-        
-        return int(round(final_score))
+        print(f"[DEBUG] 计算结果 -> UP分: {up_score}, DOWN分: {down_score}, 最终: {int(final_score)}")
+        return int(final_score)
+
 
     def get_metrics(self):
         # 供路由返回
