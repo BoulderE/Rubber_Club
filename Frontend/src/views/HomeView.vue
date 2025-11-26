@@ -21,7 +21,7 @@
             @click="selectAndStart('beginner')"
           >
             <div>初學者</div>
-            <p>輕鬆上手。</p>
+            <p>輕鬆上手</p>
           </div>
           
           <div 
@@ -30,7 +30,7 @@
             @click="selectAndStart('advanced')"
           >
             <div>進階</div>
-            <p>嚴格指導。</p>
+            <p>嚴格指導</p>
           </div>
         </div>
         

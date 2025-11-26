@@ -311,10 +311,10 @@ class ExerciseAnalyzer:
         else:
             return
         
-        # 🔹 检测阶段切换
+        # 检测阶段切换
         if self.state.current_phase != target_phase:
             
-            # 🔸 结束旧阶段，记录时长
+            # 结束旧阶段，记录时长
             if self.state.current_phase is not None and self.state.phase_start_time is not None:
                 duration = now_t - self.state.phase_start_time
                 
@@ -338,7 +338,6 @@ class ExerciseAnalyzer:
                             self.state.down_durations.pop(0)
                         print(f"[DEBUG] DOWN 阶段时长: {duration:.2f}秒")
             
-            # 🔸 开始新阶段
             self.state.current_phase = target_phase
             self.state.phase_start_time = now_t
 

@@ -1,4 +1,10 @@
 <template>
+  <ExerciseBriefing
+    v-if="style === 'beginner'"
+    :show="showBriefing"
+    :exercise-data="exerciseData"
+    @close="closeBriefingAndStart"
+  />
   <div
     v-if="showIntro && style === 'motivator' && exerciseData"
     class="intro-modal-overlay"
@@ -116,6 +122,7 @@ import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
 import WorkoutSummary from '@/components/WorkoutSummary.vue'
+import ExerciseBriefing from '@/components/ExerciseBriefing.vue'
 import confetti from 'canvas-confetti'
 
 const route = useRoute()
@@ -177,6 +184,10 @@ const displayFeedback = computed(() => {
   return feedbackText.value
 })
 
+const showBriefing = ref(false)
+
+// ✅ 移除 briefingVoiceUrl，不需要传递给 ExerciseBriefing
+
 function createAudioPool(src, size = AUDIO_POOL_SIZE) {
   const pool = []
   for (let i = 0; i < size; i++) {
@@ -197,31 +208,19 @@ function playRepCompleteThrottled() {
     playSound(repCompleteSoundPool)
 }
 
-// function getAvailableAudio(pool) {
-//   let audio = pool.find(a => a.paused || a.ended)
-//   if (!audio) {
-//     audio = pool[0]
-//     audio.currentTime = 0
-//   }
-//   return audio
-// }
-
 function playSound(pool) {
   if (!pool || pool.length === 0) {
     console.warn('[playSound] Audio pool is empty or undefined');
     return;
   }
 
-  // 1. 找到一个当前没有在播放的 audio 对象
   let audio = pool.find(a => a.paused || a.ended);
 
-  // 2. 如果都在播放（比如快速连击），则强制使用第一个并重置进度
   if (!audio) {
     audio = pool[0];
     audio.currentTime = 0;
   }
 
-  // 3. 播放
   audio.play()
     .then(() => {
       console.log(`[playSound] 🔊 播放成功: ${audio.src}`);
@@ -231,43 +230,7 @@ function playSound(pool) {
     });
 }
 
-onMounted(() => {
-  // 检查 URL 中是否有 autoPlayVoice 参数
-  if (route.query.autoPlayVoice === 'true') {
-    
-    // 设置 3 秒 (3000毫秒) 的延迟
-    setTimeout(() => {
-      const startVoice = new Audio('/sounds/begin_with_instruction.mp3');
-      
-      startVoice.play().catch(err => {
-        console.log('自动播放被浏览器拦截或文件不存在:', err);
-      });
-      
-    }, 1000); // 3000 毫秒 = 3 秒
-  }
-});
-
-async function startWorkoutFlow() {
-  console.log('[startWorkoutFlow] 开始初始化，style =', style.value)
-  await mediapipeStore.startExercise(exerciseType.value, String(style.value).toLowerCase())
-  isWorkoutActive.value = true
-  showStartupGuide.value = true
-  exerciseStore.startExercise()
-  await nextTick()
-  setTimeout(() => analyzer.value?.startAnalysis(), 100)
-}
-
-function handlePersonDetected() {
-  console.log('[ExerciseView] 檢測到人體進入框內')
-  personDetected.value = true
-}
-
-function handlePersonLost() {
-  console.log('[ExerciseView] 人體離開框內')
-  personDetected.value = false
-  thumbsUpDetected.value = false
-}
-
+// ✅ 删除 onMounted 中的自动播放逻辑
 onMounted(() => {
   console.log('[onMounted] 初始化音频')
   startSoundPool = createAudioPool('/sounds/begin.mp3', 3)
@@ -283,14 +246,55 @@ onMounted(() => {
   previousCount.value = 0
   lastPlayedCount.value = 0
 
-  if (style.value === 'motivator') {
-    showIntro.value = true
+  if (style.value === 'beginner') {
+    showBriefing.value = true
   } else {
     startWorkoutFlow()
   }
 })
 
-// ✅：用你原本的 gestureDetected，而不是 lastGesture
+async function startWorkoutFlow() {
+  console.log('[startWorkoutFlow] 开始初始化，style =', style.value)
+  await mediapipeStore.startExercise(exerciseType.value, String(style.value).toLowerCase())
+  isWorkoutActive.value = true
+  showStartupGuide.value = true
+  exerciseStore.startExercise()
+  await nextTick()
+  setTimeout(() => analyzer.value?.startAnalysis(), 100)
+}
+
+// ✅ 修改：关闭 Briefing 后播放语音并启动训练
+function closeBriefingAndStart() {
+  console.log('[closeBriefingAndStart] 关闭简介页面')
+  showBriefing.value = false
+  
+  // ✅ 播放 begin_with_instruction.mp3
+  setTimeout(() => {
+    const instructionAudio = new Audio('/sounds/begin_with_instruction.mp3')
+    instructionAudio.play()
+      .then(() => {
+        console.log('🔊 播放动作指导语音成功')
+      })
+      .catch(err => {
+        console.error('❌ 播放动作指导语音失败:', err)
+      })
+  }, 500) // 延迟 500ms 播放，让弹窗关闭动画更流畅
+
+  // 启动训练流程
+  startWorkoutFlow()
+}
+
+function handlePersonDetected() {
+  console.log('[ExerciseView] 檢測到人體進入框內')
+  personDetected.value = true
+}
+
+function handlePersonLost() {
+  console.log('[ExerciseView] 人體離開框內')
+  personDetected.value = false
+  thumbsUpDetected.value = false
+}
+
 watch(
   () => mediapipeStore.gestureDetected,
   (gesture) => {
@@ -304,7 +308,6 @@ watch(
         console.log('[手势检测] 🎬 关闭启动引导，播放开始音效')
         showStartupGuide.value = false
 
-        // ✅ 播放開始音效
         playSound(startSoundPool)
 
         personDetected.value = false
@@ -326,7 +329,6 @@ watch(
   { immediate: false }
 )
 
-// ✅：沿用你原本的 count 逻辑（先恢复声音）
 watch(
   () => mediapipeStore.count,
   (newCount, oldCount) => {
@@ -336,7 +338,6 @@ watch(
 
     console.log(`[watch count] ${prev} -> ${current}`)
 
-    // 第一次有计数就隐藏「你已準備好」提示
     if (current > 0 && showReadyMessage.value) {
       showReadyMessage.value = false
       if (readyMessageTimer.value) {
@@ -345,12 +346,10 @@ watch(
       }
     }
 
-    // ⭐ 核心：只要 count 增加，就播放完成一趟的音效
     if (current > prev) {
       playRepCompleteThrottled()
     }
 
-    // 達成目標次數時，播放 finish 並結束
     if (current >= limit && limit > 0) {
       console.log('[watch count] 🎉 達到目標次數，顯示總結！')
       playSound(finishSoundPool, 'finish')
@@ -365,18 +364,6 @@ watch(
   { immediate: false }
 )
 
-// let lastCompletedFlag = false
-// watch(
-//   () => mediapipeStore.completedThisFrame,
-//   (val) => {
-//     // 触发条件：false -> true
-//     if (val === true && lastCompletedFlag === false) {
-//     playRepCompleteThrottled()
-//     }
-//     lastCompletedFlag = !!val
-//   }
-// )
-
 function closeIntroAndStart() {
   if (!showIntro.value) return
   showIntro.value = false
@@ -384,7 +371,6 @@ function closeIntroAndStart() {
 }
 
 onBeforeUnmount(() => {
-  // ✅ 改成只停止，不清空 src，避免下一次進來沒有資源可以播放
   const resetPool = (pool) => {
     if (!pool) return
     pool.forEach(audio => {
@@ -423,17 +409,6 @@ function handleFrameAnalyzed(result) {
     }
 
     mediapipeStore.updateAnalysisData(analysisData)
-
-    // const completedLike =
-    // analysisData?.completed ??
-    // result?.completed ??
-    // result?.current?.completed ??
-    // (exerciseType.value ? result?.[exerciseType.value]?.completed : undefined) ??
-    // (exerciseData.value?.name ? result?.[exerciseData.value.name]?.completed : undefined)
-
-    // if (completedLike === true) {
-    //   playRepCompleteThrottled()
-    // }
 
     if (!mediapipeStore.isPaused && !showReadyMessage.value) {
       feedbackText.value = analysisData.feedback || feedbackText.value
