@@ -9,7 +9,7 @@ export const useExerciseStore = defineStore('exercise', () => {
       name: '側平舉',
       description: '锻炼肩部中束',
       icon: '💪',
-      tips: ['保持身體直立，核心收緊','手臂舉至肩高','控制下放','肘部微屈'],
+      tips: ['保持身體直立，核心收緊','手臂舉至肩高','控制下放'],
       imageUrl: '/images/lateral_raise_image_1.png',
       orientation: 'landscape'
     },
@@ -52,14 +52,11 @@ export const useExerciseStore = defineStore('exercise', () => {
     {
       id: 'diagonal_lift',
       name: '對角線推舉',
-      description: '進階肩部與核心穩定訓練,強化單側肩部力量與身體協調性,改善日常生活中斜向抬舉物品的能力。',
+      description: '改善日常生活中斜向抬舉物品的能力。',
       icon: '🎯',
       tips: [
-        '單手持啞鈴,從肩膀斜向推至對側上方',
-        '保持核心穩定,避免身體過度旋轉',
-        '非訓練側肩膀保持穩定,不可聳肩',
-        '控制速度,感受肩部與核心發力',
-        '兩側交替訓練,保持平衡'
+        '單手斜推至對側上方',
+        '核心收緊，避免聳肩',
       ],
       imageUrl: '/images/diagonal_lift_image_1.png',
       orientation: 'portrait'

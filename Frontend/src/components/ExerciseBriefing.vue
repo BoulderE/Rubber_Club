@@ -44,6 +44,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 音频元素 -->
+    <audio ref="audioRef"></audio>
   </div>
 </template>
 
@@ -64,63 +67,125 @@ const props = defineProps({
 const emit = defineEmits(['close', 'start'])
 
 const videoRef = ref(null)
+const audioRef = ref(null)
 
 // 根据 exerciseData.id 生成视频 URL
 const videoUrl = computed(() => {
   if (!props.exerciseData?.id) {
-    console.warn('缺少 exerciseData.id')
+    console.warn('⚠️ 缺少 exerciseData.id')
     return ''
   }
   const url = `/videos/${props.exerciseData.id}_demo.mp4`
-  console.log('视频 URL:', url)
+  console.log('🎬 视频 URL:', url)
   return url
 })
 
+// 根据 exerciseData.id 生成音频 URL
+const audioUrl = computed(() => {
+  if (!props.exerciseData?.id) {
+    console.warn('⚠️ 缺少 exerciseData.id，无法生成音频 URL')
+    return ''
+  }
+  const url = `/sounds/${props.exerciseData.id}_briefing.mp3`
+  console.log('🔊 音频 URL:', url)
+  return url
+})
 
 // 播放视频
 const playVideo = async () => {
-  if (!videoRef.value) return
+  if (!videoRef.value) {
+    console.error('❌ 视频元素引用不存在')
+    return
+  }
   
   try {
     await videoRef.value.play()
-    console.log('▶️ 视频开始播放')
+    console.log('✅ 视频开始播放')
   } catch (err) {
-    console.warn('⚠️ 自动播放失败:', err.message)
-    // 如果自动播放失败，可以添加一个播放按钮
+    console.warn('⚠️ 视频自动播放失败:', err.message)
+  }
+}
+
+// 播放音频
+const playAudio = async () => {
+  if (!audioRef.value) {
+    console.error('❌ 音频元素引用不存在')
+    return
+  }
+  
+  if (!audioUrl.value) {
+    console.error('❌ 音频 URL 为空')
+    return
+  }
+  
+  try {
+    audioRef.value.src = audioUrl.value
+    await audioRef.value.play()
+    console.log('✅ 音频开始播放:', audioUrl.value)
+  } catch (err) {
+    console.warn('⚠️ 音频播放失败:', err.message)
   }
 }
 
 const handleClose = () => {
+  // 停止视频
   if (videoRef.value) {
     videoRef.value.pause()
     videoRef.value.currentTime = 0
   }
+  
+  // 停止音频
+  if (audioRef.value) {
+    audioRef.value.pause()
+    audioRef.value.currentTime = 0
+  }
+  
   emit('close')
 }
-
 
 // 监听弹窗显示状态
 watch(() => props.show, async (newVal) => {
   if (!newVal) {
-    // 关闭弹窗时停止视频
+    // 关闭弹窗时停止视频和音频
     if (videoRef.value) {
       videoRef.value.pause()
       videoRef.value.currentTime = 0
     }
+    if (audioRef.value) {
+      audioRef.value.pause()
+      audioRef.value.currentTime = 0
+    }
   } else {
     // 打开弹窗时等待 DOM 更新后播放
     await nextTick()
+    
+    console.log('📍 弹窗已打开，准备播放视频和音频')
+    
+    // 先播放视频
     if (videoRef.value) {
       console.log('🎬 尝试播放视频...')
-      playVideo()
+      await playVideo()
     }
+    
+    // 1.5秒后播放音频
+    setTimeout(() => {
+      console.log('⏰ 1.5秒后，准备播放音频')
+      playAudio()
+    }, 1500)
   }
 })
 
 onBeforeUnmount(() => {
+  // 清理视频
   if (videoRef.value) {
     videoRef.value.pause()
     videoRef.value.src = ''
+  }
+  
+  // 清理音频
+  if (audioRef.value) {
+    audioRef.value.pause()
+    audioRef.value.src = ''
   }
 })
 </script>
@@ -236,7 +301,7 @@ onBeforeUnmount(() => {
 }
 
 .field-label {
-  font-size: 1.1rem;
+  font-size: 40px;
   font-weight: 700;
   color: #667eea;
   text-transform: uppercase;
@@ -244,7 +309,7 @@ onBeforeUnmount(() => {
 }
 
 .field-description {
-  font-size: 1.15rem;
+  font-size: 40px;
   color: #4b5563;
   line-height: 1.8;
   margin: 0;
@@ -260,7 +325,7 @@ onBeforeUnmount(() => {
 }
 
 .tips-list li {
-  font-size: 1.05rem;
+  font-size: 30px;
   color: #374151;
   padding-left: 28px;
   position: relative;
