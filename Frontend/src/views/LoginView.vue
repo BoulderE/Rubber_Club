@@ -66,7 +66,6 @@ const checkPin = async () => {
   isSubmitting.value = true;
 
   try {
-    // 這裡改成送出使用者實際輸入的 PIN
     const response = await axios.post(`${base}/api/login`, {
       pin: currentPin.value
     }, { timeout: 8000 });
@@ -79,7 +78,6 @@ const checkPin = async () => {
     }
   } catch (error) {
     console.error('Login request failed:', error);
-    // 401 當成 PIN 錯；其餘顯示系統錯誤
     if (error?.response?.status === 401) {
       loginFailure('PIN碼錯誤，請重試');
     } else {

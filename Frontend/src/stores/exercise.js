@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export const useExerciseStore = defineStore('exercise', () => {
-  // 运动类型列表
   const exerciseTypes = ref([
     {
       id: 'lateral_raise',
@@ -83,12 +82,12 @@ export const useExerciseStore = defineStore('exercise', () => {
     return exerciseTypes.value.find(ex => ex.id === id)
   }
 
-  const startExercise = () => { // <-- 新增：开始计时的函数
+  const startExercise = () => { 
     startTime.value = Date.now();
-    endTime.value = null; // 重置结束时间，以防万一
+    endTime.value = null; 
   }
 
-  const endExercise = () => {   // <-- 新增：结束计时的函数
+  const endExercise = () => {   
     endTime.value = Date.now();
   }
 

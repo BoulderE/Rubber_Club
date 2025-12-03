@@ -93,11 +93,11 @@ function getAngleColor(joint, angle) {
   if (!range || !range.optimal) return '#667eea'
   
   if (angle >= range.optimal[0] && angle <= range.optimal[1]) {
-    return '#2ed573' // 绿色 - 最佳范围
+    return '#2ed573' 
   } else if (angle < range.min || angle > range.max) {
-    return '#ff4757' // 红色 - 超出范围
+    return '#ff4757' 
   }
-  return '#ffa502' // 橙色 - 可接受范围
+  return '#ffa502' 
 }
 </script>
 

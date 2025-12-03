@@ -5,15 +5,12 @@
       <p>Your Digital Fitness Helper</p>
     </div>
 
-    <!-- 难度选择弹窗 - 使用 v-if 控制显示 -->
     <div v-if="showModal" class="modal-backdrop" @click.self="showModal = false">
       <div class="modal-content">
-        <!-- 添加右上角关闭按钮 -->
         <button @click="showModal = false" class="close-button">&times;</button>
         
         <h2 id="modal-title">選擇您的「{{ selectedExercise?.displayName }}」難度</h2>
         
-        <!-- 改为可点击的卡片，移除 radio -->
         <div class="level-options">
           <div 
             class="level-card"
@@ -33,20 +30,15 @@
             <p>嚴格指導</p>
           </div>
         </div>
-        
-        <!-- 移除按钮组 -->
       </div>
     </div>
 
-    <!-- 聊天机器人弹窗 -->
     <div v-if="isChatbotVisible" class="modal-backdrop" @click.self="isChatbotVisible = false">
       <ChatbotWindow 
         @close="isChatbotVisible = false"
         class="chatbot-container"
       />
     </div>
-
-    <!-- 详情弹窗 -->
     <div 
       v-if="showDetailModal"
       class="detail-modal-overlay"
@@ -56,7 +48,6 @@
         <button @click="closeDetail" class="close-button">&times;</button>
         
         <div class="modal-body">
-          <!-- 左侧图片 -->
           <div class="image-section">
             <img 
               :src="detailExercise?.imageUrl" 
@@ -65,7 +56,6 @@
             >
           </div>
 
-          <!-- 右侧信息 -->
           <div class="info-section">
             <h2 class="detail-title">{{ detailExercise?.displayName }}</h2>
             
@@ -81,7 +71,6 @@
               </ul>
             </div>
 
-            <!-- 开始训练按钮 -->
             <div class="modal-actions">
               <button 
                 @click="startFromDetail"
@@ -95,7 +84,6 @@
       </div>
     </div>
 
-    <!-- 运动卡片网格 -->
     <div class="exercises-grid">
       <div 
         v-for="exercise in exercises" 
@@ -105,7 +93,6 @@
         @mouseleave="handleMouseLeave(exercise.id)"
         @click="openDifficultyModal(exercise)"
       >
-        <!-- 视频容器 -->
         <div class="video-container">
           <video
             :ref="el => setVideoRef(el, exercise.id)"
@@ -117,7 +104,6 @@
           ></video>
         </div>
 
-        <!-- 卡片底部信息 -->
         <div class="card-footer">
           <h3 class="exercise-name">{{ exercise.displayName }}</h3>
           <button 
@@ -148,7 +134,6 @@ const selectedExercise = ref(null);
 const detailExercise = ref(null);
 const selectedLevel = ref('beginner');
 
-// 视频引用存储
 const videoRefs = ref({});
 
 const exercises = ref([
@@ -240,14 +225,12 @@ const exercises = ref([
   }
 ]);
 
-// 设置视频引用
 const setVideoRef = (el, id) => {
   if (el) {
     videoRefs.value[id] = el;
   }
 };
 
-// 鼠标进入 - 播放视频
 const handleMouseEnter = (id) => {
   const video = videoRefs.value[id];
   if (video) {
@@ -258,7 +241,6 @@ const handleMouseEnter = (id) => {
   }
 };
 
-// 鼠标离开 - 暂停视频
 const handleMouseLeave = (id) => {
   const video = videoRefs.value[id];
   if (video) {
@@ -267,40 +249,34 @@ const handleMouseLeave = (id) => {
   }
 };
 
-// 打开难度选择弹窗
 function openDifficultyModal(exercise) {
   selectedExercise.value = exercise;
   selectedLevel.value = 'beginner';
-  showModal.value = true; // 显示弹窗
+  showModal.value = true; 
 }
 
-// 点击卡片直接选择级别并跳转
 function selectAndStart(level) {
   selectedLevel.value = level;
-  startExercise(); // 立即跳转，不在此处播放声音
+  startExercise(); 
 }
 
-// 打开详情弹窗
 function openDetail(exercise) {
   detailExercise.value = exercise;
   showDetailModal.value = true;
 }
 
-// 关闭详情弹窗
 function closeDetail() {
   showDetailModal.value = false;
   detailExercise.value = null;
 }
 
-// 从详情页开始训练
 function startFromDetail() {
   selectedExercise.value = detailExercise.value;
   selectedLevel.value = 'beginner';
   showDetailModal.value = false;
-  showModal.value = true; // 打开难度选择弹窗
+  showModal.value = true; 
 }
 
-// 开始运动
 function startExercise() {
   if (!selectedExercise.value) return;
 
@@ -309,15 +285,14 @@ function startExercise() {
     params: { type: selectedExercise.value.id },
     query: { 
       style: selectedLevel.value,
-      // 添加这个参数，告诉下一个页面需要播放声音
+      
       autoPlayVoice: 'true' 
     }
   });
 
-  showModal.value = false; // 关闭弹窗
+  showModal.value = false; 
 }
 
-// 组件卸载时清理视频
 onBeforeUnmount(() => {
   Object.values(videoRefs.value).forEach(video => {
     if (video) {
@@ -359,7 +334,6 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-/* ========== 网格布局 ========== */
 .exercises-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -435,7 +409,6 @@ onBeforeUnmount(() => {
   color: #764ba2;
 }
 
-/* ========== 难度选择弹窗 ========== */
 .modal-backdrop {
   position: fixed;
   top: 0;
@@ -452,7 +425,7 @@ onBeforeUnmount(() => {
 }
 
 .modal-content {
-  position: relative; /* 添加相对定位 */
+  position: relative; 
   background: #ffffff;
   border-radius: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
@@ -463,7 +436,6 @@ onBeforeUnmount(() => {
   animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 右上角关闭按钮 */
 .modal-content .close-button {
   position: absolute;
   top: 16px;
@@ -495,15 +467,15 @@ onBeforeUnmount(() => {
   margin-bottom: 30px;
   font-size: 1.75rem;
   color: #111827;
-  padding-right: 30px; /* 给关闭按钮留空间 */
+  padding-right: 30px; 
 }
 
-/* 改为卡片布局，移除 radio 样式 */
+
 .level-options { 
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  margin-bottom: 0; /* 移除底部间距 */
+  margin-bottom: 0; 
 }
 
 .level-card { 
@@ -517,7 +489,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* 添加渐变背景效果 */
 .level-card::before {
   content: '';
   position: absolute;
@@ -563,7 +534,6 @@ onBeforeUnmount(() => {
   z-index: 1;
 }
 
-/* ========== 详情弹窗 ========== */
 .detail-modal-overlay {
   position: fixed;
   top: 0;
@@ -738,7 +708,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
 }
 
-/* ========== 帮助按钮 FAB ========== */
 #need-help-fab {
   position: fixed;
   bottom: 30px;
@@ -765,7 +734,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 24px rgba(106, 90, 249, 0.5);
 }
 
-/* 动画 */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -782,7 +750,6 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ========== 响应式设计 ========== */
 @media (max-width: 1200px) {
   .exercises-grid {
     grid-template-columns: repeat(3, 1fr);

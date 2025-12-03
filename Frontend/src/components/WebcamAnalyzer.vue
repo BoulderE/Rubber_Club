@@ -8,7 +8,6 @@
   >
     <div class="video-frame">
       <div class="video-container" ref="containerEl">
-        <!-- video 仅作为输入，不渲染到用户眼前 -->
         <video
           ref="videoElement"
           class="video-feed"
@@ -17,10 +16,8 @@
           muted
         ></video>
 
-        <!-- 可见画面都在 canvas -->
         <canvas ref="canvasElement" class="pose-overlay"></canvas>
 
-        <!-- 🆕 橙色检测框 -->
         <div 
           v-if="startupMode" 
           class="detection-frame-container"
@@ -62,7 +59,7 @@ const props = defineProps({
   },
   landscapeSize: { type: Object, default: () => ({ height: '56vh', maxW: '980px' }) },
   portraitSize:  { type: Object, default: () => ({ height: '52vh', scale: 1.08, maxW: '640px' }) },
-  startupMode: { type: Boolean, default: false } // 🆕 启动模式
+  startupMode: { type: Boolean, default: false } 
 })
 
 const emit = defineEmits(['startup-confirmed', 'person-detected', 'person-lost', 'frame-analyzed'])
@@ -84,13 +81,11 @@ const stream = ref(null)
 const analyzeTimer = ref(null)
 let ro
 
-// 🆕 人体检测状态
 const personInFrame = ref(false)
-// const thumbsUpDetected = ref(false)
 let personDetectedFrames = 0
 let personLostFrames = 0
-const DETECTION_THRESHOLD = 3 // 连续3帧确认
-const LOST_THRESHOLD = 5 // 连续5帧丢失
+const DETECTION_THRESHOLD = 3 
+const LOST_THRESHOLD = 5 
 
 function attachResizeObserver() {
   if (!containerEl.value || !canvasElement.value) return
@@ -192,18 +187,15 @@ function computeCenteredCrop(sw, sh, targetRatio) {
   return { sx, sy, sWidth, sHeight }
 }
 
-// 🆕 检测人是否在框内
 function checkPersonInFrame(landmarks, cw, ch) {
   if (!landmarks?.length) return false
   
-  // 检测框区域（中心60%区域）
   const frameLeft = cw * 0.2
   const frameRight = cw * 0.8
   const frameTop = ch * 0.15
   const frameBottom = ch * 0.85
   
-  // 检查关键点（鼻子、肩膀、髋部）是否在框内
-  const keyPoints = [0, 11, 12, 23, 24] // nose, shoulders, hips
+  const keyPoints = [0, 11, 12, 23, 24]
   let inFrameCount = 0
   
   for (const idx of keyPoints) {
@@ -217,7 +209,7 @@ function checkPersonInFrame(landmarks, cw, ch) {
     }
   }
   
-  return inFrameCount >= 3 // 至少3个关键点在框内
+  return inFrameCount >= 3 
 }
 
 async function analyzeFrame() {
@@ -254,7 +246,6 @@ async function analyzeFrame() {
     if (result?.pose_landmarks) {
       drawPose(ctx, result.pose_landmarks, cw, ch)
       
-      // 🆕 启动模式下检测人体位置
       if (props.startupMode) {
         const isInFrame = checkPersonInFrame(result.pose_landmarks, cw, ch)
         
@@ -279,7 +270,6 @@ async function analyzeFrame() {
         }
       }
     } else {
-      // 没有检测到姿态
       if (props.startupMode) {
         personLostFrames++
         personDetectedFrames = 0
@@ -292,7 +282,7 @@ async function analyzeFrame() {
       }
     }
   } catch {
-    // 静默失败以防阻塞
+    // avoiding crash on analysis error
   }
 }
 
@@ -407,14 +397,13 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-/* 🆕 简洁的橙色检测框 - 与上方提示框同色 */
 .detection-frame-container {
   position: absolute;
   left: 20%;
   top: 15%;
   width: 60%;
   height: 70%;
-  border: 5px solid #ff5e62; /* 与startup-hint同色 */
+  border: 5px solid #ff5e62; 
   border-radius: 12px;
   pointer-events: none;
 }
@@ -456,9 +445,8 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
   white-space: nowrap;
   flex-shrink: 0;
-  /* 改为相对定位，放在容器顶部外侧 */
   margin-bottom: 0.5rem;
-  order: -1; /* 确保在框上方 */
+  order: -1; 
 }
 
 

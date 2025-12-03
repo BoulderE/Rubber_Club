@@ -3,7 +3,6 @@
     <div class="workout-summary">
       <h2>訓練總結</h2>
 
-      <!-- 顶部三卡：Accuracy / Smoothness / Duration -->
       <div class="summary-stats">
         <div class="stat-card">
           <div class="stat-info">
@@ -27,7 +26,6 @@
         </div>
       </div>
 
-      <!-- Advice 区域 -->
       <div class="feedback">
         <h3>訓練建議</h3>
         <ul>
@@ -65,11 +63,9 @@ const duration = computed(() => {
 const accuracy = computed(() => Number(mediapipeStore.accuracy) || 0)
 const smoothnessPercent = computed(() => Number(mediapipeStore.smoothness) || 0)
 
-// 基于 accuracy 与 smoothness 的针对性建议
 const tips = computed(() => {
   const t = []
 
-  // Accuracy 建议
   if (accuracy.value < 60) {
     t.push('動作準確度偏低：放慢節奏，專注關節對齊與完整活動範圍。')
   } else if (accuracy.value < 80) {
@@ -78,7 +74,6 @@ const tips = computed(() => {
     t.push('準確度良好：維持當前節奏，逐步增加組數或阻力。')
   }
 
-  // Smoothness 建議
   if (smoothnessPercent.value < 50) {
     t.push('動作不夠順暢：嘗試均勻呼吸，控制離心階段，避免忽快忽慢。')
   } else if (smoothnessPercent.value < 80) {
@@ -87,7 +82,6 @@ const tips = computed(() => {
     t.push('動作流暢：可微幅加快但保持穩定節奏，追求更佳效率。')
   }
 
-  // 依運動類型附加一條提示（示例）
   if (exerciseType.value === 'lateral_raise') {
     t.push('側平舉：肩膀放鬆下沉，手肘略彎，手腕中立，抬至與肩同高即可。')
   } else if (exerciseType.value === 'chest_pull') {
@@ -97,9 +91,7 @@ const tips = computed(() => {
   return t
 })
 
-// 🎉 烟花效果函数
 function blastConfetti() {
-  // 🔧 关键修复：确保在下一个事件循环中执行
   setTimeout(() => {
     const duration = 2500
     const end = Date.now() + duration
@@ -111,25 +103,23 @@ function blastConfetti() {
       gravity: 0.9,
       ticks: 250,
       origin: { y: 0.6 },
-      zIndex: 9999 // 🆕 确保烟花在最上层
+      zIndex: 9999 
     }
 
     const interval = setInterval(() => {
-      // 左侧发射
+
       confetti({ 
         ...base, 
         angle: 60, 
         origin: { x: 0, y: Math.random() * 0.3 + 0.1 } 
       })
       
-      // 右侧发射
       confetti({ 
         ...base, 
         angle: 120, 
         origin: { x: 1, y: Math.random() * 0.3 + 0.1 } 
       })
       
-      // 中央大爆发
       confetti({
         ...base,
         particleCount: 80,
@@ -143,10 +133,9 @@ function blastConfetti() {
         clearInterval(interval)
       }
     }, 250)
-  }, 100) // 🔧 延迟 100ms 确保 DOM 完全渲染
+  }, 100) 
 }
 
-// 🎉 组件挂载时触发烟花
 onMounted(() => {
   console.log('🎉 Summary 组件已挂载，准备发射烟花')
   blastConfetti()
@@ -176,8 +165,8 @@ onMounted(() => {
   max-height: 90vh;
   overflow-y: auto;
   animation: slideIn 0.3s ease-out;
-  position: relative; /* 🆕 确保定位上下文 */
-  z-index: 1001; /* 🆕 确保在遮罩之上 */
+  position: relative; 
+  z-index: 1001; 
 }
 
 @keyframes slideIn {

@@ -52,7 +52,6 @@ const sendMessage = async () => {
   const content = newMessage.value.trim();
   if (!content || isLoading.value) return;
 
-  // 1. 将用户消息添加到界面
   messages.value.push({ id: Date.now(), role: 'user', content });
   const currentMessageHistory = messages.value.map(({ role, content }) => ({ role, content }));
   newMessage.value = '';
@@ -61,7 +60,6 @@ const sendMessage = async () => {
   isLoading.value = true;
 
   try {
-    // 2. 发送请求到后端
     const response = await fetch(`${base}/api/chatbot/chat`, {
       method: 'POST',
       headers: {
@@ -69,7 +67,7 @@ const sendMessage = async () => {
       },
       body: JSON.stringify({
         message: content,
-        history: currentMessageHistory.slice(0, -1), // 发送除当前用户消息外的所有历史
+        history: currentMessageHistory.slice(0, -1), 
       }),
     });
 
@@ -79,9 +77,8 @@ const sendMessage = async () => {
 
     const data = await response.json();
 
-    // 3. 将机器人回复添加到界面
     messages.value.push({ id: Date.now() + 1, role: 'assistant', content: data.reply });
-    scrollToBottom(); // 关键4：再次直接调用函数
+    scrollToBottom(); 
 
   } catch (error) {
     console.error("Error sending message:", error);
@@ -96,9 +93,6 @@ const sendMessage = async () => {
   }
 };
 
-// --- 生命周期钩子 ---
-
-// 组件加载时，添加欢迎语
 onMounted(() => {
   messages.value.push({
     id: Date.now(),

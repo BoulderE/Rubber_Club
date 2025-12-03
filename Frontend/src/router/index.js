@@ -21,10 +21,10 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/exercise/:type', // :type 是一个动态参数
+      path: '/exercise/:type',
       name: 'exercise',
       component: ExerciseView,
-      props: true, // 这会将 URL 参数作为 props 传递给组件
+      props: true, 
       meta: { requiresAuth: true }
     }
   ]

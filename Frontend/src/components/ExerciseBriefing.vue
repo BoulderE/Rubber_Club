@@ -1,11 +1,11 @@
 <template>
   <div v-if="show" class="briefing-overlay" @click.self="handleClose">
     <div class="briefing-content">
-      <!-- 右上角关闭按钮 -->
+
       <button @click="handleClose" class="close-button">&times;</button>
 
       <div class="briefing-body">
-        <!-- 左侧视频 -->
+
         <div class="video-section">
           <div class="video-wrapper">
             <video
@@ -19,7 +19,6 @@
           </div>
         </div>
 
-        <!-- 右侧信息 -->
         <div class="info-section">
           <h2 class="briefing-title">{{ exerciseData?.name }}</h2>
           
@@ -35,7 +34,6 @@
             </ul>
           </div>
 
-          <!-- 开始按钮 -->
           <div class="action-section">
             <button @click="handleClose" class="btn-start">
               開始訓練
@@ -45,7 +43,6 @@
       </div>
     </div>
 
-    <!-- 音频元素 -->
     <audio ref="audioRef"></audio>
   </div>
 </template>
@@ -69,7 +66,6 @@ const emit = defineEmits(['close', 'start'])
 const videoRef = ref(null)
 const audioRef = ref(null)
 
-// 根据 exerciseData.id 生成视频 URL
 const videoUrl = computed(() => {
   if (!props.exerciseData?.id) {
     console.warn('⚠️ 缺少 exerciseData.id')
@@ -80,7 +76,6 @@ const videoUrl = computed(() => {
   return url
 })
 
-// 根据 exerciseData.id 生成音频 URL
 const audioUrl = computed(() => {
   if (!props.exerciseData?.id) {
     console.warn('⚠️ 缺少 exerciseData.id，无法生成音频 URL')
@@ -91,7 +86,6 @@ const audioUrl = computed(() => {
   return url
 })
 
-// 播放视频
 const playVideo = async () => {
   if (!videoRef.value) {
     console.error('❌ 视频元素引用不存在')
@@ -106,7 +100,6 @@ const playVideo = async () => {
   }
 }
 
-// 播放音频
 const playAudio = async () => {
   if (!audioRef.value) {
     console.error('❌ 音频元素引用不存在')
@@ -128,13 +121,11 @@ const playAudio = async () => {
 }
 
 const handleClose = () => {
-  // 停止视频
   if (videoRef.value) {
     videoRef.value.pause()
     videoRef.value.currentTime = 0
   }
   
-  // 停止音频
   if (audioRef.value) {
     audioRef.value.pause()
     audioRef.value.currentTime = 0
@@ -143,10 +134,8 @@ const handleClose = () => {
   emit('close')
 }
 
-// 监听弹窗显示状态
 watch(() => props.show, async (newVal) => {
   if (!newVal) {
-    // 关闭弹窗时停止视频和音频
     if (videoRef.value) {
       videoRef.value.pause()
       videoRef.value.currentTime = 0
@@ -156,18 +145,15 @@ watch(() => props.show, async (newVal) => {
       audioRef.value.currentTime = 0
     }
   } else {
-    // 打开弹窗时等待 DOM 更新后播放
     await nextTick()
     
     console.log('📍 弹窗已打开，准备播放视频和音频')
     
-    // 先播放视频
     if (videoRef.value) {
       console.log('🎬 尝试播放视频...')
       await playVideo()
     }
     
-    // 1.5秒后播放音频
     setTimeout(() => {
       console.log('⏰ 1.5秒后，准备播放音频')
       playAudio()
@@ -176,13 +162,11 @@ watch(() => props.show, async (newVal) => {
 })
 
 onBeforeUnmount(() => {
-  // 清理视频
   if (videoRef.value) {
     videoRef.value.pause()
     videoRef.value.src = ''
   }
   
-  // 清理音频
   if (audioRef.value) {
     audioRef.value.pause()
     audioRef.value.src = ''
@@ -366,7 +350,6 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
 }
 
-/* 动画 */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

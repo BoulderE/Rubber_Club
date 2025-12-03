@@ -152,7 +152,6 @@ const readyMessageTimer = ref(null)
 const MAX_REPS = computed(() => mediapipeStore.repetitionLimit || 15)
 const orientation = computed(() => exerciseData.value?.orientation || 'landscape')
 
-// ====== 音效相關 ======
 const AUDIO_POOL_SIZE = 6
 let startSoundPool = []
 let finishSoundPool = []
@@ -185,8 +184,6 @@ const displayFeedback = computed(() => {
 })
 
 const showBriefing = ref(false)
-
-// ✅ 移除 briefingVoiceUrl，不需要传递给 ExerciseBriefing
 
 function createAudioPool(src, size = AUDIO_POOL_SIZE) {
   const pool = []
@@ -230,7 +227,6 @@ function playSound(pool) {
     });
 }
 
-// ✅ 删除 onMounted 中的自动播放逻辑
 onMounted(() => {
   console.log('[onMounted] 初始化音频')
   startSoundPool = createAudioPool('/sounds/begin.mp3', 3)
@@ -263,12 +259,10 @@ async function startWorkoutFlow() {
   setTimeout(() => analyzer.value?.startAnalysis(), 100)
 }
 
-// ✅ 修改：关闭 Briefing 后播放语音并启动训练
 function closeBriefingAndStart() {
   console.log('[closeBriefingAndStart] 关闭简介页面')
   showBriefing.value = false
   
-  // ✅ 播放 begin_with_instruction.mp3
   setTimeout(() => {
     const instructionAudio = new Audio('/sounds/begin_with_instruction.mp3')
     instructionAudio.play()
@@ -278,9 +272,8 @@ function closeBriefingAndStart() {
       .catch(err => {
         console.error('❌ 播放动作指导语音失败:', err)
       })
-  }, 500) // 延迟 500ms 播放，让弹窗关闭动画更流畅
+  }, 500) 
 
-  // 启动训练流程
   startWorkoutFlow()
 }
 
@@ -522,7 +515,6 @@ function handleEndWorkout() {
   line-height: 1.5;
 }
 
-/* ==================== 引導彈窗 ==================== */
 .intro-modal-overlay {
   position: fixed;
   top: 0;
@@ -628,7 +620,6 @@ function handleEndWorkout() {
   color: #555;
 }
 
-/* ==================== 主布局 ==================== */
 .exercise-view {
   max-width: 1400px;
   margin: 0 auto;
@@ -666,7 +657,6 @@ function handleEndWorkout() {
   gap: 20px;
 }
 
-/* ==================== 視頻區域 ==================== */
 .webcam-placeholder {
   display: flex;
   align-items: center;
@@ -678,7 +668,6 @@ function handleEndWorkout() {
   font-size: 1.2rem;
 }
 
-/* ==================== 反饋容器 ==================== */
 .feedback-container {
   background-color: #2d3748;
   color: #edf2f7;
@@ -716,7 +705,6 @@ function handleEndWorkout() {
   color: #bee3f8;
 }
 
-/* 新增：準備好狀態的樣式 */
 .feedback-container.is-ready {
   background: linear-gradient(135deg, #10b981, #34d399);
   border-color: #34d399;
@@ -736,7 +724,6 @@ function handleEndWorkout() {
   animation: fadeIn 0.3s ease;
 }
 
-/* ==================== 動作示意面板 ==================== */
 .panel {
   background: white;
   padding: 20px;
@@ -783,7 +770,6 @@ function handleEndWorkout() {
   font-size: 40px;
 }
 
-/* ==================== 進度條 ==================== */
 .progress-block {
   margin-top: 10px;
 }
@@ -830,7 +816,6 @@ function handleEndWorkout() {
   color: #4b5563;
 }
 
-/* ==================== 動畫 ==================== */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -864,7 +849,6 @@ function handleEndWorkout() {
   50% { transform: translateY(-10px); }
 }
 
-/* 新增：脈衝動畫 */
 @keyframes pulse {
   0%, 100% {
     box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
@@ -874,7 +858,6 @@ function handleEndWorkout() {
   }
 }
 
-/* ==================== 響應式設計 ==================== */
 @media (max-width: 1024px) {
   .content {
     grid-template-columns: 1fr;
