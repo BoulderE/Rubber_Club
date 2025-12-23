@@ -1,27 +1,23 @@
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
-# 安装系统依赖（opencv、mediapipe、torch等需要）
+# 安装系统依赖（使用 bookworm 兼容的包名）
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
     libgomp1 \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# 先复制 requirements 并安装（利用缓存）
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制代码
 COPY . .
 
-# 暴露端口
 EXPOSE 8080
 
-# 启动命令
 CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--timeout", "120", "app:app"]
