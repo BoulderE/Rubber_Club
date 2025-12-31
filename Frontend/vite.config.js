@@ -6,10 +6,13 @@ export default defineConfig(({ mode }) => {
   // 通过 loadEnv 读取 .env 文件（含 .env.local）
   const env = loadEnv(mode, process.cwd(), '')
   const BASE = env.VITE_BASE || '/'
-
+  
   return {
     base: BASE,
     plugins: [vue()],
+    preview: {
+      allowedHosts: ['coral-app-wtnj9.ondigitalocean.app']
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
