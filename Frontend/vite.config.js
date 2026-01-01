@@ -8,19 +8,17 @@ export default defineConfig(({ mode }) => {
   const BASE = env.VITE_BASE || '/'
   
   return {
-    base: BASE,
-    plugins: [vue()],
-    preview: {
-      allowedHosts: ['coral-app-wtnj9.ondigitalocean.app']
+  base: BASE,
+  plugins: [vue()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
-    resolve: {
-      alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url)),
-      },
-    },
-    server: {
-      port: 5173,
-      hmr: { overlay: false },
-    },
-  }
+  },
+  server: {
+    port: 5173,
+    hmr: { overlay: false },
+    allowedHosts: ['app.rubberclub.app'],
+  },
+}
 })
