@@ -13,7 +13,6 @@ def analyze():
     file = request.files['file']
     img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
     
-    # MediaPipe 姿势检测
     mp_pose = mp.solutions.pose
     with mp_pose.Pose(min_detection_confidence=0.5) as pose:
         results = pose.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
