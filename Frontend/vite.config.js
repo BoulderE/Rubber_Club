@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => {
   server: {
     port: 5173,
     hmr: { overlay: false },
-    allowedHosts: ['app.rubberclub.app'],
+    allowedHosts: ['app.rubberclub.app', 'coral-app-wtnj9.ondigitalocean.app'],
   },
 }
 })
