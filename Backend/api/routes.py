@@ -5,25 +5,16 @@ import mediapipe as mp
 import numpy as np
 
 from .analyzer import ExerciseAnalyzer 
-from .gesture_recognizer import get_gesture_recognizer  # ← 新增
+from .gesture_recognizer import get_gesture_recognizer 
 
 analyzer = ExerciseAnalyzer() 
 
-# 创建蓝图
 mediapipe_bp = Blueprint('mediapipe', __name__)
 CORS(mediapipe_bp)
 
-# 初始化 MediaPipe Pose
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=0)
 
-# ========== 移除旧的 MediaPipe Hands ==========
-# mp_hands = mp.solutions.hands
-# hands = mp_hands.Hands(...)
-# wait_gesture_detector = GestureDetector(...)
-# thumb_up_detector = GestureDetector(...)
-
-# ========== 新增：HuggingFace 手势识别器（懒加载）==========
 hf_gesture_recognizer = None
 
 
@@ -92,28 +83,23 @@ def analyze_stream():
 
     image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
-    # ========== 1. 手势识别（HuggingFace + MPS）==========
     gesture_detected_type = None
     
-    # 懒加载手势识别器
     if hf_gesture_recognizer is None:
         hf_gesture_recognizer = get_gesture_recognizer()
     
-    # 检测手势
     gesture_result = hf_gesture_recognizer.predict(image_rgb, confidence_threshold=0.6)
     current_gesture = gesture_result['gesture']
     
-    # 检测稳定的 stop 手势（暂停）
     if hf_gesture_recognizer.detect_stable_gesture(
         image_rgb, 
-        target_gesture='stop',  # ← 根据你的模型，可能是 'stop' 或 'palm'
+        target_gesture='stop',  
         confidence_threshold=0.6
     ):
         analyzer.state.is_paused = True
         gesture_detected_type = 'stop'
         hf_gesture_recognizer.reset_buffer()
     
-    # 检测稳定的 like 手势（继续）
     elif hf_gesture_recognizer.detect_stable_gesture(
         image_rgb,
         target_gesture='like',
@@ -123,7 +109,6 @@ def analyze_stream():
         gesture_detected_type = 'like'
         hf_gesture_recognizer.reset_buffer()
     
-    # ========== 2. 运动分析 ==========
     if analyzer.state.is_paused:
         analysis_results = {
             'count': analyzer.state.count,
@@ -135,14 +120,13 @@ def analyze_stream():
     else:
         analysis_results = analyzer.process(image_rgb)
 
-    # ========== 3. 返回结果 ==========
     response_data = {
-        analyzer.exercise_id: analysis_results,   # 旧格式（向后兼容）
-        'exercise': analyzer.exercise_id,         # 新格式
-        'analysis': analysis_results,             # 新格式
+        analyzer.exercise_id: analysis_results,   
+        'exercise': analyzer.exercise_id,         
+        'analysis': analysis_results,             
         'gesture_detected': gesture_detected_type,
-        'current_gesture': current_gesture,       # 新增：显示当前识别的手势（调试用）
-        'gesture_confidence': gesture_result['confidence']  # 新增：置信度
+        'current_gesture': current_gesture,       
+        'gesture_confidence': gesture_result['confidence']  
     }
 
     return jsonify(response_data)
@@ -150,7 +134,6 @@ def analyze_stream():
 
 @mediapipe_bp.route('/status', methods=['GET'])
 def get_status():
-    """获取统一分析器的当前状态"""
     if not analyzer.config:
         return jsonify({"status": "not_configured"})
 
@@ -168,10 +151,8 @@ def get_status():
 
 @mediapipe_bp.route('/device-info', methods=['GET'])
 def get_device_info():
-    """获取手势识别器的设备信息（自动初始化）"""
     global hf_gesture_recognizer
     
-    # 自动初始化
     if hf_gesture_recognizer is None:
         try:
             hf_gesture_recognizer = get_gesture_recognizer()
