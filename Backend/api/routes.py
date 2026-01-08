@@ -57,11 +57,6 @@ def control_workout():
 
 @mediapipe_bp.route('/analyze-stream', methods=['POST'])
 def analyze_stream():
-    """
-    分析视频流：
-    1. 检测手势（like → 继续，stop → 暂停）
-    2. 分析运动姿态
-    """
     global hf_gesture_recognizer
     
     if 'file' not in request.files:
@@ -69,7 +64,6 @@ def analyze_stream():
     
     file = request.files['file']
 
-    # 读取图像
     try:
         in_memory_file = np.frombuffer(file.read(), np.uint8)
         frame = cv2.imdecode(in_memory_file, cv2.IMREAD_COLOR)

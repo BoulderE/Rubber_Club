@@ -382,31 +382,51 @@ onBeforeUnmount(() => {
 })
 
 function handleFrameAnalyzed(result) {
-  console.log('[handleFrameAnalyzed] received result keys:', Object.keys(result || {}))
+  // 检查空结果
+  if (!result || Object.keys(result).length === 0) {
+    console.log('[handleFrameAnalyzed] 空结果，跳过')
+    return
+  }
+
+  console.log('[handleFrameAnalyzed] received result keys:', Object.keys(result))
 
   const byCurrent = result?.current
   const byType = result?.[exerciseType.value]
   const byName = exerciseData.value?.name ? result?.[exerciseData.value.name] : undefined
-  const analysisData = byCurrent || byType || byName || result
+  const byAnalysis = result?.analysis 
+  const byExercise = result?.exercise ? result?.[result.exercise] : undefined 
+  
+  const analysisData = byCurrent || byType || byName || byAnalysis || byExercise || result
 
   console.log('[handleFrameAnalyzed] selected data source:',
-    byCurrent ? 'current' : (byType ? 'type' : (byName ? 'name' : 'none'))
+    byCurrent ? 'current' : 
+    byType ? 'type' : 
+    byName ? 'name' : 
+    byAnalysis ? 'analysis' : 
+    byExercise ? 'exercise' : 
+    'fallback'
   )
 
   if (analysisData && typeof analysisData === 'object') {
-    if (analysisData.shoulder_angle !== undefined || analysisData.elbow_angle !== undefined) {
+    const mergedData = {
+      ...analysisData,
+      gesture_detected: result.gesture_detected ?? analysisData.gesture_detected,
+      current_gesture: result.current_gesture ?? analysisData.current_gesture
+    }
+
+    if (mergedData.shoulder_angle !== undefined || mergedData.elbow_angle !== undefined) {
       currentAngles.value = {
-        shoulder: analysisData.shoulder_angle,
-        elbow: analysisData.elbow_angle
+        shoulder: mergedData.shoulder_angle,
+        elbow: mergedData.elbow_angle
       }
     }
 
-    mediapipeStore.updateAnalysisData(analysisData)
+    mediapipeStore.updateAnalysisData(mergedData)
 
     if (!mediapipeStore.isPaused && !showReadyMessage.value) {
-      feedbackText.value = analysisData.feedback || feedbackText.value
-      const nonStandard = analysisData.category === 'non_standard'
-      isOverextended.value = Boolean(analysisData.overextended || nonStandard)
+      feedbackText.value = mergedData.feedback || feedbackText.value
+      const nonStandard = mergedData.category === 'non_standard'
+      isOverextended.value = Boolean(mergedData.overextended || nonStandard)
     }
 
     console.log('[handleFrameAnalyzed] count =', mediapipeStore.count)

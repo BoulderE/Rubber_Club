@@ -5,11 +5,9 @@ from application.blueprints.auth_bp import auth_bp
 from application.blueprints.chatbot_bp import chatbot_bp
 
 def create_app():
-    """创建并配置Flask应用"""
     app = Flask(__name__)
-    CORS(app, resources={r"/*": {"origins": "*"}})  # 启用跨域资源共享
+    CORS(app, resources={r"/*": {"origins": "*"}})
     
-    # 注册API路由
     app.register_blueprint(mediapipe_bp, url_prefix='/mediapipe')
     app.register_blueprint(auth_bp, url_prefix='/api')
     app.register_blueprint(chatbot_bp, url_prefix='/api/chatbot')
