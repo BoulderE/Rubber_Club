@@ -3,15 +3,16 @@ import numpy as np
 import time, math
 from statistics import mean, pstdev
 
+# ... (EXERCISE_CONFIG 保持不变，为了节省篇幅省略，请保留原有的配置) ...
 EXERCISE_CONFIG = {
     'bicep_curl': {
-        'name': '胸部拉伸', # 注意：原配置名似乎是胸部拉伸但key是bicep_curl，保留原样
+        'name': '胸部拉伸',
         'landmarks_to_use': ['right_shoulder', 'right_wrist'],
         'logic_function': '_analyze_bicep_curl_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': -0.015, # 举起状态 (Up)
-                'end_threshold_y': 0.03,     # 放下状态 (Down)
+                'start_threshold_y': -0.015,
+                'end_threshold_y': 0.03,
                 'over_extension_threshold_y': -0.18,
                 'min_distance': 0.015
             },
@@ -32,8 +33,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_chest_pull_logic',
         'params': {
             'intermediate': {
-                'start_threshold_wx': 0.28, # 手腕间距小 (Down/Start)
-                'end_threshold_wx':   0.30, # 手腕间距大 (Up/End)
+                'start_threshold_wx': 0.28,
+                'end_threshold_wx':   0.30,
                 'min_distance_wx':    0.01,
                 'min_wrist_rel_y':   -0.28,
                 'max_wrist_rel_y':    0.38
@@ -53,8 +54,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_lateral_raise_logic',
         'params': {
             'intermediate': {
-                'start_threshold_x': 0.15, # 手臂放下 (Down)
-                'end_threshold_x': 0.18,   # 手臂举起 (Up)
+                'start_threshold_x': 0.15,
+                'end_threshold_x': 0.18,
                 'over_extension_threshold_y': -0.18,
                 'min_distance': 0.02
             },
@@ -72,8 +73,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_front_raise_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': 0.70, # 手臂放下 (Down)
-                'end_threshold_y': 0.20,   # 手臂举起 (Up)
+                'start_threshold_y': 0.70,
+                'end_threshold_y': 0.20,
                 'min_distance': 0.015
             },
             'beginner': {
@@ -89,8 +90,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_overhead_press_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': 0.08,  # 手在肩部 (Down)
-                'end_threshold_y': -0.18,   # 手在头顶 (Up)
+                'start_threshold_y': 0.08,
+                'end_threshold_y': -0.18,
                 'min_distance': 0.01
             },
             'beginner': {
@@ -113,22 +114,18 @@ EXERCISE_CONFIG = {
             'intermediate': {
                 'start_threshold_y': 0.20,
                 'end_threshold_y': 0.00,
-
                 'min_horizontal_disp': 0.08,
                 'min_vertical_disp':   0.10,
                 'min_distance':        0.18,
-
                 'min_diagonal_angle':  8,
                 'max_diagonal_angle':  85,
             },
             'beginner': {
                 'start_threshold_y': 0.22,
                 'end_threshold_y': 0.05,
-
                 'min_horizontal_disp': 0.08,
                 'min_vertical_disp':   0.10,
                 'min_distance':        0.18,
-
                 'min_diagonal_angle':  8,
                 'max_diagonal_angle':  85,
             }
@@ -140,8 +137,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_squat_logic',
         'params': {
             'intermediate': {
-                'up_threshold_angle': 165.0,   # 站立 (Up/Start)
-                'down_threshold_angle': 95.0   # 蹲下 (Down)
+                'up_threshold_angle': 165.0,
+                'down_threshold_angle': 95.0
             },
             'beginner': {
                 'up_threshold_angle': 160.0,
@@ -150,7 +147,6 @@ EXERCISE_CONFIG = {
         }
     },
 }
-
 
 class WorkoutState:
     def __init__(self):
@@ -170,18 +166,15 @@ class WorkoutState:
         self._completed_this_frame = False
         self._completed_hold_frames = 0
         
-        # 统一的状态管理字典，替代旧的 _action_active 等散乱变量
-        # 结构: {'movement_state': 'down'/'up', 'start_pos': np.array, 'last_count_time': float}
         self._exercise_states = {
             'bicep_curl':  {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
             'chest_pull':  {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
             'lateral':     {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
             'front':       {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
             'overhead':    {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
-            'squat':       {'movement_state': 'up',   'start_pos': None, 'last_count_time': 0}, # 深蹲初始状态通常是站立(Up)
+            'squat':       {'movement_state': 'up',   'start_pos': None, 'last_count_time': 0},
         }
 
-        # Diagonal Lift 保持原有的左右侧独立状态
         self._diag_left_state = {
             'movement_state': 'down',
             'start_wrist_y': None,
@@ -401,44 +394,32 @@ class ExerciseAnalyzer:
         return angle
 
     # -------------------------------------------------------------------------
-    # 通用状态机逻辑 (核心重构部分)
+    # 通用状态机逻辑 (已优化时间参数)
     # -------------------------------------------------------------------------
     def _process_state_machine(self, state_dict, is_up, is_down, current_pos, min_dist=0.01, debounce_time=0.5, count_on_up=True):
         """
-        通用状态机处理函数，模仿 diagonal_lift 的逻辑。
-        
-        Args:
-            state_dict: 存储当前动作状态的字典 (movement_state, start_pos, last_count_time)
-            is_up: 是否处于 "Up" (通常是发力完成/顶峰) 状态
-            is_down: 是否处于 "Down" (通常是起始/放松) 状态
-            current_pos: 当前用于计算距离的位置 (np.array)
-            min_dist: 最小有效移动距离
-            debounce_time: 最小重复计数间隔时间
-            count_on_up: True表示在 Up 时计数(大多数动作), False表示在 Down 时计数(极少数情况)
+        通用状态机处理函数。
+        debounce_time: 两次计数之间的最小间隔时间。对于快速动作，应设置较小的值。
         """
         current_time = time.time()
         
-        # 1. 更新全局阶段记录 (用于平滑度计算)
         self._update_phase(is_up, is_down)
         
-        # 更新 UI 显示阶段
         if is_up:
             self.state.stage = 'up'
         elif is_down:
             self.state.stage = 'down'
 
-        # 2. 状态转换逻辑
-        # 情况 A: 处于 Down 状态，检测到 Up -> 触发计数 (Concentric 完成)
+        # 状态转换逻辑
+        # Down -> Up 触发计数
         if state_dict['movement_state'] == 'down' and is_up:
+            # 检查时间间隔 (防抖)
             if current_time - state_dict['last_count_time'] > debounce_time:
-                # 计算距离
                 dist = 0.0
                 if state_dict['start_pos'] is not None:
                     dist = np.linalg.norm(current_pos - state_dict['start_pos'])
                 
-                # 检查距离是否达标 (或者如果没有起始点，第一次不计数但更新状态)
                 if dist >= min_dist or state_dict['start_pos'] is None:
-                    # 只有当有起始点记录时才计数，避免初始状态直接在 Up 导致误判
                     if state_dict['start_pos'] is not None:
                         self.state.count += 1
                         self.state.total_distance += float(dist)
@@ -446,31 +427,26 @@ class ExerciseAnalyzer:
                         
                         self._on_rep_completed()
                         
-                        # 标记完成帧
                         self.state._completed_this_frame = True
                         self.state._completed_hold_frames = 2
                         
-                        # 检查是否标准 (Overextension)
                         is_non_standard = self.state._overextension_detected
                         self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
 
-                    # 状态转换
                     state_dict['movement_state'] = 'up'
                     state_dict['last_count_time'] = current_time
-                    # 在 Up 状态时，可以重置 start_pos，或者记录 Up 的位置作为下放的参考
-                    # 这里模仿 diagonal_lift，我们在 Down 的时候记录 Start Pos，所以这里不需要记录
 
-        # 情况 B: 处于 Up 状态，检测到 Down -> 重置 (Eccentric 完成)
+        # Up -> Down 重置
         elif state_dict['movement_state'] == 'up' and is_down:
             state_dict['movement_state'] = 'down'
-            state_dict['start_pos'] = current_pos.copy() # 记录新的起始点
+            state_dict['start_pos'] = current_pos.copy()
 
-        # 初始情况: 如果还没记录过起始点，且当前在 Down，记录一下
+        # 初始记录
         if state_dict['movement_state'] == 'down' and state_dict['start_pos'] is None and is_down:
             state_dict['start_pos'] = current_pos.copy()
 
     # -------------------------------------------------------------------------
-    # 各个动作的具体逻辑 (已重构)
+    # 各个动作的具体逻辑 (已调整 debounce_time)
     # -------------------------------------------------------------------------
 
     def _analyze_bicep_curl_logic(self, landmarks):
@@ -478,24 +454,22 @@ class ExerciseAnalyzer:
         shoulder = landmarks['right_shoulder']
         wrist = landmarks['right_wrist']
         
-        # 计算指标
         y_diff = wrist[1] - shoulder[1]
-
-        # 过伸检测
+        
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
             self.state._overextension_type = 'height_up'
 
-        # 状态判定
-        is_up = y_diff < params['start_threshold_y']   # 弯举向上
-        is_down = y_diff > params['end_threshold_y']   # 放下
+        is_up = y_diff < params['start_threshold_y']
+        is_down = y_diff > params['end_threshold_y']
 
-        # 调用通用状态机
+        # 弯举动作较快，将防抖时间设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['bicep_curl'],
             is_up, is_down, 
             current_pos=wrist,
-            min_dist=params.get('min_distance', 0.015)
+            min_dist=params.get('min_distance', 0.015),
+            debounce_time=0.3 
         )
 
     def _analyze_chest_pull_logic(self, landmarks):
@@ -503,19 +477,13 @@ class ExerciseAnalyzer:
         lw = landmarks['left_wrist']
         rw = landmarks['right_wrist']
         
-        # 计算指标
-        wx = abs(float(rw[0] - lw[0])) # 手腕间距
+        wx = abs(float(rw[0] - lw[0]))
 
-        # 状态判定
-        is_up = wx >= P['end_threshold_wx']      # 拉开 (Up/End)
-        is_down = wx <= P['start_threshold_wx']  # 合拢 (Down/Start)
+        is_up = wx >= P['end_threshold_wx']
+        is_down = wx <= P['start_threshold_wx']
 
-        # 这里的 current_pos 比较特殊，是两个手腕的距离，为了兼容通用函数，
-        # 我们构造一个虚拟的一维向量，或者直接传右左手距离之和。
-        # 简单起见，我们传右左手坐标的拼接向量，计算欧氏距离变化。
         current_pos_combined = np.concatenate([lw, rw])
 
-        # 注意：Chest Pull 还需要检查高度是否在范围内，这里作为额外条件
         ls = landmarks['left_shoulder']
         rs = landmarks['right_shoulder']
         rel_y_l = lw[1] - ls[1]
@@ -524,14 +492,15 @@ class ExerciseAnalyzer:
                     (P['min_wrist_rel_y'] <= rel_y_r <= P['max_wrist_rel_y'])
         
         if not height_ok:
-            # 如果高度不对，强制不认为达到了 Up 状态，防止错误计数
             is_up = False
 
+        # 扩胸动作节奏中等偏快，设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['chest_pull'],
             is_up, is_down,
             current_pos=current_pos_combined,
-            min_dist=0.02 # 组合向量的距离阈值
+            min_dist=0.02,
+            debounce_time=0.3
         )
 
     def _analyze_lateral_raise_logic(self, landmarks):
@@ -539,27 +508,25 @@ class ExerciseAnalyzer:
         shoulder = landmarks['right_shoulder']
         wrist = landmarks['right_wrist']
 
-        # 计算指标
         x_abs_diff = abs(wrist[0] - shoulder[0])
         y_diff = wrist[1] - shoulder[1]
 
-        # 过伸检测
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
             self.state._overextension_type = 'height_up'
 
-        # 状态判定
         is_up = x_abs_diff > params['end_threshold_x']
         is_down = x_abs_diff < params['start_threshold_x']
         
-        # 侧平举放下时，手应该在身体下方，避免在上方乱晃触发 Down
         is_safely_down = is_down and y_diff > 0.0 
 
+        # 侧平举动作快，设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['lateral'],
             is_up, is_safely_down,
             current_pos=wrist,
-            min_dist=params.get('min_distance', 0.02)
+            min_dist=params.get('min_distance', 0.02),
+            debounce_time=0.3
         )
 
     def _analyze_front_raise_logic(self, landmarks):
@@ -568,25 +535,24 @@ class ExerciseAnalyzer:
         wrist = landmarks['right_wrist']
         hip = landmarks['right_hip']
 
-        # 计算指标 (归一化高度)
         torso_length = abs(shoulder[1] - hip[1])
         if torso_length < 0.05: torso_length = 0.3
         y_diff = (wrist[1] - shoulder[1]) / torso_length
         
-        # 过伸检测
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
             self.state._overextension_type = 'height_up'
         
-        # 状态判定
         is_up = y_diff < params['end_threshold_y']
         is_down = y_diff > params['start_threshold_y']
         
+        # 前平举，设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['front'],
             is_up, is_down,
             current_pos=wrist,
-            min_dist=params.get('min_distance', 0.015)
+            min_dist=params.get('min_distance', 0.015),
+            debounce_time=0.3
         )
 
     def _analyze_overhead_press_logic(self, landmarks):
@@ -596,26 +562,19 @@ class ExerciseAnalyzer:
         
         y_diff = wrist[1] - shoulder[1]
         
-        # 状态判定
-        is_up = y_diff < params['end_threshold_y']      # 举过头顶
-        is_down = abs(y_diff) < params['start_threshold_y'] # 回到肩部
+        is_up = y_diff < params['end_threshold_y']
+        is_down = abs(y_diff) < params['start_threshold_y']
 
+        # 推举动作，设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['overhead'],
             is_up, is_down,
             current_pos=wrist,
-            min_dist=params.get('min_distance', 0.01)
+            min_dist=params.get('min_distance', 0.01),
+            debounce_time=0.3
         )
 
     def _analyze_squat_logic(self, landmarks):
-        # 深蹲逻辑特殊：Up 是站立(开始/结束)，Down 是蹲下(中间)
-        # 但我们的状态机逻辑是：Down -> Up 触发计数。
-        # 所以对于深蹲：
-        # 1. 初始状态设为 Up (站立)。
-        # 2. 下蹲时进入 Down 状态。
-        # 3. 起身回 Up 时触发计数。
-        # 这与 _process_state_machine 的逻辑 (Down -> Up 计数) 完美契合。
-        
         params = self.config['params'][self.style]
         hip = landmarks['right_hip']
         knee = landmarks['right_knee']
@@ -623,19 +582,20 @@ class ExerciseAnalyzer:
         
         angle = self._calculate_angle(hip, knee, ankle)
         
-        is_up = angle > params['up_threshold_angle']     # 站立
-        is_down = angle < params['down_threshold_angle'] # 蹲下
+        is_up = angle > params['up_threshold_angle']
+        is_down = angle < params['down_threshold_angle']
 
-        # 深蹲使用 Hip 的垂直位移作为距离参考
+        # 深蹲动作较慢，且需要稳定，保持 0.5秒 或更高
         self._process_state_machine(
             self.state._exercise_states['squat'],
             is_up, is_down,
             current_pos=hip,
-            min_dist=0.1 # 深蹲位移阈值大一些
+            min_dist=0.1,
+            debounce_time=0.5
         )
 
     # -------------------------------------------------------------------------
-    # Diagonal Lift 保持原样 (它是模板)
+    # Diagonal Lift 保持原样 (0.5s 对这个动作是合适的)
     # -------------------------------------------------------------------------
     def _analyze_diagonal_lift_logic(self, landmarks):
         P = self.config['params'][self.style]
@@ -744,7 +704,7 @@ class ExerciseAnalyzer:
         is_diagonal = (horizontal_disp >= params['min_horizontal_disp']) or diagonal_angle_ok
 
         should_count = False
-        debounce_time = 0.5
+        debounce_time = 0.5 # 对角线动作保持 0.5s
 
         if (state['movement_state'] == 'down' and is_up
             and current_time - state['last_count_time'] > debounce_time):
