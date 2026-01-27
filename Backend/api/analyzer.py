@@ -3,7 +3,6 @@ import numpy as np
 import time, math
 from statistics import mean, pstdev
 
-# ... (EXERCISE_CONFIG 保持不变，为了节省篇幅省略，请保留原有的配置) ...
 EXERCISE_CONFIG = {
     'bicep_curl': {
         'name': '胸部拉伸',
@@ -198,7 +197,7 @@ class WorkoutState:
 class ExerciseAnalyzer:
     def __init__(self):
         self.mp_pose = mp.solutions.pose
-        self.pose = self.mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=1)
+        self.pose = self.mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=0)
         self.state = WorkoutState()
         self.config = None
         self.style = 'intermediate'
