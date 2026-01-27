@@ -85,34 +85,26 @@ def analyze_stream():
     gesture_result = hf_gesture_recognizer.predict(image_rgb, confidence_threshold=0.6)
     current_gesture = gesture_result['gesture']
     
-    # if hf_gesture_recognizer.detect_stable_gesture(
-    #     image_rgb, 
-    #     target_gesture='stop',  
-    #     confidence_threshold=0.6
-    # ):
-    #     analyzer.state.is_paused = True
-    #     gesture_detected_type = 'stop'
-    #     hf_gesture_recognizer.reset_buffer()
-    
-    if hf_gesture_recognizer.detect_stable_gesture(
-        image_rgb,
-        target_gesture='like',
-        confidence_threshold=0.6
-    ):
-        analyzer.state.is_paused = False
-        gesture_detected_type = 'like'
-        hf_gesture_recognizer.reset_buffer()
-    
     if analyzer.state.is_paused:
+        if hf_gesture_recognizer.detect_stable_gesture(
+            image_rgb,
+            target_gesture='like',
+            confidence_threshold=0.6
+        ):
+            analyzer.state.is_paused = False
+            gesture_detected_type = 'like'
+            hf_gesture_recognizer.reset_buffer()
+        
         analysis_results = {
             'count': analyzer.state.count,
             'stage': analyzer.state.stage,
-            'feedback': "已暫停，請做 👍 手勢繼續",
+            'feedback': "請做 👍 手勢開始運動", 
             'paused': True,
             'energy': analyzer.state.total_energy
         }
     else:
         analysis_results = analyzer.process(image_rgb)
+        analysis_results['paused'] = False
 
     response_data = {
         analyzer.exercise_id: analysis_results,   
