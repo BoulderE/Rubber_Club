@@ -5,13 +5,13 @@ from statistics import mean, pstdev
 
 EXERCISE_CONFIG = {
     'bicep_curl': {
-        'name': '胸部拉伸',
+        'name': '胸部拉伸', # 注意：原配置名似乎是胸部拉伸但key是bicep_curl，保留原样
         'landmarks_to_use': ['right_shoulder', 'right_wrist'],
         'logic_function': '_analyze_bicep_curl_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': -0.015,
-                'end_threshold_y': 0.03,
+                'start_threshold_y': -0.015, # 举起状态 (Up)
+                'end_threshold_y': 0.03,     # 放下状态 (Down)
                 'over_extension_threshold_y': -0.18,
                 'min_distance': 0.015
             },
@@ -32,8 +32,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_chest_pull_logic',
         'params': {
             'intermediate': {
-                'start_threshold_wx': 0.28,
-                'end_threshold_wx':   0.30,
+                'start_threshold_wx': 0.28, # 手腕间距小 (Down/Start)
+                'end_threshold_wx':   0.30, # 手腕间距大 (Up/End)
                 'min_distance_wx':    0.01,
                 'min_wrist_rel_y':   -0.28,
                 'max_wrist_rel_y':    0.38
@@ -53,8 +53,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_lateral_raise_logic',
         'params': {
             'intermediate': {
-                'start_threshold_x': 0.15,
-                'end_threshold_x': 0.18,
+                'start_threshold_x': 0.15, # 手臂放下 (Down)
+                'end_threshold_x': 0.18,   # 手臂举起 (Up)
                 'over_extension_threshold_y': -0.18,
                 'min_distance': 0.02
             },
@@ -72,15 +72,13 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_front_raise_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': 0.70,
-                'end_threshold_y': 0.20,
-                # 'over_extension_threshold_y': -0.30,
+                'start_threshold_y': 0.70, # 手臂放下 (Down)
+                'end_threshold_y': 0.20,   # 手臂举起 (Up)
                 'min_distance': 0.015
             },
             'beginner': {
                 'start_threshold_y': 0.75,
                 'end_threshold_y': 0.30,
-                # 'over_extension_threshold_y': -0.20,
                 'min_distance': 0.012
             }
         }
@@ -91,8 +89,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_overhead_press_logic',
         'params': {
             'intermediate': {
-                'start_threshold_y': 0.08,
-                'end_threshold_y': -0.18,
+                'start_threshold_y': 0.08,  # 手在肩部 (Down)
+                'end_threshold_y': -0.18,   # 手在头顶 (Up)
                 'min_distance': 0.01
             },
             'beginner': {
@@ -142,8 +140,8 @@ EXERCISE_CONFIG = {
         'logic_function': '_analyze_squat_logic',
         'params': {
             'intermediate': {
-                'up_threshold_angle': 165.0,
-                'down_threshold_angle': 95.0
+                'up_threshold_angle': 165.0,   # 站立 (Up/Start)
+                'down_threshold_angle': 95.0   # 蹲下 (Down)
             },
             'beginner': {
                 'up_threshold_angle': 160.0,
@@ -151,7 +149,6 @@ EXERCISE_CONFIG = {
             }
         }
     },
-
 }
 
 
@@ -162,20 +159,29 @@ class WorkoutState:
     def reset(self):
         self.count = 0
         self.stage = None
-        self.feedback = "請做 👍 手勢開始運動"  # ← 修改提示
+        self.feedback = "請做 👍 手勢開始運動"
         self.is_paused = True
-        self._start_position = None
-        self._end_position = None
         self._overextension_detected = False
         self._overextension_type = None
-        self._action_active = False
         self.total_distance = 0.0
         self.total_energy = 0.0
         self.BAND_RESISTANCE_N = 25 * 9.81
         self._last_completion_category = 'standard'
         self._completed_this_frame = False
         self._completed_hold_frames = 0
-        self._action_overextended = False
+        
+        # 统一的状态管理字典，替代旧的 _action_active 等散乱变量
+        # 结构: {'movement_state': 'down'/'up', 'start_pos': np.array, 'last_count_time': float}
+        self._exercise_states = {
+            'bicep_curl':  {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
+            'chest_pull':  {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
+            'lateral':     {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
+            'front':       {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
+            'overhead':    {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
+            'squat':       {'movement_state': 'up',   'start_pos': None, 'last_count_time': 0}, # 深蹲初始状态通常是站立(Up)
+        }
+
+        # Diagonal Lift 保持原有的左右侧独立状态
         self._diag_left_state = {
             'movement_state': 'down',
             'start_wrist_y': None,
@@ -194,7 +200,6 @@ class WorkoutState:
         self.down_durations = []    
         self.current_phase = None   
         self.phase_start_time = None  
-        #new
         self._is_first_phase_switch = True 
 
 class ExerciseAnalyzer:
@@ -218,10 +223,8 @@ class ExerciseAnalyzer:
         return time.time()
     
     def _finalize_open_phase(self):
-   
         if self.state.current_phase is not None and self.state.phase_start_time is not None:
             duration = self._now() - self.state.phase_start_time
-            
             if 0.1 <= duration <= 10.0:
                 if self.state.current_phase == 'up':
                     self.state.up_durations.append(duration)
@@ -236,10 +239,7 @@ class ExerciseAnalyzer:
         self.state.phase_start_time = None
 
     def _update_phase(self, is_up: bool, is_down: bool):
-        
         now_t = self._now()
-        
-        # 🔹 确定当前应该处于的阶段
         target_phase = None
         if is_up:
             target_phase = 'up'
@@ -249,94 +249,63 @@ class ExerciseAnalyzer:
             return
         
         if self.state.current_phase != target_phase:
-            
             if self.state.current_phase is not None and self.state.phase_start_time is not None:
                 duration = now_t - self.state.phase_start_time
-
                 if self.state._is_first_phase_switch:
                     self.state._is_first_phase_switch = False 
-                    print(f"[DEBUG] 忽略起始准备时间 ({self.state.current_phase}): {duration:.2f}秒")
-                
                 elif 0.1 <= duration <= 10.0:
                     if self.state.current_phase == 'up':
                         self.state.up_durations.append(duration)
                         if len(self.state.up_durations) > 50:
                             self.state.up_durations.pop(0)
-                        print(f"[DEBUG] UP 阶段时长: {duration:.2f}秒")
-                    
                     elif self.state.current_phase == 'down':
                         self.state.down_durations.append(duration)
                         if len(self.state.down_durations) > 50:
                             self.state.down_durations.pop(0)
-                        print(f"[DEBUG] DOWN 阶段时长: {duration:.2f}秒")
             
             self.state.current_phase = target_phase
             self.state.phase_start_time = now_t
     
     def _on_rep_completed(self):
-        """完成一次动作的回调"""
         now_t = self._now()
-               
         if self.last_rep_start is not None:
-            
             duration = max(0.0, now_t - self.last_rep_start)
             if 0.2 <= duration <= 10.0:
                 self.repetition_durations.append(duration)
-        
-       
         self.last_rep_start = now_t
-        
         self.smoothness_score = self._compute_smoothness()
 
     def _compute_smoothness(self) -> int:
-        
         import statistics
-
         raw_up = self.state.up_durations[-20:]
         raw_down = self.state.down_durations[-20:]
 
-
         def calculate_phase_score(durations):
-            if len(durations) < 3:
-                return None
-            
+            if len(durations) < 3: return None
             med = statistics.median(durations)
             if med < 0.1: return None
-            
             valid_durations = [d for d in durations if d <= med * 2.5]
-            
-            if len(valid_durations) < 2:
-                return None
-
+            if len(valid_durations) < 2: return None
             avg = statistics.mean(valid_durations)
             std = statistics.pstdev(valid_durations)
-            
             cv = std / avg  
-            
             score = 100 - (cv * 140)
-            
             return max(10, min(100, int(score)))
 
         up_score = calculate_phase_score(raw_up)
         down_score = calculate_phase_score(raw_down)
-
         final_score = 100
-        
         if up_score is not None and down_score is not None:
             final_score = (up_score + down_score) / 2
         elif up_score is not None:
             final_score = up_score
         elif down_score is not None:
             final_score = down_score
-            
-        print(f"[DEBUG] 计算结果 -> UP分: {up_score}, DOWN分: {down_score}, 最终: {int(final_score)}")
         return int(final_score)
 
-
     def get_metrics(self):
-
         return {
-            "rep_count": self.rep_count,
+            "rep_count": self.state.count,
             "smoothness": self.smoothness_score,
             "rep_durations": self.repetition_durations[-20:], 
         }
@@ -349,7 +318,7 @@ class ExerciseAnalyzer:
         self.style = style if style in ['intermediate', 'beginner'] else 'intermediate'
         self.exercise_id = exercise_type
         self.reset()
-        print(f"分析器已設定為: 運動='{self.config['name']}', 模式='{self.style}' (使用專屬評價標準)")
+        print(f"分析器已設定為: 運動='{self.config['name']}', 模式='{self.style}'")
 
     def reset(self):
         self.state.reset()
@@ -392,18 +361,7 @@ class ExerciseAnalyzer:
         if self.state.is_paused:
             self._finalize_open_phase()
             self.state.feedback = "已暫停，做按讚手勢繼續"
-            return {
-                'count': self.state.count,
-                'stage': self.state.stage,
-                'feedback': self.state.feedback,
-                'paused': True,
-                'energy': self.state.total_energy,
-                'overextended': self.state._overextension_detected,
-                'completed': self.state._completed_this_frame,
-                'category': self.state._last_completion_category if self.state._completed_this_frame else ('non_standard' if self.state._overextension_detected else 'standard'),
-                'smoothness': self.smoothness_score,
-                'rep_durations': self.repetition_durations[-20:]
-            }
+            return self._build_result(paused=True)
 
         if landmarks:
             logic_function = getattr(self, self.config['logic_function'])
@@ -413,12 +371,14 @@ class ExerciseAnalyzer:
             self.state.feedback = "請確保身體關鍵部位在鏡頭內"
 
         self._generate_feedback()
+        return self._build_result(paused=False)
 
+    def _build_result(self, paused):
         return {
             'count': self.state.count,
             'stage': self.state.stage,
             'feedback': self.state.feedback,
-            'paused': self.state.is_paused,
+            'paused': paused,
             'energy': self.state.total_energy,
             'overextended': self.state._overextension_detected,
             'completed': self.state._completed_this_frame,
@@ -430,314 +390,253 @@ class ExerciseAnalyzer:
             'down_durations': self.state.down_durations[-10:],
         }
     
-    
-    ## new function
     def _calculate_angle(self, a, b, c):
-            a = np.array(a)  
-            b = np.array(b)  
-            c = np.array(c)  
-            
-            radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])
-            angle = np.abs(radians * 180.0 / np.pi)
-            
-            if angle > 180.0:
-                angle = 360 - angle
+        a = np.array(a)  
+        b = np.array(b)  
+        c = np.array(c)  
+        radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])
+        angle = np.abs(radians * 180.0 / np.pi)
+        if angle > 180.0:
+            angle = 360 - angle
+        return angle
+
+    # -------------------------------------------------------------------------
+    # 通用状态机逻辑 (核心重构部分)
+    # -------------------------------------------------------------------------
+    def _process_state_machine(self, state_dict, is_up, is_down, current_pos, min_dist=0.01, debounce_time=0.5, count_on_up=True):
+        """
+        通用状态机处理函数，模仿 diagonal_lift 的逻辑。
+        
+        Args:
+            state_dict: 存储当前动作状态的字典 (movement_state, start_pos, last_count_time)
+            is_up: 是否处于 "Up" (通常是发力完成/顶峰) 状态
+            is_down: 是否处于 "Down" (通常是起始/放松) 状态
+            current_pos: 当前用于计算距离的位置 (np.array)
+            min_dist: 最小有效移动距离
+            debounce_time: 最小重复计数间隔时间
+            count_on_up: True表示在 Up 时计数(大多数动作), False表示在 Down 时计数(极少数情况)
+        """
+        current_time = time.time()
+        
+        # 1. 更新全局阶段记录 (用于平滑度计算)
+        self._update_phase(is_up, is_down)
+        
+        # 更新 UI 显示阶段
+        if is_up:
+            self.state.stage = 'up'
+        elif is_down:
+            self.state.stage = 'down'
+
+        # 2. 状态转换逻辑
+        # 情况 A: 处于 Down 状态，检测到 Up -> 触发计数 (Concentric 完成)
+        if state_dict['movement_state'] == 'down' and is_up:
+            if current_time - state_dict['last_count_time'] > debounce_time:
+                # 计算距离
+                dist = 0.0
+                if state_dict['start_pos'] is not None:
+                    dist = np.linalg.norm(current_pos - state_dict['start_pos'])
                 
-            return angle
+                # 检查距离是否达标 (或者如果没有起始点，第一次不计数但更新状态)
+                if dist >= min_dist or state_dict['start_pos'] is None:
+                    # 只有当有起始点记录时才计数，避免初始状态直接在 Up 导致误判
+                    if state_dict['start_pos'] is not None:
+                        self.state.count += 1
+                        self.state.total_distance += float(dist)
+                        self.state.total_energy += self.state.BAND_RESISTANCE_N * float(dist)
+                        
+                        self._on_rep_completed()
+                        
+                        # 标记完成帧
+                        self.state._completed_this_frame = True
+                        self.state._completed_hold_frames = 2
+                        
+                        # 检查是否标准 (Overextension)
+                        is_non_standard = self.state._overextension_detected
+                        self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
+
+                    # 状态转换
+                    state_dict['movement_state'] = 'up'
+                    state_dict['last_count_time'] = current_time
+                    # 在 Up 状态时，可以重置 start_pos，或者记录 Up 的位置作为下放的参考
+                    # 这里模仿 diagonal_lift，我们在 Down 的时候记录 Start Pos，所以这里不需要记录
+
+        # 情况 B: 处于 Up 状态，检测到 Down -> 重置 (Eccentric 完成)
+        elif state_dict['movement_state'] == 'up' and is_down:
+            state_dict['movement_state'] = 'down'
+            state_dict['start_pos'] = current_pos.copy() # 记录新的起始点
+
+        # 初始情况: 如果还没记录过起始点，且当前在 Down，记录一下
+        if state_dict['movement_state'] == 'down' and state_dict['start_pos'] is None and is_down:
+            state_dict['start_pos'] = current_pos.copy()
+
+    # -------------------------------------------------------------------------
+    # 各个动作的具体逻辑 (已重构)
+    # -------------------------------------------------------------------------
 
     def _analyze_bicep_curl_logic(self, landmarks):
         params = self.config['params'][self.style]
-        shoulder, wrist = landmarks['right_shoulder'], landmarks['right_wrist']
+        shoulder = landmarks['right_shoulder']
+        wrist = landmarks['right_wrist']
         
+        # 计算指标
         y_diff = wrist[1] - shoulder[1]
 
-        self.state._overextension_detected = False
-        self.state._overextension_type = None
-
+        # 过伸检测
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
             self.state._overextension_type = 'height_up'
-            if self.state._action_active:
-                self.state._action_overextended = True
 
-        is_down = y_diff > params['end_threshold_y']         
-        is_up = y_diff < params['start_threshold_y']          
+        # 状态判定
+        is_up = y_diff < params['start_threshold_y']   # 弯举向上
+        is_down = y_diff > params['end_threshold_y']   # 放下
 
-        self._update_phase(is_up, is_down)
-
-        if is_up:
-            self.state.stage = 'up'
-        elif is_down:
-            self.state.stage = 'down'
-
-        if not self.state._action_active:
-            if is_up:
-                self.state._action_active = True
-                self.state._start_position = wrist
-                self.state._action_overextended = False
-        elif is_down:
-            distance = np.linalg.norm(wrist - self.state._start_position)
-            min_dist = params.get('min_distance', 0.01)
-            if distance > min_dist:
-                self.state._action_active = False
-                self.state._end_position = wrist
-                self.state.count += 1
-                self.state.total_distance += distance
-                self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-
-                self._on_rep_completed()
-
-                is_non_standard = bool(getattr(self.state, '_action_overextended', False))
-                self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
-
-                self.state._completed_this_frame = True
-                self.state._completed_hold_frames = 2
-
-                self.state._action_overextended = False
+        # 调用通用状态机
+        self._process_state_machine(
+            self.state._exercise_states['bicep_curl'],
+            is_up, is_down, 
+            current_pos=wrist,
+            min_dist=params.get('min_distance', 0.015)
+        )
 
     def _analyze_chest_pull_logic(self, landmarks):
-
         P = self.config['params'][self.style]
+        lw = landmarks['left_wrist']
+        rw = landmarks['right_wrist']
+        
+        # 计算指标
+        wx = abs(float(rw[0] - lw[0])) # 手腕间距
 
-        ls = np.array(landmarks['left_shoulder'], dtype=float)
-        rs = np.array(landmarks['right_shoulder'], dtype=float)
-        lw = np.array(landmarks['left_wrist'], dtype=float)
-        rw = np.array(landmarks['right_wrist'], dtype=float)
+        # 状态判定
+        is_up = wx >= P['end_threshold_wx']      # 拉开 (Up/End)
+        is_down = wx <= P['start_threshold_wx']  # 合拢 (Down/Start)
 
-        wx = abs(float(rw[0] - lw[0]))
+        # 这里的 current_pos 比较特殊，是两个手腕的距离，为了兼容通用函数，
+        # 我们构造一个虚拟的一维向量，或者直接传右左手距离之和。
+        # 简单起见，我们传右左手坐标的拼接向量，计算欧氏距离变化。
+        current_pos_combined = np.concatenate([lw, rw])
 
-        rel_y_l = float(lw[1] - ls[1])
-        rel_y_r = float(rw[1] - rs[1])
+        # 注意：Chest Pull 还需要检查高度是否在范围内，这里作为额外条件
+        ls = landmarks['left_shoulder']
+        rs = landmarks['right_shoulder']
+        rel_y_l = lw[1] - ls[1]
+        rel_y_r = rw[1] - rs[1]
+        height_ok = (P['min_wrist_rel_y'] <= rel_y_l <= P['max_wrist_rel_y']) and \
+                    (P['min_wrist_rel_y'] <= rel_y_r <= P['max_wrist_rel_y'])
+        
+        if not height_ok:
+            # 如果高度不对，强制不认为达到了 Up 状态，防止错误计数
+            is_up = False
 
-        is_up = wx >= P['end_threshold_wx']
-        is_down = wx <= P['start_threshold_wx']
+        self._process_state_machine(
+            self.state._exercise_states['chest_pull'],
+            is_up, is_down,
+            current_pos=current_pos_combined,
+            min_dist=0.02 # 组合向量的距离阈值
+        )
 
-        self._update_phase(is_up, is_down)
-
-        if is_up:
-            self.state.stage = 'up'
-        elif is_down:
-            self.state.stage = 'down'
-
-        if not hasattr(self.state, '_cpull_active'):
-            self.state._cpull_active = False
-        if not hasattr(self.state, '_cpull_reached_up'):
-            self.state._cpull_reached_up = False
-
-        if is_down and not self.state._cpull_active:
-            self.state._cpull_active = True
-            self.state._cpull_reached_up = False
-            self.state._cpull_start_wx = wx
-            self.state._cpull_start_lw = lw[:2].copy()
-            self.state._cpull_start_rw = rw[:2].copy()
-
-        if self.state._cpull_active and not self.state._cpull_reached_up and is_up:
-            self.state._cpull_reached_up = True
-
-        if self.state._cpull_active and self.state._cpull_reached_up and is_down:
-            
-            wx_range = abs(wx - self.state._cpull_start_wx)
-            pass_range = wx_range >= P['min_distance_wx']
-           
-            pass_rel_y = (P['min_wrist_rel_y'] <= rel_y_l <= P['max_wrist_rel_y']) and \
-                        (P['min_wrist_rel_y'] <= rel_y_r <= P['max_wrist_rel_y'])
-
-            if pass_range and pass_rel_y:
-                move_dist = float(
-                    np.linalg.norm(lw[:2] - self.state._cpull_start_lw) +
-                    np.linalg.norm(rw[:2] - self.state._cpull_start_rw)
-                )
-                self.state.count += 1
-                self.state.total_distance += move_dist
-                self.state.total_energy += self.state.BAND_RESISTANCE_N * move_dist
-
-                self._on_rep_completed()
-                self.state._last_completion_category = 'standard'
-                self.state._completed_this_frame = True
-                self.state._completed_hold_frames = 2
-
-            for k in ['_cpull_active','_cpull_reached_up',
-                    '_cpull_start_wx','_cpull_start_lw','_cpull_start_rw']:
-                if hasattr(self.state, k):
-                    delattr(self.state, k)
-            self.state._cpull_active = False
-            self.state._cpull_reached_up = False           
-    
     def _analyze_lateral_raise_logic(self, landmarks):
-
         params = self.config['params'][self.style]
         shoulder = landmarks['right_shoulder']
         wrist = landmarks['right_wrist']
 
+        # 计算指标
         x_abs_diff = abs(wrist[0] - shoulder[0])
         y_diff = wrist[1] - shoulder[1]
 
-        self.state._overextension_detected = False
-        self.state._overextension_type = None
-        
+        # 过伸检测
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
             self.state._overextension_type = 'height_up'
-            if self.state._action_active:
-                self.state._action_overextended = True
 
+        # 状态判定
         is_up = x_abs_diff > params['end_threshold_x']
         is_down = x_abs_diff < params['start_threshold_x']
         
-        is_safely_down = is_down and y_diff > -0.05  
-        self._update_phase(is_up, is_down)
-        
-        if is_up:
-            self.state.stage = 'up'
-        elif is_down:
-            self.state.stage = 'down'
+        # 侧平举放下时，手应该在身体下方，避免在上方乱晃触发 Down
+        is_safely_down = is_down and y_diff > 0.0 
 
-        if is_safely_down and not self.state._action_active:
-            self.state._action_active = True
-            self.state._in_up_phase = False
-            self.state._action_overextended = False
-            self.state._start_position = wrist.copy()
-
-        if self.state._action_active and not self.state._in_up_phase and is_up:
-            self.state._in_up_phase = True
-
-        if self.state._action_active and self.state._in_up_phase and is_safely_down:
-            self.state._end_position = wrist.copy()
-            distance = float(np.linalg.norm(self.state._end_position - self.state._start_position))
-            
-            if distance > params.get('min_distance', 0.02):
-                self.state.count += 1
-                self.state.total_distance += distance
-                self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-
-                self._on_rep_completed()
-
-                is_non_standard = bool(getattr(self.state, '_action_overextended', False))
-                self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
-
-                self.state._completed_this_frame = True
-                self.state._completed_hold_frames = 2
-
-            self.state._action_active = False
-            self.state._in_up_phase = False
-            self.state._action_overextended = False
+        self._process_state_machine(
+            self.state._exercise_states['lateral'],
+            is_up, is_safely_down,
+            current_pos=wrist,
+            min_dist=params.get('min_distance', 0.02)
+        )
 
     def _analyze_front_raise_logic(self, landmarks):
-  
         params = self.config['params'][self.style]
         shoulder = landmarks['right_shoulder']
         wrist = landmarks['right_wrist']
-        elbow = landmarks['right_elbow']
         hip = landmarks['right_hip']
 
+        # 计算指标 (归一化高度)
         torso_length = abs(shoulder[1] - hip[1])
+        if torso_length < 0.05: torso_length = 0.3
+        y_diff = (wrist[1] - shoulder[1]) / torso_length
         
-        if torso_length < 0.05:
-            torso_length = 0.3
-        
-        y_diff_raw = wrist[1] - shoulder[1]
-        
-        y_diff = y_diff_raw / torso_length
-        
-        self.state._overextension_detected = False
-        self.state._overextension_type = None
-        
+        # 过伸检测
         if 'over_extension_threshold_y' in params and y_diff < params['over_extension_threshold_y']:
             self.state._overextension_detected = True
             self.state._overextension_type = 'height_up'
-            if self.state._action_active:
-                self.state._action_overextended = True
         
+        # 状态判定
         is_up = y_diff < params['end_threshold_y']
         is_down = y_diff > params['start_threshold_y']
         
-        self._update_phase(is_up, is_down)
-        
-        if is_up:
-            self.state.stage = 'up'
-        elif is_down:
-            self.state.stage = 'down'
-        
-        if not hasattr(self.state, '_in_up_phase'):
-            self.state._in_up_phase = False
-        
-        if is_down and not self.state._action_active:
-            self.state._action_active = True
-            self.state._in_up_phase = False
-            self.state._action_overextended = False
-            self.state._start_position = wrist.copy()
-        
-        if self.state._action_active and not self.state._in_up_phase and is_up:
-            self.state._in_up_phase = True
-        
-        if self.state._action_active and self.state._in_up_phase and is_down:
-            self.state._end_position = wrist.copy()
-            
-            distance = float(np.linalg.norm(self.state._end_position - self.state._start_position))
-            
-            if distance > params.get('min_distance', 0.010):
-
-                self.state.count += 1
-                self.state.total_distance += distance
-                self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-                
-                self._on_rep_completed()
-                
-                is_non_standard = bool(getattr(self.state, '_action_overextended', False))
-                self.state._last_completion_category = 'non_standard' if is_non_standard else 'standard'
-                
-                self.state._completed_this_frame = True
-                self.state._completed_hold_frames = 2
-            
-            self.state._action_active = False
-            self.state._in_up_phase = False
-            self.state._action_overextended = False
+        self._process_state_machine(
+            self.state._exercise_states['front'],
+            is_up, is_down,
+            current_pos=wrist,
+            min_dist=params.get('min_distance', 0.015)
+        )
 
     def _analyze_overhead_press_logic(self, landmarks):
         params = self.config['params'][self.style]
-        shoulder, wrist, elbow = landmarks['right_shoulder'], landmarks['right_wrist'], landmarks['right_elbow']
+        shoulder = landmarks['right_shoulder']
+        wrist = landmarks['right_wrist']
         
         y_diff = wrist[1] - shoulder[1]
         
-        is_up = y_diff < params['end_threshold_y']
-        is_down = abs(y_diff) < params['start_threshold_y']
+        # 状态判定
+        is_up = y_diff < params['end_threshold_y']      # 举过头顶
+        is_down = abs(y_diff) < params['start_threshold_y'] # 回到肩部
 
-        self._update_phase(is_up, is_down)
+        self._process_state_machine(
+            self.state._exercise_states['overhead'],
+            is_up, is_down,
+            current_pos=wrist,
+            min_dist=params.get('min_distance', 0.01)
+        )
 
-        if is_up:
-            self.state.stage = 'up'
-        elif is_down:
-            self.state.stage = 'down'
+    def _analyze_squat_logic(self, landmarks):
+        # 深蹲逻辑特殊：Up 是站立(开始/结束)，Down 是蹲下(中间)
+        # 但我们的状态机逻辑是：Down -> Up 触发计数。
+        # 所以对于深蹲：
+        # 1. 初始状态设为 Up (站立)。
+        # 2. 下蹲时进入 Down 状态。
+        # 3. 起身回 Up 时触发计数。
+        # 这与 _process_state_machine 的逻辑 (Down -> Up 计数) 完美契合。
+        
+        params = self.config['params'][self.style]
+        hip = landmarks['right_hip']
+        knee = landmarks['right_knee']
+        ankle = landmarks['right_ankle']
+        
+        angle = self._calculate_angle(hip, knee, ankle)
+        
+        is_up = angle > params['up_threshold_angle']     # 站立
+        is_down = angle < params['down_threshold_angle'] # 蹲下
 
-        if not self.state._action_active:
-            self.state._in_up_phase = False
-        if is_down and not self.state._action_active:
-            self.state._action_active = True
-            self.state._in_up_phase = False
-            self.state._start_position = wrist.copy()
-            self.state._action_overextended = False 
+        # 深蹲使用 Hip 的垂直位移作为距离参考
+        self._process_state_machine(
+            self.state._exercise_states['squat'],
+            is_up, is_down,
+            current_pos=hip,
+            min_dist=0.1 # 深蹲位移阈值大一些
+        )
 
-        if self.state._action_active and not self.state._in_up_phase and is_up:
-            self.state._in_up_phase = True
-
-        if self.state._action_active and self.state._in_up_phase and is_down:
-            self.state._end_position = wrist.copy()
-            distance = float(np.linalg.norm(self.state._end_position - self.state._start_position))
-
-            if distance > params.get('min_distance', 0.02):
-                self.state.count += 1
-                self.state.total_distance += distance
-                self.state.total_energy += self.state.BAND_RESISTANCE_N * distance
-
-                self._on_rep_completed()
-                self.state._last_completion_category = 'standard'
-                self.state._completed_this_frame = True
-                self.state._completed_hold_frames = 2
-
-            self.state._action_active = False
-            self.state._in_up_phase = False
-            self.state._action_overextended = False
-
+    # -------------------------------------------------------------------------
+    # Diagonal Lift 保持原样 (它是模板)
+    # -------------------------------------------------------------------------
     def _analyze_diagonal_lift_logic(self, landmarks):
         P = self.config['params'][self.style]
         
@@ -755,7 +654,6 @@ class ExerciseAnalyzer:
 
         if not hasattr(self.state, '_diag_start_time'):
             self.state._diag_start_time = time.time()
-        startup_grace = (time.time() - self.state._diag_start_time) < 0.8
         
         left_result = self._analyze_diagonal_side(
             'left', ls, le, lw, rs, body_height, shoulder_width, 
@@ -840,7 +738,7 @@ class ExerciseAnalyzer:
         if state['start_wrist_y'] is not None:
             dy = (wrist[1] - state['start_wrist_y']) / body_height
             dx = (wrist[0] - state['start_wrist_x']) / max(shoulder_width, 1e-6)
-            angle_deg = abs(math.degrees(math.atan2(-dy, dx)))  # 0=水平，90=竖直
+            angle_deg = abs(math.degrees(math.atan2(-dy, dx)))
             diagonal_angle_ok = (params['min_diagonal_angle'] <= angle_deg <= params['max_diagonal_angle'])
 
         is_diagonal = (horizontal_disp >= params['min_horizontal_disp']) or diagonal_angle_ok
@@ -881,7 +779,7 @@ class ExerciseAnalyzer:
 
     def _generate_feedback(self):
         if self.state._overextension_detected:
-            if self.state._overextension_type == 'height':
+            if self.state._overextension_type == 'height_up':
                 self.state.feedback = "手臂舉得太高了，請放低一些！"
             elif self.state._overextension_type == 'depth':
                 self.state.feedback = "手臂太靠後了，請往前一些！"
