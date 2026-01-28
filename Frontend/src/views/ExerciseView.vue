@@ -390,22 +390,23 @@ function handleFrameAnalyzed(result) {
 
   console.log('[handleFrameAnalyzed] received result keys:', Object.keys(result))
 
+  const byAnalysis = result?.analysis
   const byCurrent = result?.current
   const byType = result?.[exerciseType.value]
   const byName = exerciseData.value?.name ? result?.[exerciseData.value.name] : undefined
-  const byAnalysis = result?.analysis 
   const byExercise = result?.exercise ? result?.[result.exercise] : undefined 
   
-  const analysisData = byCurrent || byType || byName || byAnalysis || byExercise || result
+  const analysisData = byAnalysis || byCurrent || byType || byName || byExercise || result
 
   console.log('[handleFrameAnalyzed] selected data source:',
+    byAnalysis ? 'analysis' :
     byCurrent ? 'current' : 
     byType ? 'type' : 
     byName ? 'name' : 
-    byAnalysis ? 'analysis' : 
     byExercise ? 'exercise' : 
     'fallback'
   )
+  // ===== 修改结束 =====
 
   if (analysisData && typeof analysisData === 'object') {
     const mergedData = {
@@ -429,7 +430,7 @@ function handleFrameAnalyzed(result) {
       isOverextended.value = Boolean(mergedData.overextended || nonStandard)
     }
 
-    console.log('[handleFrameAnalyzed] count =', mediapipeStore.count)
+    console.log('[handleFrameAnalyzed] feedback =', mergedData.feedback, ', count =', mediapipeStore.count)
   }
 
   if (result.gesture_detected) {

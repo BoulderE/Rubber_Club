@@ -29,6 +29,11 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   const waitingForGesture = ref(false)    
 
   const completedThisFrame = ref(false)
+
+  // ===== 新增：暂停防抖动 =====
+  const lastPauseChangeTime = ref(0)
+  const PAUSE_DEBOUNCE_MS = 1500  // 1.5秒内不允许切换暂停状态
+
   async function controlBackend(payload) {
     try {
       const response = await fetch(`${API_URL}/mediapipe/control`, {
@@ -53,44 +58,44 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     if (isAnalyzing.value) return null
 
     try {
-    isAnalyzing.value = true
+      isAnalyzing.value = true
 
-    const base64Data = imageData.split(',')[1]
-    const byteCharacters = atob(base64Data)
-    const byteNumbers = new Array(byteCharacters.length)
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i)
+      const base64Data = imageData.split(',')[1]
+      const byteCharacters = atob(base64Data)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: 'image/jpeg' })
+
+      const formData = new FormData()
+      formData.append('file', blob, 'frame.jpg')
+
+      const response = await fetch(`${API_URL}/mediapipe/analyze-stream`, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log('[analyzeFrame] backend raw result:', result)
+      console.log('[analyzeFrame] keys:', Object.keys(result))
+
+      if (result.gesture_detected) {
+        lastGesture.value = result.gesture_detected
+      }
+
+      return result
+    } catch (error) {
+      console.error('Frame analysis error:', error)
+      return null
+    } finally {
+      isAnalyzing.value = false
     }
-    const byteArray = new Uint8Array(byteNumbers)
-    const blob = new Blob([byteArray], { type: 'image/jpeg' })
-
-    const formData = new FormData()
-    formData.append('file', blob, 'frame.jpg')
-
-    const response = await fetch(`${API_URL}/mediapipe/analyze-stream`, {
-      method: 'POST',
-      body: formData
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const result = await response.json()
-    console.log('[analyzeFrame] backend raw result:', result)
-    console.log('[analyzeFrame] keys:', Object.keys(result))
-
-    if (result.gesture_detected) {
-      lastGesture.value = result.gesture_detected
-    }
-
-  return result
-  } catch (error) {
-  console.error('Frame analysis error:', error)
-  return null
-  } finally {
-  isAnalyzing.value = false
-  }
   }
 
   async function startExercise(exerciseType, style) {
@@ -115,14 +120,14 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       isPaused.value = true    
       analysisResults.value = null
       smoothness.value = 100          
-      repDurations.value = []         
+      repDurations.value = []
+      lastPauseChangeTime.value = 0  // 重置防抖时间
       console.log(`Exercise '${exerciseType}' started with style '${style}'. max reps: ${repetitionLimit.value}`);
     } else {
       console.error("Failed to start exercise on the backend.");
     }
   }
 
-  
   function stopExercise() {
     status.value = 'ready'
     isAnalyzing.value = false
@@ -137,8 +142,21 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     count.value = newCount
     energy.value = Math.round(analysisData.energy ?? energy.value)
     completedThisFrame.value = !!analysisData.completed || grew
-    const wasPaused = isPaused.value
-    isPaused.value = !!analysisData.paused
+
+    // ===== 修改：暂停状态防抖动 =====
+    const backendPaused = !!analysisData.paused
+    const now = Date.now()
+    
+    if (backendPaused !== isPaused.value) {
+      if (now - lastPauseChangeTime.value > PAUSE_DEBOUNCE_MS) {
+        console.log(`[updateAnalysisData] 暂停状态切换: ${isPaused.value} -> ${backendPaused}`)
+        isPaused.value = backendPaused
+        lastPauseChangeTime.value = now
+      } else {
+        console.log(`[updateAnalysisData] 忽略抖动: 尝试切换到 ${backendPaused}，距上次切换仅 ${now - lastPauseChangeTime.value}ms`)
+      }
+    }
+    // ===== 修改结束 =====
 
     if (typeof analysisData.smoothness !== 'undefined') {           
       smoothness.value = Number(analysisData.smoothness) || 0      
@@ -155,27 +173,17 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       gestureMessage.value = ''
     }
 
-    if (wasPaused && !isPaused.value) {
-      console.log('[updateAnalysisData] 运动已通过手势恢复')
-    } else if (!wasPaused && isPaused.value) {
-      console.log('[updateAnalysisData] 运动已通过手势暂停')
+    if (isPaused.value && !backendPaused) {
+      console.log('[updateAnalysisData] 后端要求恢复，但被防抖忽略')
+    } else if (!isPaused.value && backendPaused) {
+      console.log('[updateAnalysisData] 后端要求暂停，但被防抖忽略')
     }
-
-    analysisResults.value = analysisData
-
-    console.log(
-      '[updateAnalysisData] after update ->',
-      'count:', count.value,
-      'energy:', energy.value,
-      'paused:', isPaused.value,
-      'status:', status.value,
-      'smoothness:', smoothness.value
-    )
 
     analysisResults.value = analysisData
 
     if (isPaused.value) status.value = 'paused'
     else status.value = 'active'
+    
     if (typeof repetitionLimit.value !== 'undefined' && repetitionLimit.value !== null && count.value >= repetitionLimit.value) {
       status.value = 'completed'
     }
@@ -200,11 +208,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       'count=', count.value,
       'accurateCount=', accurateCount.value,
       'accuracy=', accuracy.value,
-      'category=', analysisData.category,
-      'grew=', grew
+      'paused=', isPaused.value
     )
   }
-
 
   async function reset() {
     const success = await controlBackend({ action: 'reset' });
@@ -225,6 +231,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       waitingForGesture.value = true
       isPaused.value = true
       status.value = 'paused'
+      lastPauseChangeTime.value = 0  // 重置防抖时间
 
       completedThisFrame.value = false
     }
