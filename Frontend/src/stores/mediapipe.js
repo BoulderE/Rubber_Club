@@ -229,12 +229,16 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     )
   }
 
-  async function reset() {
-    // ===== 新增：reset 时也重置序号 =====
+  async function reset(skipBackend=false) {
     requestSequence = 0
 
-    const success = await controlBackend({ action: 'reset' });
-    if (success) {
+    if (!skipBackend) {
+      const success = await controlBackend({ action: 'reset' });
+      if (!success) {
+        console.warn('[reset] 后端 reset 失败，但仍重置本地状态')
+      }
+    }
+
       accurateCount.value = 0
       accuracy.value = 0
       lastCount.value = 0
@@ -254,7 +258,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       lastPauseChangeTime.value = 0
 
       completedThisFrame.value = false
-    }
+  
   }
   
   return {

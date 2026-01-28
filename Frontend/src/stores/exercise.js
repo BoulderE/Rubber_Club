@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref,computed } from 'vue'
 
 export const useExerciseStore = defineStore('exercise', () => {
   const exerciseTypes = ref([
@@ -67,6 +67,48 @@ export const useExerciseStore = defineStore('exercise', () => {
   const startTime = ref(null) 
   const endTime = ref(null) 
 
+  //new
+  const playlist = ref([])
+  const currentPlaylistIndex = ref(-1)
+  const isPlaylistMode = computed(() => playlist.value.length > 0 && currentPlaylistIndex.value >= 0)
+
+  const currentPlaylistExercise = computed(() => {
+    if (!isPlaylistMode.value) return null
+    return playlist.value[currentPlaylistIndex.value]
+  })
+
+  const hasNextInPlaylist = computed(() => {
+    return isPlaylistMode.value && currentPlaylistIndex.value < playlist.value.length - 1
+  })
+
+  const playlistProgress = computed(() => ({
+    current: currentPlaylistIndex.value + 1,
+    total: playlist.value.length
+  }))
+
+  const startPlaylist = (exerciseIds) => {
+    playlist.value = [...exerciseIds]
+    currentPlaylistIndex.value = 0
+    return playlist.value[0]
+  }
+
+  const nextInPlaylist = () => {
+    if (hasNextInPlaylist.value) {
+      currentPlaylistIndex.value++
+      return playlist.value[currentPlaylistIndex.value]
+    }
+    return null
+  }
+
+  const clearPlaylist = () => {
+    playlist.value = []
+    currentPlaylistIndex.value = -1
+  }
+
+  const getPlaylistExercises = computed(() => {
+    return playlist.value.map(id => exerciseTypes.value.find(ex => ex.id === id)).filter(Boolean)
+  })
+
   const selectExercise = (exerciseId) => {
     selectedExercise.value = exerciseId
   }
@@ -102,6 +144,18 @@ export const useExerciseStore = defineStore('exercise', () => {
     startTime,
     endTime,
     startExercise,
-    endExercise
+    endExercise,
+
+    //new
+    playlist,
+    currentPlaylistIndex,
+    isPlaylistMode,
+    currentPlaylistExercise,
+    hasNextInPlaylist,
+    playlistProgress,
+    getPlaylistExercises,
+    startPlaylist,
+    nextInPlaylist,
+    clearPlaylist
   }
 })

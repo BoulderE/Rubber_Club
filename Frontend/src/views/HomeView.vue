@@ -1,9 +1,22 @@
 <template>
   <div class="home-view">
     <div class="hero-section">
-      <h1>Rubber Club</h1>
-      <p>Your Digital Fitness Helper</p>
-    </div>
+      <div class="hero-container">
+        <div class="hero-left">
+          <h1>Rubber Club</h1>
+          <p>Your Digital Fitness Helper</p>
+        </div>
+        <div class="hero-right">
+              <div class="playlist-card" @click="startPlaylistMode">
+            <div class="playlist-info">
+              <h3>整組訓練</h3>
+              <p>6 個動作完整鍛鍊</p>
+            </div>
+            <span class="playlist-arrow">→</span>
+          </div>
+        </div>
+      </div>
+    </div>    
 
     <div v-if="showModal" class="modal-backdrop" @click.self="showModal = false">
       <div class="modal-content">
@@ -124,6 +137,7 @@
 import ChatbotWindow from '@/components/ChatbotWindow.vue'; 
 import { ref, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { useExerciseStore } from '@/stores/exercise'
 
 const router = useRouter();
 
@@ -301,6 +315,22 @@ onBeforeUnmount(() => {
     }
   });
 });
+
+// new
+const exerciseStore = useExerciseStore()
+function startPlaylistMode() {
+  const defaultPlaylist = ['bicep_curl', 'lateral_raise', 'front_raise', 'overhead_press', 'chest_pull', 'diagonal_lift']
+  const firstExercise = exerciseStore.startPlaylist(defaultPlaylist)
+  
+  router.push({
+    name: 'exercise',
+    params: { type: firstExercise },
+    query: {
+      style: 'beginner',
+      autoPlayVoice: 'true'
+    }
+  })
+}
 </script>
 
 <style scoped>
@@ -844,6 +874,118 @@ onBeforeUnmount(() => {
 @media (max-width: 480px) {
   .exercises-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+.hero-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 60px 24px;
+}
+
+.hero-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.hero-left {
+  flex: 1;
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 8px 0;
+}
+
+.hero-subtitle {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 16px 0;
+}
+
+.hero-desc {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+.hero-right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.playlist-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 300px;
+}
+
+.playlist-card:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+.playlist-icon {
+  font-size: 2.5rem;
+}
+
+.playlist-info h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 4px 0;
+}
+
+.playlist-info p {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+
+.playlist-arrow {
+  font-size: 1.5rem;
+  color: white;
+  margin-left: auto;
+  transition: transform 0.3s ease;
+}
+
+.playlist-card:hover .playlist-arrow {
+  transform: translateX(4px);
+}
+
+@media (max-width: 768px) {
+  .hero-container {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .hero-right {
+    justify-content: center;
+    width: 100%;
+  }
+  
+  .playlist-card {
+    width: 100%;
+    max-width: 320px;
+  }
+  
+  .hero-title {
+    font-size: 2rem;
   }
 }
 </style>

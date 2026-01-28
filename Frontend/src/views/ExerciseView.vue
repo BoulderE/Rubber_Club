@@ -107,6 +107,7 @@
       :exercise-type="exerciseType"
       @continue="handleContinueWorkout"
       @end="handleEndWorkout"
+      @next="handleNextInPlaylist"
     />
   </div>
 
@@ -382,7 +383,6 @@ onBeforeUnmount(() => {
 })
 
 function handleFrameAnalyzed(result) {
-  // 检查空结果
   if (!result || Object.keys(result).length === 0) {
     console.log('[handleFrameAnalyzed] 空结果，跳过')
     return
@@ -406,7 +406,6 @@ function handleFrameAnalyzed(result) {
     byExercise ? 'exercise' : 
     'fallback'
   )
-  // ===== 修改结束 =====
 
   if (analysisData && typeof analysisData === 'object') {
     const mergedData = {
@@ -507,10 +506,77 @@ function handleEndWorkout() {
 
   router.push('/')
 }
+
+// new
+function handleNextInPlaylist() {
+  const nextId = exerciseStore.nextInPlaylist()
+  if (nextId) {
+    router.push({
+      name: 'exercise',
+      params: { type: nextId },
+      query: { 
+        style: style.value,
+        autoPlayVoice: 'true'
+      }
+    })
+  }
+}
+
+watch(
+  () => route.params.type,
+  async (newType, oldType) => {
+    if (!newType || newType === oldType) return
+    
+    console.log('[route change] 切换动作:', oldType, '->', newType)
+    
+    showSummary.value = false
+    
+    try {
+      analyzer.value?.stopAnalysis?.()
+    } catch (e) {
+      console.warn('[route change] stopAnalysis error:', e)
+    }
+    
+    mediapipeStore.reset()
+    
+    exerciseType.value = newType
+    isWorkoutActive.value = false
+    showStartupGuide.value = false
+    showReadyMessage.value = false
+    feedbackText.value = '隨時準備！'
+    isOverextended.value = false
+    previousCount.value = 0
+    lastPlayedCount.value = 0
+    currentAngles.value = null
+    
+    if (readyMessageTimer.value) {
+      clearTimeout(readyMessageTimer.value)
+      readyMessageTimer.value = null
+    }
+    
+    exerciseStore.selectExercise(newType)
+    
+    await nextTick()
+    
+    if (style.value === 'beginner') {
+      showBriefing.value = true
+    } else {
+      if (route.query.autoPlayVoice === 'true') {
+        setTimeout(() => {
+          const instructionAudio = new Audio('/sounds/begin_with_instruction.mp3')
+          instructionAudio.play()
+            .then(() => console.log('🔊 自动播放语音成功'))
+            .catch(err => console.error('❌ 播放失败:', err))
+        }, 500)
+      }
+      await startWorkoutFlow()
+    }
+  },
+  { immediate: false }
+)
 </script>
 
 <style scoped>
-/* ==================== 啟動提示框 ==================== */
 .startup-hint {
   background: linear-gradient(135deg, #ff9966, #ff5e62);
   border-radius: 12px;

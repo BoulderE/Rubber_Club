@@ -3,6 +3,19 @@
     <div class="workout-summary">
       <h2>訓練總結</h2>
 
+      <!-- new -->
+      <div v-if="exerciseStore.isPlaylistMode" class="playlist-progress">
+        <span class="progress-text">
+          訓練進度：{{ exerciseStore.playlistProgress.current }} / {{ exerciseStore.playlistProgress.total }}
+        </span>
+        <div class="progress-bar">
+          <div 
+            class="progress-fill" 
+            :style="{ width: `${(exerciseStore.playlistProgress.current / exerciseStore.playlistProgress.total) * 100}%` }"
+          ></div>
+        </div>
+      </div>
+
       <div class="summary-stats">
         <div class="stat-card">
           <div class="stat-info">
@@ -35,7 +48,17 @@
 
       <div class="actions">
         <button @click="$emit('continue')" class="btn-primary">再來一組</button>
-        <button @click="$emit('end')" class="btn-secondary">結束訓練</button>
+        <!-- new -->
+        <button 
+          v-if="exerciseStore.hasNextInPlaylist" 
+          @click="goToNext" 
+          class="btn-next"
+        >
+          下一項：{{ nextExerciseName }}
+        </button>
+        <button @click="handleEnd" class="btn-secondary">
+          {{ exerciseStore.isPlaylistMode ? '結束整組訓練' : '結束訓練' }}
+        </button>
       </div>
     </div>
   </div>
@@ -49,6 +72,24 @@ import confetti from 'canvas-confetti'
 
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()
+
+// new
+const emit = defineEmits(['continue', 'end', 'next', 'close'])
+const nextExerciseName = computed(() => {
+  const nextId = exerciseStore.playlist[exerciseStore.playlistIndex + 1]
+  if (!nextId) return ''
+  const exercise = exerciseStore.getExerciseById(nextId)
+  return exercise?.name || nextId
+})
+
+function goToNext() {
+  emit('next')
+}
+
+function handleEnd() {
+  exerciseStore.clearPlaylist()
+  emit('end')
+}
 
 const exerciseType = computed(() => exerciseStore.currentExercise)
 
@@ -311,5 +352,22 @@ onMounted(() => {
     width: 100%;
     font-size: 16px;
   }
+}
+
+.btn-next {
+  padding: 14px 35px;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  color: white;
+}
+
+.btn-next:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
 }
 </style>
