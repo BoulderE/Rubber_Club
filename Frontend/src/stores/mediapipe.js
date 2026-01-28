@@ -4,6 +4,9 @@ import { useExerciseStore } from './exercise'
 import { getApiBase } from '@/api/base';
 const API_URL = getApiBase();
 
+// ===== 新增：请求序号（放在 store 外面）=====
+let requestSequence = 0
+
 export const useMediapipeStore = defineStore('mediapipe', () => {
 
   const status = ref('ready')
@@ -30,9 +33,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
 
   const completedThisFrame = ref(false)
 
-  // ===== 新增：暂停防抖动 =====
+  // ===== 暂停防抖动 =====
   const lastPauseChangeTime = ref(0)
-  const PAUSE_DEBOUNCE_MS = 1500  // 1.5秒内不允许切换暂停状态
+  const PAUSE_DEBOUNCE_MS = 1500
 
   async function controlBackend(payload) {
     try {
@@ -56,6 +59,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
 
   async function analyzeFrame(imageData) {
     if (isAnalyzing.value) return null
+
+    // ===== 新增：记录当前请求序号 =====
+    const thisRequestId = ++requestSequence
 
     try {
       isAnalyzing.value = true
@@ -82,6 +88,13 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       }
 
       const result = await response.json()
+
+      // ===== 新增：检查是否过期 =====
+      if (thisRequestId !== requestSequence) {
+        console.log(`[analyzeFrame] 丢弃过期响应 #${thisRequestId}，当前最新 #${requestSequence}`)
+        return null
+      }
+
       console.log('[analyzeFrame] backend raw result:', result)
       console.log('[analyzeFrame] keys:', Object.keys(result))
 
@@ -99,6 +112,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   async function startExercise(exerciseType, style) {
+    // ===== 新增：切换运动时重置序号，丢弃所有旧请求 =====
+    requestSequence = 0
+
     const success = await controlBackend({
       action: 'start',
       exercise: exerciseType,
@@ -121,7 +137,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       analysisResults.value = null
       smoothness.value = 100          
       repDurations.value = []
-      lastPauseChangeTime.value = 0  // 重置防抖时间
+      lastPauseChangeTime.value = 0
       console.log(`Exercise '${exerciseType}' started with style '${style}'. max reps: ${repetitionLimit.value}`);
     } else {
       console.error("Failed to start exercise on the backend.");
@@ -129,6 +145,8 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   function stopExercise() {
+    // ===== 新增：停止时也重置序号 =====
+    requestSequence = 0
     status.value = 'ready'
     isAnalyzing.value = false
   }
@@ -143,7 +161,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     energy.value = Math.round(analysisData.energy ?? energy.value)
     completedThisFrame.value = !!analysisData.completed || grew
 
-    // ===== 修改：暂停状态防抖动 =====
+    // 暂停状态防抖动
     const backendPaused = !!analysisData.paused
     const now = Date.now()
     
@@ -156,7 +174,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
         console.log(`[updateAnalysisData] 忽略抖动: 尝试切换到 ${backendPaused}，距上次切换仅 ${now - lastPauseChangeTime.value}ms`)
       }
     }
-    // ===== 修改结束 =====
 
     if (typeof analysisData.smoothness !== 'undefined') {           
       smoothness.value = Number(analysisData.smoothness) || 0      
@@ -213,6 +230,9 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   async function reset() {
+    // ===== 新增：reset 时也重置序号 =====
+    requestSequence = 0
+
     const success = await controlBackend({ action: 'reset' });
     if (success) {
       accurateCount.value = 0
@@ -231,7 +251,7 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       waitingForGesture.value = true
       isPaused.value = true
       status.value = 'paused'
-      lastPauseChangeTime.value = 0  // 重置防抖时间
+      lastPauseChangeTime.value = 0
 
       completedThisFrame.value = false
     }
