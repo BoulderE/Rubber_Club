@@ -13,7 +13,7 @@ mediapipe_bp = Blueprint('mediapipe', __name__)
 CORS(mediapipe_bp)
 
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=0)
+pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=1)
 
 hf_gesture_recognizer = None
 
