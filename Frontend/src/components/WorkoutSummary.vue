@@ -3,7 +3,6 @@
     <div class="workout-summary">
       <h2>訓練總結</h2>
 
-      <!-- new -->
       <div v-if="exerciseStore.isPlaylistMode" class="playlist-progress">
         <span class="progress-text">
           訓練進度：{{ exerciseStore.playlistProgress.current }} / {{ exerciseStore.playlistProgress.total }}
@@ -48,13 +47,12 @@
 
       <div class="actions">
         <button @click="$emit('continue')" class="btn-primary">再來一組</button>
-        <!-- new -->
         <button 
           v-if="exerciseStore.hasNextInPlaylist" 
           @click="goToNext" 
           class="btn-next"
         >
-          下一項：{{ nextExerciseName }}
+          下一項{{ nextExerciseName }}
         </button>
         <button @click="handleEnd" class="btn-secondary">
           {{ exerciseStore.isPlaylistMode ? '結束整組訓練' : '結束訓練' }}
