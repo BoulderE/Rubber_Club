@@ -3,7 +3,32 @@ import numpy as np
 import time, math
 from statistics import mean, pstdev
 
-EXERCISE_CONFIG = {
+def load_exercise_config():
+    try:
+        from models.db_models import get_session, ExerciseRule
+        
+        session = get_session()
+        rules = session.query(ExerciseRule).all()
+        session.close()
+        
+        config = {}
+        for rule in rules:
+            config[rule.exercise_key] = {
+                'name': rule.name,
+                'landmarks_to_use': rule.landmarks_to_use,
+                'logic_function': rule.logic_function,
+                'params': rule.params
+            }
+        
+        print(f"從數據庫載入了 {len(config)} 個運動規則")
+        return config
+    
+    except Exception as e:
+        print(f"無法從數據庫載入，使用預設配置: {e}")
+        return get_default_config()
+
+def get_default_config():
+    return {
     'bicep_curl': {
         'name': '胸部拉伸',
         'landmarks_to_use': ['right_shoulder', 'right_wrist'],
@@ -146,6 +171,8 @@ EXERCISE_CONFIG = {
         }
     },
 }
+
+EXERCISE_CONFIG = load_exercise_config()
 
 class WorkoutState:
     def __init__(self):
