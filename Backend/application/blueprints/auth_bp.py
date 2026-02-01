@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 import jwt
 from datetime import datetime, timedelta
-from models import get_session, User
+from models.db_models import get_session, User
 
 auth_bp = Blueprint('auth_bp', __name__)
 

@@ -1,4 +1,4 @@
-from models import init_db, get_session, User, ExerciseRule
+from models.db_models import init_db, get_session, User, ExerciseRule
 
 EXERCISE_CONFIG = {
     'bicep_curl': {
