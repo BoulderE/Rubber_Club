@@ -6,6 +6,10 @@
           <h1>Rubber Club</h1>
           <p>Your Digital Fitness Helper</p>
         </div>
+        <div class="hero-center" v-if="authStore.isLoggedIn">
+          <span class="welcome-icon">👋</span>
+          <span class="welcome-text">歡迎，<strong>{{ authStore.userName || '用戶' }}</strong></span>
+        </div>
         <div class="hero-right">
               <div class="playlist-card" @click="startPlaylistMode">
             <div class="playlist-info">
@@ -46,7 +50,17 @@
       </div>
     </div>
 
-    <div v-if="isChatbotVisible" class="modal-backdrop" @click.self="isChatbotVisible = false">
+    <div class="fab-group">
+      <button @click="goToHistory" class="fab-btn history-fab" title="運動歷史">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </button>
+      <button @click="isChatbotVisible = true" class="fab-btn help-fab" title="需要幫助">
+        ?
+      </button>
+    </div>
       <ChatbotWindow 
         @close="isChatbotVisible = false"
         class="chatbot-container"
@@ -330,6 +344,10 @@ function startPlaylistMode() {
       autoPlayVoice: 'true'
     }
   })
+}
+
+function goToHistory() {
+  router.push({ name: 'history' })
 }
 </script>
 
@@ -977,6 +995,65 @@ function startPlaylistMode() {
   .hero-right {
     justify-content: center;
     width: 100%;
+  }
+  
+  .playlist-card {
+    width: 100%;
+    max-width: 320px;
+  }
+  
+  .hero-title {
+    font-size: 2rem;
+  }
+}
+
+.hero-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50px;
+  padding: 12px 24px;
+}
+
+.hero-center .welcome-icon {
+  font-size: 1.5rem;
+  animation: wave 1.5s ease-in-out infinite;
+}
+
+.hero-center .welcome-text {
+  font-size: 1.1rem;
+  color: white;
+}
+
+.hero-center .welcome-text strong {
+  font-weight: 700;
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(20deg); }
+  75% { transform: rotate(-10deg); }
+}
+
+/* 更新响应式 */
+@media (max-width: 768px) {
+  .hero-container {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .hero-center {
+    order: 2;
+    margin: 16px 0;
+  }
+  
+  .hero-right {
+    justify-content: center;
+    width: 100%;
+    order: 3;
   }
   
   .playlist-card {
