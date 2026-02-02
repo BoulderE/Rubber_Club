@@ -76,7 +76,7 @@ const formatDate = (isoString) => {
   if (!isoString) return ''
   const date = new Date(isoString)
   return date.toLocaleDateString('zh-TW', {
-    timeZone: 'Asia/Hong Kong',
+    timeZone: 'Asia/Hong_Kong',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
