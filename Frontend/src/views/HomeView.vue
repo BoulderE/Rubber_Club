@@ -347,7 +347,7 @@ function startPlaylistMode() {
 }
 
 function goToHistory() {
-  router.push({ name: 'history' })
+  router.push('/history')
 }
 </script>
 
