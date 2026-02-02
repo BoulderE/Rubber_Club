@@ -26,24 +26,18 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 
 const route = useRoute();
-const isLoginPage = computed(() => route.name === 'Login');
 const router = useRouter();
-const isLoggedIn = ref(!!localStorage.getItem('user-token'));
+const authStore = useAuthStore();
+
+const isLoggedIn = computed(() => authStore.isLoggedIn);
 
 const logout = () => {
-  localStorage.removeItem('user-token');
-  isLoggedIn.value = false;
+  authStore.logout();
   router.replace({ name: 'login' });
 };
-
-watch(
-  () => route.path,
-  () => {
-    isLoggedIn.value = !!localStorage.getItem('user-token');
-  }
-);
 </script>
 
 <style>
