@@ -125,6 +125,7 @@ import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
 import WorkoutSummary from '@/components/WorkoutSummary.vue'
 import ExerciseBriefing from '@/components/ExerciseBriefing.vue'
 import confetti from 'canvas-confetti'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -162,6 +163,8 @@ const audioPlayer = new Audio();
 const previousCount = ref(0)
 const lastPlayedCount = ref(0)
 let lastRepSoundAt = 0
+
+const authStore = useAuthStore()
 
 const progressPercent = computed(() => {
   const total = Number(MAX_REPS.value || 0)
@@ -353,6 +356,7 @@ watch(
       exerciseStore.endExercise()
       showSummary.value = true
       mediapipeStore.pause?.()
+      saveWorkoutRecord()
     }
   },
   { immediate: false }
@@ -471,6 +475,46 @@ function blastConfetti(options = {}) {
   })
 }
 
+async function saveWorkoutRecord() {
+  const userId = authStore.userId
+  
+  if (!userId) {
+    console.warn('[saveWorkoutRecord] 用戶未登入，無法儲存紀錄')
+    return
+  }
+
+  const recordData = {
+    user_id: userId,
+    exercise_name: exerciseData.value?.name || exerciseType.value,
+    rep_count: mediapipeStore.count,
+    duration: exerciseStore.elapsedTime || null,
+    accuracy: mediapipeStore.accuracy || null,
+    smoothness: mediapipeStore.smoothness || null
+  }
+
+  console.log('[saveWorkoutRecord] 準備發送紀錄:', recordData)
+
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/records`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(recordData)
+    })
+
+    const result = await response.json()
+    
+    if (response.ok) {
+      console.log('[saveWorkoutRecord] 紀錄已儲存, record_id:', result.record_id)
+    } else {
+      console.error('[saveWorkoutRecord] 儲存失敗:', result.message)
+    }
+  } catch (error) {
+    console.error('[saveWorkoutRecord] 請求錯誤:', error)
+  }
+}
+
 async function handleContinueWorkout() {
   showSummary.value = false
   mediapipeStore.reset()
@@ -507,7 +551,6 @@ function handleEndWorkout() {
   router.push('/')
 }
 
-// new
 function handleNextInPlaylist() {
   const nextId = exerciseStore.nextInPlaylist()
   if (nextId) {

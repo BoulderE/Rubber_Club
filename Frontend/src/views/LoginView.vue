@@ -20,8 +20,8 @@
     </div>
 
     <div class="welcome-screen" v-else>
-      <h1>Logged In!</h1>
-      <p>Loading your profile...</p>
+      <h1>歡迎，{{ authStore.userName }}！</h1>
+      <p>正在載入...</p>
     </div>
   </div>
 </template>
@@ -29,8 +29,7 @@
 <script setup>
 import { ref, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
-import { getApiBase } from '@/api/base';
+import { useAuthStore } from '@/stores/auth';
 
 const currentPin = ref('');
 const message = ref('');
@@ -40,7 +39,7 @@ const isLoggedIn = ref(false);
 const isSubmitting = ref(false);
 
 const router = useRouter();
-const base = getApiBase();
+const authStore = useAuthStore();
 
 const keypadLayout = [1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, 'delete'];
 
@@ -66,38 +65,25 @@ const checkPin = async () => {
   isSubmitting.value = true;
 
   try {
-    const response = await axios.post(`${base}/api/login`, {
-      pin: currentPin.value
-    }, { timeout: 8000 });
+    const result = await authStore.login(currentPin.value);
 
-    const token = response.data?.token || response.data?.access_token || response.data?.data?.token;
-    if (token) {
-      await loginSuccess(token);
+    if (result.success) {
+      await loginSuccess();
     } else {
-      throw new Error('Invalid response shape');
+      loginFailure(result.message || 'PIN碼錯誤，請重試');
     }
   } catch (error) {
-    console.error('Login request failed:', error);
-    if (error?.response?.status === 401) {
-      loginFailure('PIN碼錯誤，請重試');
-    } else {
-      loginFailure('登入失敗，請稍後再試');
-    }
+    console.error('Login error:', error);
+    loginFailure('登入失敗，請稍後再試');
   } finally {
     isSubmitting.value = false;
   }
 };
 
-const loginSuccess = async (token) => {
+const loginSuccess = async () => {
   message.value = '登入成功！';
   messageColor.value = '#2ecc71';
   isLoggedIn.value = true;
-
-  try {
-    localStorage.setItem('user-token', token);
-  } catch (e) {
-    console.warn('localStorage 寫入失敗：', e);
-  }
 
   await nextTick();
   setTimeout(() => {
@@ -127,14 +113,14 @@ const loginFailure = (msg = 'PIN碼錯誤，請重試') => {
 }
 
 .login-container {
-    width: 100%;
-    max-width: 360px;
-    padding: 40px 30px;
-    background-color: #ffffff;
-    border-radius: 20px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    text-align: center;
-    box-sizing: border-box;
+  width: 100%;
+  max-width: 360px;
+  padding: 40px 30px;
+  background-color: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .login-container h1 { margin: 0 0 10px 0; font-size: 28px; color: #333; }
@@ -145,18 +131,18 @@ const loginFailure = (msg = 'PIN碼錯誤，請重試') => {
 .pin-dot.filled { background-color: #3498db; border-color: #3498db; }
 
 @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
-    20%, 40%, 60%, 80% { transform: translateX(8px); }
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+  20%, 40%, 60%, 80% { transform: translateX(8px); }
 }
 .shake { animation: shake 0.5s ease-in-out; }
 
 .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; justify-items: center; }
 .keypad button {
-    width: 70px; height: 70px; border-radius: 50%; border: none; background-color: #e9ecf0;
-    font-size: 28px; font-weight: 700; color: #333; cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
-    -webkit-tap-highlight-color: transparent;
+  width: 70px; height: 70px; border-radius: 50%; border: none; background-color: #e9ecf0;
+  font-size: 28px; font-weight: 700; color: #333; cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
 }
 .keypad button:hover { background-color: #d1d8e0; }
 .keypad button:active { transform: scale(0.92); }

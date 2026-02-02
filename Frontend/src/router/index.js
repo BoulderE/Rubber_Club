@@ -26,6 +26,11 @@ const router = createRouter({
       component: ExerciseView,
       props: true, 
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/history',
+      name: 'History',
+      component: () => import('../views/HistoryView.vue')
     }
   ]
 })
