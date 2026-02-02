@@ -43,14 +43,16 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const authStore = useAuthStore()
 
 const records = ref([])
 const stats = ref(null)
 
 onMounted(async () => {
-  const userId = localStorage.getItem('user_id')
+    const userId = authStore.userId
   if (!userId) {
     console.error('未登入')
     return
