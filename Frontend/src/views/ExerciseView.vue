@@ -483,11 +483,16 @@ async function saveWorkoutRecord() {
     return
   }
 
+  let duration = 0
+  if (exerciseStore.startTime && exerciseStore.endTime) {
+    duration = Math.floor((exerciseStore.endTime - exerciseStore.startTime) / 1000)
+  }
+
   const recordData = {
     user_id: userId,
     exercise_name: exerciseData.value?.name || exerciseType.value,
     rep_count: mediapipeStore.count,
-    duration: exerciseStore.elapsedTime || null,
+    duration: duration || null,
     accuracy: mediapipeStore.accuracy || null,
     smoothness: mediapipeStore.smoothness || null
   }
