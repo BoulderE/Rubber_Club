@@ -50,17 +50,7 @@
       </div>
     </div>
 
-    <div class="fab-group">
-      <button @click="goToHistory" class="fab-btn history-fab" title="運動歷史">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polyline points="12 6 12 12 16 14"></polyline>
-        </svg>
-      </button>
-      <button @click="isChatbotVisible = true" class="fab-btn help-fab" title="需要幫助">
-        ?
-      </button>
-    </div>
+    <div v-if="isChatbotVisible" class="modal-backdrop" @click.self="isChatbotVisible = false">
       <ChatbotWindow 
         @close="isChatbotVisible = false"
         class="chatbot-container"
@@ -142,8 +132,17 @@
         </div>
       </div>
     </div>
-
-    <button @click="isChatbotVisible = true" id="need-help-fab">?</button>
+    <div class="fab-group">
+      <button @click="goToHistory" class="fab-btn history-fab" title="運動歷史">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+      </button>
+      <button @click="isChatbotVisible = true" class="fab-btn help-fab" title="需要幫助">
+        ?
+      </button>
+    </div>
   </div>
 </template>
 
@@ -152,7 +151,8 @@ import ChatbotWindow from '@/components/ChatbotWindow.vue';
 import { ref, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useExerciseStore } from '@/stores/exercise'
-
+import { useAuthStore } from '@/stores/auth';
+const authStore = useAuthStore();
 const router = useRouter();
 
 const isChatbotVisible = ref(false);
@@ -756,30 +756,66 @@ function goToHistory() {
   box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
 }
 
-#need-help-fab {
+.fab-group {
   position: fixed;
   bottom: 30px;
   right: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  z-index: 999;
+}
+
+.fab-btn {
   width: 60px;
   height: 60px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
   border-radius: 50%;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
-  font-weight: bold;
-  box-shadow: 0 5px 15px rgba(106, 90, 249, 0.4);
   cursor: pointer;
-  z-index: 999;
   transition: all 0.3s ease;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
-#need-help-fab:hover {
+.history-fab {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.history-fab:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.5);
+}
+
+.help-fab {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.help-fab:hover {
   transform: scale(1.1);
   box-shadow: 0 8px 24px rgba(106, 90, 249, 0.5);
+}
+
+@media (max-width: 640px) {
+  .fab-group {
+    bottom: 24px;
+    right: 24px;
+    gap: 12px;
+  }
+
+  .fab-btn {
+    width: 56px;
+    height: 56px;
+  }
+
+  .help-fab {
+    font-size: 20px;
+  }
 }
 
 @keyframes fadeIn {
