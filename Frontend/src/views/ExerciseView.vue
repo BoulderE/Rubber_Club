@@ -495,7 +495,7 @@ async function saveWorkoutRecord() {
   console.log('[saveWorkoutRecord] 準備發送紀錄:', recordData)
 
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/records`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/records`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
