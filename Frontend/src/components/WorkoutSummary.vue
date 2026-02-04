@@ -81,27 +81,23 @@ const exerciseStore = useExerciseStore()
 
 const emit = defineEmits(['continue', 'end', 'next', 'close'])
 
-// 倒计时相关
 const countdown = ref(0)
 let countdownTimer = null
 
-// 开始倒计时
 function startCountdown() {
   if (!exerciseStore.hasNextInPlaylist) return
   
-  countdown.value = 3
+  countdown.value = 5
   countdownTimer = setInterval(() => {
     countdown.value--
     if (countdown.value <= 0) {
       clearInterval(countdownTimer)
       countdownTimer = null
-      // 自动跳转到下一项
       goToNext()
     }
   }, 1000)
 }
 
-// 停止倒计时
 function stopCountdown() {
   if (countdownTimer) {
     clearInterval(countdownTimer)
@@ -110,7 +106,6 @@ function stopCountdown() {
   countdown.value = 0
 }
 
-// 处理"再来一组"点击
 function handleContinue() {
   stopCountdown()
   emit('continue')
@@ -331,19 +326,20 @@ onUnmounted(() => {
 
 .actions {
   display: flex;
-  gap: 15px;
-  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .btn-primary,
 .btn-secondary {
-  padding: 14px 35px;
+  padding: 20px 40px;
   border: none;
-  border-radius: 8px;
-  font-size: 18px;
-  font-weight: 600;
+  border-radius: 12px;
+  font-size: 22px;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s;
+  min-height: 70px;
 }
 
 .btn-primary {
@@ -352,8 +348,8 @@ onUnmounted(() => {
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
 }
 
 .btn-secondary {
@@ -364,6 +360,8 @@ onUnmounted(() => {
 .btn-secondary:hover {
   background: #e0e0e0;
   color: #333;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
 }
 
 @media (max-width: 600px) {
@@ -400,28 +398,31 @@ onUnmounted(() => {
   .btn-secondary,
   .btn-next {
     width: 100%;
-    font-size: 16px;
+    font-size: 20px;
+    padding: 18px 30px;
+    min-height: 65px;
   }
 }
 
 /* 下一项按钮样式 */
 .btn-next {
   position: relative;
-  padding: 14px 35px;
+  padding: 20px 40px;
   border: none;
-  border-radius: 8px;
-  font-size: 18px;
-  font-weight: 600;
+  border-radius: 12px;
+  font-size: 22px;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s;
   background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
   color: white;
   overflow: hidden;
+  min-height: 70px;
 }
 
 .btn-next:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
 }
 
 .btn-next-content {
@@ -430,14 +431,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .countdown-badge {
   background: rgba(255, 255, 255, 0.3);
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 14px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 18px;
   font-weight: 700;
   animation: pulse 1s ease-in-out infinite;
 }
@@ -451,7 +452,7 @@ onUnmounted(() => {
   position: absolute;
   bottom: 0;
   left: 0;
-  height: 4px;
+  height: 6px;
   background: rgba(255, 255, 255, 0.5);
   transition: width 1s linear;
   z-index: 1;
