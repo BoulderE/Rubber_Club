@@ -364,10 +364,9 @@ function goToHistory() {
 }
 
 .hero-section {
-  text-align: center;
-  padding: 40px 20px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  padding: 40px 24px;
+  text-align: left;
   border-radius: 20px;
   margin-bottom: 40px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
@@ -944,12 +943,20 @@ function goToHistory() {
   margin: 0 auto;
   display: flex;
   align-items: stretch;
-  justify-content: space-between;
+  justify-content: center;
   gap: 40px;
 }
 
 .hero-left {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  min-height: 120px;
+  background: transparent;
+  border: none;
 }
 
 .hero-title {
