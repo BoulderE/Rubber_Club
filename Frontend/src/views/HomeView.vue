@@ -7,9 +7,11 @@
           <p>Your Digital Fitness Helper</p>
         </div>
         <div class="hero-center" v-if="authStore.isLoggedIn">
-          <span class="welcome-icon">👋</span>
-          <div class="welcome-text">歡迎，</div>
-          <strong>{{ authStore.userName || '用戶' }}</strong>
+          <div class="welcome-line">
+            <span class="welcome-icon">👋</span>
+            <span>歡迎</span>
+          </div>
+          <div class="user-name">{{ authStore.userName || '用戶' }}</div>
         </div>
         <div class="hero-right">
               <div class="playlist-card" @click="startPlaylistMode">
@@ -1046,35 +1048,35 @@ function goToHistory() {
 
 .hero-center {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  text-align: center;
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 24px;
-  padding: 16px 32px;
+  padding: 24px 48px;
+  gap: 8px;
+}
+
+.hero-center .welcome-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 48px;
+  font-weight: 700;
+  color: white;
 }
 
 .hero-center .welcome-icon {
-  font-size: 2.5rem;
+  font-size: 48px;
   animation: wave 1.5s ease-in-out infinite;
 }
 
-.hero-center .welcome-text {
-  display: flex;
-  flex-direction: column;
-  color: white;
-  line-height: 1.3;
-}
-
-.hero-center .welcome-text div {
-  font-size: 1rem;
-  opacity: 0.9;
-}
-
-.hero-center .welcome-text strong {
-  font-size: 1.5rem;
+.hero-center .user-name {
+  font-size: 48px;
   font-weight: 700;
+  color: white;
 }
 
 @keyframes wave {
@@ -1083,7 +1085,6 @@ function goToHistory() {
   75% { transform: rotate(-10deg); }
 }
 
-/* 更新响应式 */
 @media (max-width: 768px) {
   .hero-container {
     flex-direction: column;
@@ -1094,14 +1095,6 @@ function goToHistory() {
     order: 2;
     margin: 16px 0;
     padding: 14px 28px;
-  }
-  
-  .hero-center .welcome-icon {
-    font-size: 1.75rem;
-  }
-  
-  .hero-center .welcome-text {
-    font-size: 1.25rem;
   }
   
   .hero-right {
