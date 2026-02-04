@@ -124,7 +124,6 @@ import { useExerciseStore } from '@/stores/exercise'
 import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
 import WorkoutSummary from '@/components/WorkoutSummary.vue'
 import ExerciseBriefing from '@/components/ExerciseBriefing.vue'
-import confetti from 'canvas-confetti'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -355,7 +354,6 @@ watch(
       console.log('[watch count] 🎉 達到目標次數，顯示總結！')
       playSound(finishSoundPool, 'finish')
       try { analyzer.value?.stopAnalysis?.() } catch (e) { console.warn(e) }
-      blastConfetti({ duration: 2500 })
       isWorkoutActive.value = false
       exerciseStore.endExercise()
       showSummary.value = true
@@ -447,36 +445,6 @@ function handleFrameAnalyzed(result) {
 
 function handleError(error) {
   console.error('分析錯誤:', error)
-}
-
-function blastConfetti(options = {}) {
-  requestAnimationFrame(() => {
-    const duration = options.duration ?? 2000
-    const end = Date.now() + duration
-
-    const base = {
-      particleCount: 50,
-      spread: 60,
-      startVelocity: 45,
-      gravity: 0.9,
-      ticks: 250,
-      origin: { y: 0.6 }
-    }
-
-    const interval = setInterval(() => {
-      confetti({ ...base, angle: 60, origin: { x: 0, y: Math.random() * 0.3 + 0.1 } })
-      confetti({ ...base, angle: 120, origin: { x: 1, y: Math.random() * 0.3 + 0.1 } })
-      confetti({
-        ...base,
-        particleCount: 80,
-        spread: 90,
-        origin: { x: 0.5, y: 0.3 },
-        scalar: 1.1,
-        colors: ['#34d399', '#3b82f6', '#f59e0b', '#ef4444', '#a78bfa']
-      })
-      if (Date.now() > end) clearInterval(interval)
-    }, 250)
-  })
 }
 
 async function saveWorkoutRecord() {

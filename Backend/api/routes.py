@@ -32,7 +32,6 @@ def control_workout():
             
         try:
             analyzer.setup(exercise_id, style)
-            # analyzer.state.is_paused 已经通过 reset() 设置为 True
             return jsonify({
                 "status": "started", 
                 "exercise": exercise_id,
@@ -44,7 +43,6 @@ def control_workout():
 
     elif action == 'reset':
         analyzer.reset()
-        # analyzer.state.is_paused 已经通过 reset() 设置为 True
         print("Analyzer reset.")
         return jsonify({
             "status": "reset",

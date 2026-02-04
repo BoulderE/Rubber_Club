@@ -238,6 +238,9 @@ class ExerciseAnalyzer:
         self._phase_name = None
         self._phase_start_time = None
 
+        # new
+        self.target_count = 15
+
     def _now(self):
         return time.time()
     
@@ -292,10 +295,14 @@ class ExerciseAnalyzer:
             if 0.2 <= duration <= 10.0:
                 self.repetition_durations.append(duration)
         self.last_rep_start = now_t
-        self.smoothness_score = self._compute_smoothness()
+        smoothness_cutoff = max(3, self.target_count - 1)
+        if self.state.count <= smoothness_cutoff:
+            self.smoothness_score = self._compute_smoothness()
 
     def _compute_smoothness(self) -> int:
         import statistics
+        max_reps = max(3, min(self.target_count - 1, 30))
+        
         raw_up = self.state.up_durations[-20:]
         raw_down = self.state.down_durations[-20:]
 
@@ -329,13 +336,20 @@ class ExerciseAnalyzer:
             "rep_durations": self.repetition_durations[-20:], 
         }
 
-    def setup(self, exercise_type: str, style: str):
+    def setup(self, exercise_type: str, style: str, target_count: int = None):
         if exercise_type not in EXERCISE_CONFIG:
             raise ValueError(f"不支援的運動類型:{exercise_type}")
         
         self.config = EXERCISE_CONFIG[exercise_type]
         self.style = style if style in ['intermediate', 'beginner'] else 'intermediate'
         self.exercise_id = exercise_type
+
+        # new
+        if target_count is not None:
+            self.target_count = target_count
+        else:
+            self.target_count = 10 if self.style == 'beginner' else 15
+
         self.reset()
         print(f"分析器已設定為: 運動='{self.config['name']}', 模式='{self.style}'")
 
@@ -419,14 +433,7 @@ class ExerciseAnalyzer:
             angle = 360 - angle
         return angle
 
-    # -------------------------------------------------------------------------
-    # 通用状态机逻辑 (已优化时间参数)
-    # -------------------------------------------------------------------------
     def _process_state_machine(self, state_dict, is_up, is_down, current_pos, min_dist=0.01, debounce_time=0.5, count_on_up=True):
-        """
-        通用状态机处理函数。
-        debounce_time: 两次计数之间的最小间隔时间。对于快速动作，应设置较小的值。
-        """
         current_time = time.time()
         
         self._update_phase(is_up, is_down)
@@ -436,10 +443,7 @@ class ExerciseAnalyzer:
         elif is_down:
             self.state.stage = 'down'
 
-        # 状态转换逻辑
-        # Down -> Up 触发计数
         if state_dict['movement_state'] == 'down' and is_up:
-            # 检查时间间隔 (防抖)
             if current_time - state_dict['last_count_time'] > debounce_time:
                 dist = 0.0
                 if state_dict['start_pos'] is not None:
@@ -462,18 +466,12 @@ class ExerciseAnalyzer:
                     state_dict['movement_state'] = 'up'
                     state_dict['last_count_time'] = current_time
 
-        # Up -> Down 重置
         elif state_dict['movement_state'] == 'up' and is_down:
             state_dict['movement_state'] = 'down'
             state_dict['start_pos'] = current_pos.copy()
 
-        # 初始记录
         if state_dict['movement_state'] == 'down' and state_dict['start_pos'] is None and is_down:
             state_dict['start_pos'] = current_pos.copy()
-
-    # -------------------------------------------------------------------------
-    # 各个动作的具体逻辑 (已调整 debounce_time)
-    # -------------------------------------------------------------------------
 
     def _analyze_bicep_curl_logic(self, landmarks):
         params = self.config['params'][self.style]
@@ -489,7 +487,6 @@ class ExerciseAnalyzer:
         is_up = y_diff < params['start_threshold_y']
         is_down = y_diff > params['end_threshold_y']
 
-        # 弯举动作较快，将防抖时间设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['bicep_curl'],
             is_up, is_down, 
@@ -520,7 +517,6 @@ class ExerciseAnalyzer:
         if not height_ok:
             is_up = False
 
-        # 扩胸动作节奏中等偏快，设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['chest_pull'],
             is_up, is_down,
@@ -546,7 +542,6 @@ class ExerciseAnalyzer:
         
         is_safely_down = is_down and y_diff > 0.0 
 
-        # 侧平举动作快，设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['lateral'],
             is_up, is_safely_down,
@@ -572,7 +567,6 @@ class ExerciseAnalyzer:
         is_up = y_diff < params['end_threshold_y']
         is_down = y_diff > params['start_threshold_y']
         
-        # 前平举，设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['front'],
             is_up, is_down,
@@ -591,7 +585,6 @@ class ExerciseAnalyzer:
         is_up = y_diff < params['end_threshold_y']
         is_down = abs(y_diff) < params['start_threshold_y']
 
-        # 推举动作，设为 0.3秒
         self._process_state_machine(
             self.state._exercise_states['overhead'],
             is_up, is_down,
@@ -611,7 +604,6 @@ class ExerciseAnalyzer:
         is_up = angle > params['up_threshold_angle']
         is_down = angle < params['down_threshold_angle']
 
-        # 深蹲动作较慢，且需要稳定，保持 0.5秒 或更高
         self._process_state_machine(
             self.state._exercise_states['squat'],
             is_up, is_down,
@@ -620,9 +612,6 @@ class ExerciseAnalyzer:
             debounce_time=0.5
         )
 
-    # -------------------------------------------------------------------------
-    # Diagonal Lift 保持原样 (0.5s 对这个动作是合适的)
-    # -------------------------------------------------------------------------
     def _analyze_diagonal_lift_logic(self, landmarks):
         P = self.config['params'][self.style]
         
