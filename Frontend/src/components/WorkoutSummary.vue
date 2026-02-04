@@ -46,13 +46,21 @@
       </div>
 
       <div class="actions">
-        <button @click="$emit('continue')" class="btn-primary">再來一組</button>
+        <button @click="handleContinue" class="btn-primary">再來一組</button>
         <button 
           v-if="exerciseStore.hasNextInPlaylist" 
           @click="goToNext" 
           class="btn-next"
         >
-          下一項{{ nextExerciseName }}
+          <span class="btn-next-content">
+            <span>下一項{{ nextExerciseName }}</span>
+            <span v-if="countdown > 0" class="countdown-badge">{{ countdown }}s</span>
+          </span>
+          <div 
+            v-if="countdown > 0" 
+            class="countdown-progress" 
+            :style="{ width: `${(countdown / 3) * 100}%` }"
+          ></div>
         </button>
         <button @click="handleEnd" class="btn-secondary">
           {{ exerciseStore.isPlaylistMode ? '結束整組訓練' : '結束訓練' }}
@@ -63,7 +71,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
 import confetti from 'canvas-confetti'
@@ -71,8 +79,43 @@ import confetti from 'canvas-confetti'
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()
 
-// new
 const emit = defineEmits(['continue', 'end', 'next', 'close'])
+
+// 倒计时相关
+const countdown = ref(0)
+let countdownTimer = null
+
+// 开始倒计时
+function startCountdown() {
+  if (!exerciseStore.hasNextInPlaylist) return
+  
+  countdown.value = 3
+  countdownTimer = setInterval(() => {
+    countdown.value--
+    if (countdown.value <= 0) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+      // 自动跳转到下一项
+      goToNext()
+    }
+  }, 1000)
+}
+
+// 停止倒计时
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+  countdown.value = 0
+}
+
+// 处理"再来一组"点击
+function handleContinue() {
+  stopCountdown()
+  emit('continue')
+}
+
 const nextExerciseName = computed(() => {
   const nextId = exerciseStore.playlist[exerciseStore.playlistIndex + 1]
   if (!nextId) return ''
@@ -81,10 +124,12 @@ const nextExerciseName = computed(() => {
 })
 
 function goToNext() {
+  stopCountdown()
   emit('next')
 }
 
 function handleEnd() {
+  stopCountdown()
   exerciseStore.clearPlaylist()
   emit('end')
 }
@@ -146,7 +191,6 @@ function blastConfetti() {
     }
 
     const interval = setInterval(() => {
-
       confetti({ 
         ...base, 
         angle: 60, 
@@ -178,6 +222,13 @@ function blastConfetti() {
 onMounted(() => {
   console.log('🎉 Summary 组件已挂载，准备发射烟花')
   blastConfetti()
+  // 挂载后开始倒计时
+  startCountdown()
+})
+
+// 组件卸载时清除定时器
+onUnmounted(() => {
+  stopCountdown()
 })
 </script>
 
@@ -346,13 +397,16 @@ onMounted(() => {
   }
   
   .btn-primary,
-  .btn-secondary {
+  .btn-secondary,
+  .btn-next {
     width: 100%;
     font-size: 16px;
   }
 }
 
+/* 下一项按钮样式 */
 .btn-next {
+  position: relative;
   padding: 14px 35px;
   border: none;
   border-radius: 8px;
@@ -362,10 +416,44 @@ onMounted(() => {
   transition: all 0.3s;
   background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
   color: white;
+  overflow: hidden;
 }
 
 .btn-next:hover {
   transform: translateY(-2px);
   box-shadow: 0 5px 15px rgba(16, 185, 129, 0.3);
+}
+
+.btn-next-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.countdown-badge {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+.countdown-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.5);
+  transition: width 1s linear;
+  z-index: 1;
 }
 </style>
