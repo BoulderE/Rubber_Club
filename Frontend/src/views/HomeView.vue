@@ -1046,21 +1046,21 @@ function goToHistory() {
 .hero-center {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50px;
-  padding: 12px 24px;
+  padding: 16px 32px;
 }
 
 .hero-center .welcome-icon {
-  font-size: 1.5rem;
+  font-size: 2rem;
   animation: wave 1.5s ease-in-out infinite;
 }
 
 .hero-center .welcome-text {
-  font-size: 1.1rem;
+  font-size: 1.4rem;
   color: white;
 }
 
@@ -1084,6 +1084,15 @@ function goToHistory() {
   .hero-center {
     order: 2;
     margin: 16px 0;
+    padding: 14px 28px;
+  }
+  
+  .hero-center .welcome-icon {
+    font-size: 1.75rem;
+  }
+  
+  .hero-center .welcome-text {
+    font-size: 1.25rem;
   }
   
   .hero-right {
