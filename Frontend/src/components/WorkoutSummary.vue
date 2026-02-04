@@ -74,7 +74,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useMediapipeStore } from '@/stores/mediapipe'
 import { useExerciseStore } from '@/stores/exercise'
-import confetti from 'canvas-confetti'
 
 const mediapipeStore = useMediapipeStore()
 const exerciseStore = useExerciseStore()
@@ -170,58 +169,10 @@ const tips = computed(() => {
   return t
 })
 
-function blastConfetti() {
-  setTimeout(() => {
-    const duration = 2500
-    const end = Date.now() + duration
-
-    const base = {
-      particleCount: 50,
-      spread: 60,
-      startVelocity: 45,
-      gravity: 0.9,
-      ticks: 250,
-      origin: { y: 0.6 },
-      zIndex: 9999 
-    }
-
-    const interval = setInterval(() => {
-      confetti({ 
-        ...base, 
-        angle: 60, 
-        origin: { x: 0, y: Math.random() * 0.3 + 0.1 } 
-      })
-      
-      confetti({ 
-        ...base, 
-        angle: 120, 
-        origin: { x: 1, y: Math.random() * 0.3 + 0.1 } 
-      })
-      
-      confetti({
-        ...base,
-        particleCount: 80,
-        spread: 90,
-        origin: { x: 0.5, y: 0.3 },
-        scalar: 1.1,
-        colors: ['#34d399', '#3b82f6', '#f59e0b', '#ef4444', '#a78bfa']
-      })
-      
-      if (Date.now() > end) {
-        clearInterval(interval)
-      }
-    }, 250)
-  }, 100) 
-}
-
 onMounted(() => {
-  console.log('🎉 Summary 组件已挂载，准备发射烟花')
-  blastConfetti()
-  // 挂载后开始倒计时
   startCountdown()
 })
 
-// 组件卸载时清除定时器
 onUnmounted(() => {
   stopCountdown()
 })
@@ -250,8 +201,6 @@ onUnmounted(() => {
   max-height: 90vh;
   overflow-y: auto;
   animation: slideIn 0.3s ease-out;
-  position: relative; 
-  z-index: 1001; 
 }
 
 @keyframes slideIn {
