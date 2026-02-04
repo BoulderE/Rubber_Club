@@ -943,7 +943,7 @@ function goToHistory() {
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: 40px;
 }
@@ -1050,6 +1050,7 @@ function goToHistory() {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(10px);
