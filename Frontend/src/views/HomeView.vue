@@ -959,6 +959,13 @@ function goToHistory() {
   border: none;
 }
 
+.hero-left h1 {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 16px 0;
+}
+
 .hero-title {
   font-size: 3rem;
   font-weight: 800;
@@ -966,7 +973,7 @@ function goToHistory() {
   margin: 0 0 8px 0;
 }
 
-.hero-subtitle {
+.hero-left p {
   font-size: 1.25rem;
   color: rgba(255, 255, 255, 0.9);
   margin: 0 0 16px 0;
