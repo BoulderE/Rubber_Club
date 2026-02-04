@@ -246,7 +246,11 @@ onMounted(() => {
   previousCount.value = 0
   lastPlayedCount.value = 0
 
-  if (style.value === 'beginner') {
+  // 播放列表模式下跳过 briefing 和语音，直接开始
+  if (exerciseStore.isPlaylistMode) {
+    console.log('[onMounted] 播放列表模式，跳过 briefing 和语音')
+    startWorkoutFlow()
+  } else if (style.value === 'beginner') {
     showBriefing.value = true
   } else {
     startWorkoutFlow()
@@ -563,8 +567,7 @@ function handleNextInPlaylist() {
       name: 'exercise',
       params: { type: nextId },
       query: { 
-        style: style.value,
-        autoPlayVoice: 'true'
+        style: style.value
       }
     })
   }
@@ -606,7 +609,11 @@ watch(
     
     await nextTick()
     
-    if (style.value === 'beginner') {
+    // 播放列表模式下跳过 briefing 和语音
+    if (exerciseStore.isPlaylistMode) {
+      console.log('[route change] 播放列表模式，跳过 briefing 和语音')
+      await startWorkoutFlow()
+    } else if (style.value === 'beginner') {
       showBriefing.value = true
     } else {
       if (route.query.autoPlayVoice === 'true') {
