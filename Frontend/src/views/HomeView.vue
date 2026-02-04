@@ -9,12 +9,12 @@
         <div class="hero-center" v-if="authStore.isLoggedIn">
           <div class="welcome-line">
             <span class="welcome-icon">👋</span>
-            <span>歡迎</span>
+            <span>  歡迎</span>
           </div>
           <div class="user-name">{{ authStore.userName || '用戶' }}</div>
         </div>
         <div class="hero-right">
-              <div class="playlist-card" @click="startPlaylistMode">
+          <div class="playlist-card" @click="startPlaylistMode">
             <div class="playlist-info">
               <h3>整組訓練</h3>
               <p>6 個動作完整鍛鍊</p>
@@ -1063,18 +1063,18 @@ function goToHistory() {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 48px;
+  font-size: 36px;
   font-weight: 700;
   color: white;
 }
 
 .hero-center .welcome-icon {
-  font-size: 48px;
+  font-size: 36px;
   animation: wave 1.5s ease-in-out infinite;
 }
 
 .hero-center .user-name {
-  font-size: 48px;
+  font-size: 36px;
   font-weight: 700;
   color: white;
 }
