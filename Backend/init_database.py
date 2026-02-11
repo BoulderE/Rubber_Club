@@ -144,11 +144,10 @@ EXERCISE_CONFIG = {
 def seed_data():
     session = get_session()
     
-    # 1. 創建測試用戶
     test_users = [
-        {'pin': '1234', 'name': '測試用戶1'},
-        {'pin': '5678', 'name': '測試用戶2'},
-        {'pin': '0000', 'name': '管理員'},
+        {'pin': '1234', 'name': '測試用戶1', 'role': 'user'},
+        {'pin': '5678', 'name': '測試用戶2', 'role': 'user'},
+        {'pin': '0000', 'name': '管理員', 'role': 'admin'},
     ]
     
     for user_data in test_users:
@@ -158,7 +157,6 @@ def seed_data():
             session.add(user)
             print(f"✅ 創建用戶: {user_data['name']}")
     
-    # 2. 導入運動規則
     for exercise_key, config in EXERCISE_CONFIG.items():
         existing = session.query(ExerciseRule).filter_by(exercise_key=exercise_key).first()
         if not existing:

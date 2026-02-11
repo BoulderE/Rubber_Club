@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, Text, DateTime, Date, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
@@ -9,19 +9,19 @@ load_dotenv()
 
 Base = declarative_base()
 
-# 表 1: 用戶表
 class User(Base):
     __tablename__ = 'users'
     
     id = Column(Integer, primary_key=True)
     pin = Column(String(10), unique=True, nullable=False)
     name = Column(String(50), nullable=True)
+    role = Column(String(20), default='user')  
     created_at = Column(DateTime, default=datetime.utcnow)
     
-    # 關聯到運動記錄
     exercise_records = relationship("ExerciseRecord", back_populates="user")
 
-# 表 2: 運動記錄表
+    assigned_exercises = relationship("AssignedExercise", back_populates="user")
+
 class ExerciseRecord(Base):
     __tablename__ = 'exercise_records'
     
@@ -30,13 +30,13 @@ class ExerciseRecord(Base):
     exercise_name = Column(String(100), nullable=False)
     accuracy = Column(Float, nullable=True)
     smoothness = Column(Float, nullable=True)
-    duration = Column(Float, nullable=True)  # 秒
+    duration = Column(Float, nullable=True)  
     rep_count = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="exercise_records")
 
-# 表 3: 動作規則表
+
 class ExerciseRule(Base):
     __tablename__ = 'exercise_rules'
     
@@ -50,7 +50,38 @@ class ExerciseRule(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-# 數據庫連接
+class AssignedExercise(Base):
+    __tablename__ = 'assigned_exercises'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    
+    exercise_key = Column(String(50), nullable=False)  
+    exercise_name = Column(String(100), nullable=False)
+    
+    target_reps = Column(Integer, default=10)  
+    target_sets = Column(Integer, default=3)   
+    difficulty = Column(String(20), default='beginner')  
+    
+    completed_sets = Column(Integer, default=0)
+    completed_reps_total = Column(Integer, default=0)  
+    avg_smoothness = Column(Float, default=0.0)  
+    
+    status = Column(String(20), default='pending')
+    
+    assigned_date = Column(Date, default=datetime.utcnow)
+    due_date = Column(Date, nullable=True)  
+    completed_at = Column(DateTime, nullable=True)  
+    
+    admin_notes = Column(Text, nullable=True)  
+    user_notes = Column(Text, nullable=True)   
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    user = relationship("User", back_populates="assigned_exercises")
+
+
 def get_engine():
     return create_engine(os.getenv('DATABASE_URL'))
 
