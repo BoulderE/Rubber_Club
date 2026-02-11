@@ -35,12 +35,12 @@ export const useAuthStore = defineStore('auth', () => {
         token.value = data.token
         userId.value = data.user_id
         userName.value = data.user_name
-        userRole.value = data.role || 'user'  // Added - default to 'user'
+        userRole.value = data.role || 'user' 
 
         localStorage.setItem('token', data.token)
         localStorage.setItem('userId', data.user_id)
         localStorage.setItem('userName', data.user_name)
-        localStorage.setItem('userRole', data.role || 'user')  // Added
+        localStorage.setItem('userRole', data.role || 'user')  
 
         console.log('[AuthStore] ✅ 登入成功:', userName.value, '角色:', userRole.value)
         return { success: true }

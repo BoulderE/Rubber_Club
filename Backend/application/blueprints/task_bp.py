@@ -5,6 +5,18 @@ from sqlalchemy import desc
 
 task_bp = Blueprint('tasks', __name__)
 
+@task_bp.route('/admin/stats', methods=['GET'])  # Changed from @app.route
+def admin_stats():
+    session = get_session()
+    
+    stats = {
+        'total_users': session.query(User).count(),
+        'total_exercises': 0,  # Add actual count if you have Exercise model
+    }
+    
+    session.close()
+    return jsonify(stats), 200
+
 @task_bp.route('/my-tasks', methods=['GET'])
 def get_my_tasks():
     """獲取當前用戶的待完成任務"""

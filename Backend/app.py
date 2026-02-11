@@ -4,6 +4,7 @@ from api.routes import mediapipe_bp
 from application.blueprints.auth_bp import auth_bp
 from application.blueprints.chatbot_bp import chatbot_bp
 from application.blueprints.records_bp import records_bp
+from application.blueprints.task_bp import task_bp
 
 def create_app():
     app = Flask(__name__)
@@ -13,6 +14,7 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api')
     app.register_blueprint(chatbot_bp, url_prefix='/api/chatbot')
     app.register_blueprint(records_bp, url_prefix='/api')
+    app.register_blueprint(task_bp, url_prefix='/api')
 
     @app.route('/')
     def index():
