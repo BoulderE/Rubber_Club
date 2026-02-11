@@ -26,14 +26,16 @@ def login():
             payload = {
                 'exp': datetime.utcnow() + timedelta(hours=1),
                 'iat': datetime.utcnow(),
-                'sub': user.id,  # 使用用戶 ID
-                'name': user.name
+                'sub': user.id,  
+                'name': user.name,
+                'role': user.role
             }
             token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
             return jsonify({
                 'token': token,
                 'user_id': user.id,
-                'user_name': user.name
+                'user_name': user.name,
+                'role': user.role
             }), 200
         except Exception as e:
             return jsonify({'message': str(e)}), 500
