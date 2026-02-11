@@ -32,12 +32,7 @@ const router = createRouter({
       name: 'History',
       component: () => import('../views/HistoryView.vue')
     },
-    // Admin routes
-    {
-      path: '/admin/login',
-      name: 'adminLogin',
-      component: () => import('../views/AdminLogin.vue')
-    },
+    // Admin routes (removed AdminLogin - using main LoginView instead)
     {
       path: '/admin/dashboard',
       name: 'adminDashboard',
@@ -69,7 +64,7 @@ router.beforeEach((to, from, next) => {
     if (hasAdminToken) {
       next()
     } else {
-      next({ name: 'adminLogin' })
+      next({ name: 'login' }) // Changed: redirect to main login
     }
   } else if (requiresAuth) {
     if (hasToken) {
