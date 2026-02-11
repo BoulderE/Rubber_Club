@@ -28,9 +28,6 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-
-# ==================== 管理員登入 ====================
-
 @admin_bp.route('/login', methods=['POST'])
 def admin_login():
     """管理員登入驗證"""
