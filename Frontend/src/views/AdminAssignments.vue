@@ -2,7 +2,6 @@
   <div class="admin-assignments">
     <header>
       <h1>Admin Dashboard</h1>
-      <button @click="logout" class="logout-btn">Logout</button>
     </header>
 
     <nav class="tabs">
@@ -112,11 +111,6 @@ onMounted(async () => {
   }
   loading.value = false
 })
-
-function logout() {
-  adminStore.logout()
-  router.push('/admin/login')
-}
 
 function editAssignment(a) {
   editingId.value = a.id

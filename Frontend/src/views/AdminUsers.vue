@@ -2,7 +2,6 @@
   <div class="admin-users">
     <header>
       <h1>Admin Dashboard</h1>
-      <button @click="logout" class="logout-btn">Logout</button>
     </header>
 
     <nav class="tabs">
@@ -124,11 +123,6 @@ onMounted(async () => {
   }
   loading.value = false
 })
-
-function logout() {
-  adminStore.logout()
-  router.push('/admin/login')
-}
 
 async function viewHistory(user) {
   selectedUser.value = user
