@@ -5,14 +5,17 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || null)
   const userId = ref(localStorage.getItem('userId') || null)
   const userName = ref(localStorage.getItem('userName') || null)
+  const userRole = ref(localStorage.getItem('userRole') || null)  // Added
 
   const isLoggedIn = computed(() => !!token.value)
+  const isAdmin = computed(() => userRole.value === 'admin')  // Added
   
   const user = computed(() => {
     if (!userId.value) return null
     return {
       id: userId.value,
-      name: userName.value
+      name: userName.value,
+      role: userRole.value  // Added
     }
   })
 
@@ -32,12 +35,14 @@ export const useAuthStore = defineStore('auth', () => {
         token.value = data.token
         userId.value = data.user_id
         userName.value = data.user_name
+        userRole.value = data.role || 'user'  // Added - default to 'user'
 
         localStorage.setItem('token', data.token)
         localStorage.setItem('userId', data.user_id)
         localStorage.setItem('userName', data.user_name)
+        localStorage.setItem('userRole', data.role || 'user')  // Added
 
-        console.log('[AuthStore] ✅ 登入成功:', userName.value)
+        console.log('[AuthStore] ✅ 登入成功:', userName.value, '角色:', userRole.value)
         return { success: true }
       } else {
         console.error('[AuthStore] ❌ 登入失敗:', data.message)
@@ -53,10 +58,12 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     userId.value = null
     userName.value = null
+    userRole.value = null  // Added
 
     localStorage.removeItem('token')
     localStorage.removeItem('userId')
     localStorage.removeItem('userName')
+    localStorage.removeItem('userRole')  // Added
 
     console.log('[AuthStore] 已登出')
   }
@@ -85,8 +92,10 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     userId,
     userName,
+    userRole,
     
     isLoggedIn,
+    isAdmin,
     user,
     
     login,

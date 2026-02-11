@@ -64,7 +64,7 @@ router.beforeEach((to, from, next) => {
     if (hasAdminToken) {
       next()
     } else {
-      next({ name: 'login' }) // Changed: redirect to main login
+      next({ name: 'login' }) 
     }
   } else if (requiresAuth) {
     if (hasToken) {
