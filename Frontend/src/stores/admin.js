@@ -18,7 +18,7 @@ export const useAdminStore = defineStore('admin', {
       const res = await adminApi.adminLogin(pin)
       if (res.token) {
         this.token = res.token
-        localStorage.setItem('adminToken', res.token)
+        localStorage.setItem('adminToken', res.admin.pin)
       }
       return res
     },
