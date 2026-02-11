@@ -30,7 +30,6 @@
 import { ref, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
-import { useAdminStore } from '@/stores/admin';
 
 const currentPin = ref('');
 const message = ref('');
@@ -42,7 +41,6 @@ const displayName = ref('');
 
 const router = useRouter();
 const authStore = useAuthStore();
-const adminStore = useAdminStore();
 
 const keypadLayout = [1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, 'delete'];
 
@@ -68,29 +66,25 @@ const checkPin = async () => {
   isSubmitting.value = true;
 
   try {
-    // Try admin login first
-    const adminResult = await adminStore.login(currentPin.value);
-    
-    if (adminResult.token) {
-      // Admin login successful
-      displayName.value = 'Admin';
-      message.value = 'Admin login successful!';
-      messageColor.value = '#2ecc71';
-      isLoggedIn.value = true;
-
-      await nextTick();
-      setTimeout(() => {
-        router.push('/admin/dashboard');
-      }, 300);
-      return;
-    }
-
-    // Not admin, try regular user login
     const result = await authStore.login(currentPin.value);
 
     if (result.success) {
-      displayName.value = authStore.userName;
-      await loginSuccess();
+      // Check if user is admin
+      if (authStore.userRole === 'admin') {
+        localStorage.setItem('adminToken', localStorage.getItem('token'));
+        displayName.value = 'Admin';
+        message.value = 'Admin login successful!';
+        messageColor.value = '#2ecc71';
+        isLoggedIn.value = true;
+
+        await nextTick();
+        setTimeout(() => {
+          router.push('/admin/dashboard');
+        }, 300);
+      } else {
+        displayName.value = authStore.userName;
+        await loginSuccess();
+      }
     } else {
       loginFailure(result.message || 'PIN碼錯誤，請重試');
     }
