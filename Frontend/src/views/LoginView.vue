@@ -69,9 +69,8 @@ const checkPin = async () => {
     const result = await authStore.login(currentPin.value);
 
     if (result.success) {
-      // Check if user is admin
       if (authStore.userRole === 'admin') {
-        localStorage.setItem('adminToken', localStorage.getItem('token'));
+        localStorage.setItem('adminToken', currentPin.value);  // ← Store the PIN, not the JWT
         displayName.value = 'Admin';
         message.value = 'Admin login successful!';
         messageColor.value = '#2ecc71';
