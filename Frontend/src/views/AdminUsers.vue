@@ -45,8 +45,8 @@
           </thead>
           <tbody>
             <tr v-for="h in history" :key="h.id">
-              <td>{{ h.exercise_type }}</td>
-              <td>{{ h.reps }}</td>
+              <td>{{ h.exercise_name }}</td>
+              <td>{{ h.rep_count }}</td>
               <td>{{ formatDate(h.created_at) }}</td>
             </tr>
           </tbody>
