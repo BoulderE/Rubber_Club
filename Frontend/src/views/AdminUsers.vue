@@ -130,7 +130,7 @@ async function viewHistory(user) {
   historyLoading.value = true
   const res = await adminStore.fetchUserHistory(user.id)
   console.log('History response:', res)
-  history.value = res.sessions || []
+  history.value = res || []
   historyLoading.value = false
 }
 
