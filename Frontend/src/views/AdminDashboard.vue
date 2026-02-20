@@ -281,7 +281,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
-import { getUsers, getUserHistory } from '@/stores/admin'
+import { getUsers, getUserHistory } from '@/api/admin'
 
 const router = useRouter()
 const adminStore = useAdminStore()
