@@ -129,6 +129,7 @@ async function viewHistory(user) {
   showHistory.value = true
   historyLoading.value = true
   const res = await adminStore.fetchUserHistory(user.id)
+  console.log('History response:', res)
   history.value = res.sessions || []
   historyLoading.value = false
 }
