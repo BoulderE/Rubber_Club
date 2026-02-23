@@ -125,6 +125,7 @@ import WebcamAnalyzer from '@/components/WebcamAnalyzer.vue'
 import WorkoutSummary from '@/components/WorkoutSummary.vue'
 import ExerciseBriefing from '@/components/ExerciseBriefing.vue'
 import { useAuthStore } from '@/stores/auth'
+import { updateTaskProgress } from '@/api/tasks'
 
 const route = useRoute()
 const router = useRouter()
@@ -200,6 +201,14 @@ function createAudioPool(src, size = AUDIO_POOL_SIZE) {
 
 const soundUrl = new URL('/sounds/repComplete.mp3', import.meta.url).href;
 audioPlayer.src = soundUrl;
+
+
+// const taskProgressDisplay = computed(() => {
+//   if (!exerciseStore.isTaskMode) return null
+//   const progress = exerciseStore.taskProgress
+//   if (!progress) return null
+//   return `第 ${progress.completed_sets + 1} 組 / 共 ${progress.target_sets} 組`
+// })
 
 function playRepCompleteThrottled() {
   const now = performance.now()
@@ -490,10 +499,42 @@ async function saveWorkoutRecord() {
   } catch (error) {
     console.error('[saveWorkoutRecord] 請求錯誤:', error)
   }
+  //new
+  if (exerciseStore.isTaskMode) {
+    await handleTaskSetComplete(duration)
+  }
+}
+
+async function handleTaskSetComplete(duration) {
+  const task = exerciseStore.getActiveTask()
+  if (!task) return
+
+  console.log('[handleTaskSetComplete] 更新任務進度, task_id:', task.id)
+
+  try {
+    await updateTaskProgress(task.id, {
+      completed_reps: mediapipeStore.count,
+      smoothness: mediapipeStore.smoothness || null,
+      duration: duration || null
+    })
+    
+    exerciseStore.incrementTaskProgress()
+    console.log('[handleTaskSetComplete] 任務進度已更新, completed_sets:', exerciseStore.taskProgress?.completed_sets)
+  } catch (error) {
+    console.error('[handleTaskSetComplete] 更新任務進度失敗:', error)
+  }
 }
 
 async function handleContinueWorkout() {
   showSummary.value = false
+  //new
+  if (exerciseStore.isTaskMode && exerciseStore.isTaskComplete) {
+    console.log('[handleContinueWorkout] 任務已完成，返回首頁')
+    exerciseStore.clearActiveTask()
+    router.push('/')
+    return
+  }
+
   mediapipeStore.reset()
 
   previousCount.value = 0
@@ -525,7 +566,19 @@ function handleEndWorkout() {
     readyMessageTimer.value = null
   }
 
-  router.push('/')
+  if (exerciseStore.isTaskMode) {
+      if (exerciseStore.isTaskComplete) {
+        console.log('[handleEndWorkout] 任務已完成！')
+        exerciseStore.clearActiveTask()
+        router.push('/')
+      } else {
+        const remaining = exerciseStore.taskProgress?.remaining_sets || 0
+        console.log('[handleEndWorkout] 任務未完成，剩餘組數:', remaining)
+        router.push('/')
+      }
+    } else {
+      router.push('/')
+    }
 }
 
 function handleNextInPlaylist() {
@@ -577,7 +630,6 @@ watch(
     
     await nextTick()
     
-    // 播放列表模式下跳过 briefing 和语音
     if (exerciseStore.isPlaylistMode) {
       console.log('[route change] 播放列表模式，跳过 briefing 和语音')
       await startWorkoutFlow()
@@ -597,6 +649,26 @@ watch(
   },
   { immediate: false }
 )
+
+// async function onSetComplete(repsCompleted, smoothness, duration) {
+//   if (exerciseStore.isTaskMode) {
+//     const task = exerciseStore.getActiveTask()
+    
+//     await updateTaskProgress(task.id, {
+//       completed_reps: repsCompleted,
+//       smoothness: smoothness,
+//       duration: duration
+//     })
+    
+//     exerciseStore.incrementTaskProgress()
+    
+//     if (exerciseStore.isTaskComplete) {
+//       alert('任務完成！')
+//       exerciseStore.clearActiveTask()
+//       router.push('/')
+//     }
+//   }
+// }
 </script>
 
 <style scoped>

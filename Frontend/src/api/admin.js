@@ -55,7 +55,7 @@ export async function getAssignments(token, userId = null) {
 
 export async function updateAssignment(token, assignmentId, data) {
   const res = await fetch(`${base}/api/admin/assignments/${assignmentId}`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       'X-Admin-Pin': token

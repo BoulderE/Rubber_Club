@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref,computed } from 'vue'
+import { ref, computed } from 'vue'
 
 export const useExerciseStore = defineStore('exercise', () => {
   const exerciseTypes = ref([
@@ -67,7 +67,7 @@ export const useExerciseStore = defineStore('exercise', () => {
   const startTime = ref(null) 
   const endTime = ref(null) 
 
-  //new
+  // Playlist mode
   const playlist = ref([])
   const currentPlaylistIndex = ref(-1)
   const isPlaylistMode = computed(() => playlist.value.length > 0 && currentPlaylistIndex.value >= 0)
@@ -109,6 +109,46 @@ export const useExerciseStore = defineStore('exercise', () => {
     return playlist.value.map(id => exerciseTypes.value.find(ex => ex.id === id)).filter(Boolean)
   })
 
+  // ==================== Active Task (New) ====================
+  const activeTask = ref(null)
+
+  const isTaskMode = computed(() => activeTask.value !== null)
+
+  const taskProgress = computed(() => {
+    if (!activeTask.value) return null
+    return {
+      completed_sets: activeTask.value.completed_sets,
+      target_sets: activeTask.value.target_sets,
+      target_reps: activeTask.value.target_reps,
+      remaining_sets: activeTask.value.target_sets - activeTask.value.completed_sets
+    }
+  })
+
+  const setActiveTask = (task) => {
+    activeTask.value = task
+  }
+
+  const clearActiveTask = () => {
+    activeTask.value = null
+  }
+
+  const getActiveTask = () => {
+    return activeTask.value
+  }
+
+  // Call this after completing a set to update local state
+  const incrementTaskProgress = () => {
+    if (activeTask.value) {
+      activeTask.value.completed_sets += 1
+    }
+  }
+
+  const isTaskComplete = computed(() => {
+    if (!activeTask.value) return false
+    return activeTask.value.completed_sets >= activeTask.value.target_sets
+  })
+  // ==================== End Active Task ====================
+
   const selectExercise = (exerciseId) => {
     selectedExercise.value = exerciseId
   }
@@ -133,20 +173,22 @@ export const useExerciseStore = defineStore('exercise', () => {
     endTime.value = Date.now();
   }
 
-
   return {
+    // Exercise types
     exerciseTypes,
     selectedExercise,
     exerciseHistory,
     selectExercise,
     addToHistory,
     getExerciseById,
+    
+    // Timing
     startTime,
     endTime,
     startExercise,
     endExercise,
 
-    //new
+    // Playlist mode
     playlist,
     currentPlaylistIndex,
     isPlaylistMode,
@@ -156,6 +198,16 @@ export const useExerciseStore = defineStore('exercise', () => {
     getPlaylistExercises,
     startPlaylist,
     nextInPlaylist,
-    clearPlaylist
+    clearPlaylist,
+
+    // Active task mode (New)
+    activeTask,
+    isTaskMode,
+    taskProgress,
+    setActiveTask,
+    clearActiveTask,
+    getActiveTask,
+    incrementTaskProgress,
+    isTaskComplete
   }
 })

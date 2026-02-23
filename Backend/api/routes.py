@@ -3,6 +3,7 @@ from flask_cors import CORS
 import cv2
 import mediapipe as mp
 import numpy as np
+import time
 
 from .analyzer import ExerciseAnalyzer 
 from .gesture_recognizer import get_gesture_recognizer 
@@ -17,24 +18,36 @@ pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model
 
 hf_gesture_recognizer = None
 
+# Track session timing
+session_start_time = None
+
 
 @mediapipe_bp.route('/control', methods=['POST'])
 def control_workout():
+    global session_start_time
+    
     data = request.json
     action = data.get('action')
 
     if action == 'start':
         exercise_id = data.get('exercise')
-        style = data.get('style')
+        style = data.get('style', 'intermediate')
+        target_count = data.get('target_count')
+        task_id = data.get('task_id')  # NEW: track assigned task
         
         if not exercise_id:
             return jsonify({"error": "Exercise type is required"}), 400
             
         try:
-            analyzer.setup(exercise_id, style)
+            analyzer.setup(exercise_id, style, target_count, task_id)
+            session_start_time = time.time()  # Track when session started
+            
             return jsonify({
                 "status": "started", 
                 "exercise": exercise_id,
+                "style": style,
+                "target_count": analyzer.target_count,
+                "task_id": task_id,
                 "paused": True,
                 "message": "請做 👍 手勢開始運動"
             })
@@ -43,11 +56,22 @@ def control_workout():
 
     elif action == 'reset':
         analyzer.reset()
+        session_start_time = None
         print("Analyzer reset.")
         return jsonify({
             "status": "reset",
             "paused": True,
             "message": "請做 👍 手勢開始運動"
+        })
+    
+    elif action == 'stop':
+        # NEW: Stop session and return results
+        results = get_session_results()
+        analyzer.reset()
+        session_start_time = None
+        return jsonify({
+            "status": "stopped",
+            "results": results
         })
         
     return jsonify({"error": "Invalid action"}), 400
@@ -98,11 +122,18 @@ def analyze_stream():
             'stage': analyzer.state.stage,
             'feedback': "請做 👍 手勢開始運動", 
             'paused': True,
-            'energy': analyzer.state.total_energy
+            'energy': analyzer.state.total_energy,
+            'target_count': analyzer.target_count,
+            'task_id': analyzer.current_task_id
         }
     else:
         analysis_results = analyzer.process(image_rgb)
         analysis_results['paused'] = False
+        analysis_results['target_count'] = analyzer.target_count
+        analysis_results['task_id'] = analyzer.current_task_id
+        
+        # Check if target reached
+        analysis_results['target_reached'] = analyzer.state.count >= analyzer.target_count
 
     response_data = {
         analyzer.exercise_id: analysis_results,   
@@ -110,7 +141,7 @@ def analyze_stream():
         'analysis': analysis_results,             
         'gesture_detected': gesture_detected_type,
         'current_gesture': current_gesture,       
-        'gesture_confidence': gesture_result['confidence']  
+        'gesture_confidence': gesture_result['confidence']
     }
 
     return jsonify(response_data)
@@ -124,13 +155,26 @@ def get_status():
     return jsonify({
         "status": "configured",
         "exercise": analyzer.config['name'],
+        "exercise_key": analyzer.exercise_id,
         "style": analyzer.style,
         "count": analyzer.state.count,
+        "target_count": analyzer.target_count,
         "stage": analyzer.state.stage,
         "is_paused": analyzer.state.is_paused,
         "current_feedback": analyzer.state.feedback,
-        "total_energy": analyzer.state.total_energy
+        "total_energy": analyzer.state.total_energy,
+        "task_id": analyzer.current_task_id,
+        "smoothness": analyzer.smoothness_score
     })
+
+
+@mediapipe_bp.route('/session-results', methods=['GET'])
+def session_results():
+    """Get current session results without stopping"""
+    if not analyzer.config:
+        return jsonify({"error": "No active session"}), 400
+    
+    return jsonify(get_session_results())
 
 
 @mediapipe_bp.route('/device-info', methods=['GET'])
@@ -151,3 +195,25 @@ def get_device_info():
         "status": "loaded",
         **device_info
     })
+
+
+def get_session_results():
+    """Helper function to build session results"""
+    global session_start_time
+    
+    duration = 0
+    if session_start_time:
+        duration = round(time.time() - session_start_time, 1)
+    
+    return {
+        'task_id': analyzer.current_task_id,
+        'exercise_key': analyzer.exercise_id,
+        'exercise_name': analyzer.config['name'] if analyzer.config else None,
+        'completed_reps': analyzer.state.count,
+        'target_reps': analyzer.target_count,
+        'smoothness': analyzer.smoothness_score,
+        'total_energy': round(analyzer.state.total_energy, 2),
+        'duration': duration,
+        'is_complete': analyzer.state.count >= analyzer.target_count,
+        'style': analyzer.style
+    }

@@ -20,8 +20,8 @@
           <tr>
             <th>User</th>
             <th>Exercise</th>
-            <th>Target</th>
-            <th>Completed</th>
+            <th>Difficulty</th>
+            <th>Progress</th>
             <th>Due</th>
             <th>Status</th>
             <th>Actions</th>
@@ -30,12 +30,29 @@
         <tbody>
           <tr v-for="a in assignments" :key="a.id">
             <td>{{ a.user_name }}</td>
-            <td>{{ a.exercise_type }}</td>
-            <td>{{ a.target_reps }}</td>
-            <td>{{ a.completed_reps }}</td>
+            <td>{{ a.exercise_name }}</td>
+            <td>
+              <span class="difficulty" :class="a.difficulty">
+                {{ a.difficulty === 'beginner' ? 'Beginner' : 'Intermediate' }}
+              </span>
+            </td>
+            <td>
+              <div class="progress-info">
+                <span>{{ a.completed_sets }} / {{ a.target_sets }} sets</span>
+                <div class="progress-bar">
+                  <div 
+                    class="progress-fill" 
+                    :style="{ width: (a.completed_sets / a.target_sets * 100) + '%' }"
+                  ></div>
+                </div>
+                <span class="reps-detail">
+                  ({{ a.target_reps }} reps/set)
+                </span>
+              </div>
+            </td>
             <td>{{ formatDate(a.due_date) }}</td>
             <td>
-              <span class="status" :class="a.status">{{ a.status }}</span>
+              <span class="status" :class="a.status">{{ formatStatus(a.status) }}</span>
             </td>
             <td>
               <button @click="editAssignment(a)">Edit</button>
@@ -48,16 +65,28 @@
       <p v-else>No assignments found.</p>
     </div>
 
-    <!-- Edit Modal -->
+    <!-- Edit Modal (Updated) -->
     <div v-if="showEdit" class="modal" @click.self="showEdit = false">
       <div class="modal-content">
         <h3>Edit Assignment</h3>
         <form @submit.prevent="submitEdit">
-          <label>Target Reps</label>
-          <input v-model.number="editForm.target_reps" type="number" min="1" required />
+          <label>Difficulty</label>
+          <select v-model="editForm.difficulty">
+            <option value="beginner">Beginner (10 reps per set)</option>
+            <option value="intermediate">Intermediate (15 reps per set)</option>
+          </select>
+
+          <label>Number of Sets</label>
+          <input v-model.number="editForm.target_sets" type="number" min="1" max="10" required />
+
+          <!-- Preview -->
+          <div class="assignment-preview">
+            <p><strong>Preview:</strong></p>
+            <p>{{ editRepsPerSet }} reps × {{ editForm.target_sets }} sets = {{ editTotalReps }} total reps</p>
+          </div>
 
           <label>Due Date</label>
-          <input v-model="editForm.due_date" type="date" required />
+          <input v-model="editForm.due_date" type="date" />
 
           <label>Status</label>
           <select v-model="editForm.status">
@@ -67,7 +96,7 @@
           </select>
 
           <label>Notes</label>
-          <textarea v-model="editForm.notes"></textarea>
+          <textarea v-model="editForm.admin_notes"></textarea>
 
           <div class="modal-actions">
             <button type="button" @click="showEdit = false">Cancel</button>
@@ -82,7 +111,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
 
@@ -96,10 +125,20 @@ const saving = ref(false)
 const editingId = ref(null)
 
 const editForm = ref({
-  target_reps: 0,
+  difficulty: 'beginner',
+  target_sets: 3,
   due_date: '',
   status: 'pending',
-  notes: ''
+  admin_notes: ''
+})
+
+// Auto-calculate reps for edit preview
+const editRepsPerSet = computed(() => {
+  return editForm.value.difficulty === 'beginner' ? 10 : 15
+})
+
+const editTotalReps = computed(() => {
+  return editRepsPerSet.value * editForm.value.target_sets
 })
 
 onMounted(async () => {
@@ -107,7 +146,7 @@ onMounted(async () => {
   if (res.error) {
     router.push('/admin/login')
   } else {
-    assignments.value = res.assignments || []
+    assignments.value = res || []
   }
   loading.value = false
 })
@@ -115,21 +154,31 @@ onMounted(async () => {
 function editAssignment(a) {
   editingId.value = a.id
   editForm.value = {
-    target_reps: a.target_reps,
+    difficulty: a.difficulty || 'beginner',
+    target_sets: a.target_sets,
     due_date: a.due_date?.split('T')[0] || '',
     status: a.status,
-    notes: a.notes || ''
+    admin_notes: a.admin_notes || ''
   }
   showEdit.value = true
 }
 
 async function submitEdit() {
   saving.value = true
-  const res = await adminStore.updateAssignment(editingId.value, editForm.value)
+  
+  // Send to backend - no target_reps, backend calculates from difficulty
+  const res = await adminStore.updateAssignment(editingId.value, {
+    difficulty: editForm.value.difficulty,
+    target_sets: editForm.value.target_sets,
+    due_date: editForm.value.due_date || null,
+    status: editForm.value.status,
+    admin_notes: editForm.value.admin_notes
+  })
+  
   if (res.success) {
     showEdit.value = false
     const refreshed = await adminStore.fetchAssignments()
-    assignments.value = refreshed.assignments || []
+    assignments.value = refreshed || []
   } else {
     alert(res.error || 'Failed to update')
   }
@@ -150,154 +199,90 @@ function formatDate(dateStr) {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString()
 }
+
+function formatStatus(status) {
+  const statusMap = {
+    'pending': 'Pending',
+    'in_progress': 'In Progress',
+    'completed': 'Completed'
+  }
+  return statusMap[status] || status
+}
 </script>
 
 <style scoped>
-.admin-assignments {
-  min-height: 100vh;
-  background: #f5f7fa;
-  padding: 1rem;
-}
-
-header {
+.progress-info {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  flex-direction: column;
+  gap: 4px;
 }
 
-h1 { margin: 0; color: #1a1a2e; }
-
-.logout-btn {
-  padding: 8px 16px;
-  background: #e74c3c;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.tabs {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.tabs a {
-  padding: 10px 20px;
-  background: #fff;
-  border-radius: 8px;
-  text-decoration: none;
-  color: #333;
-}
-
-.tabs a.active {
-  background: #4a90d9;
-  color: #fff;
-}
-
-.content h2 { margin-bottom: 1rem; }
-
-.loading {
-  text-align: center;
-  padding: 2rem;
-  color: #666;
-}
-
-table {
+.progress-bar {
   width: 100%;
-  background: #fff;
-  border-radius: 12px;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  border-collapse: collapse;
 }
 
-th, td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #eee;
+.progress-fill {
+  height: 100%;
+  background: #10b981;
+  transition: width 0.3s ease;
 }
 
-th { background: #f8f9fa; color: #666; }
+.reps-detail {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.difficulty {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.difficulty.beginner {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.difficulty.intermediate {
+  background: #fef3c7;
+  color: #92400e;
+}
 
 .status {
-  padding: 4px 8px;
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.85rem;
-}
-.status.pending { background: #ffeaa7; }
-.status.in_progress { background: #74b9ff; color: #fff; }
-.status.completed { background: #55efc4; }
-
-td button {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-right: 4px;
-  background: #eee;
+  font-size: 12px;
 }
 
-td .delete-btn {
-  background: #e74c3c;
-  color: #fff;
+.status.pending {
+  background: #e5e7eb;
+  color: #374151;
 }
 
-/* Modal */
-.modal {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+.status.in_progress {
+  background: #dbeafe;
+  color: #1e40af;
 }
 
-.modal-content {
-  background: #fff;
-  padding: 1.5rem;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 400px;
+.status.completed {
+  background: #d1fae5;
+  color: #065f46;
 }
 
-.modal-content h3 { margin: 0 0 1rem; }
-
-.modal-content label {
-  display: block;
-  margin: 0.75rem 0 0.25rem;
-  color: #666;
+.assignment-preview {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
 }
 
-.modal-content input,
-.modal-content select,
-.modal-content textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 1rem;
-  box-sizing: border-box;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.modal-actions button {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.modal-actions button[type="submit"] {
-  background: #4a90d9;
-  color: #fff;
+.assignment-preview p {
+  margin: 4px 0;
+  color: #0369a1;
 }
 </style>

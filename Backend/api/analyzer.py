@@ -238,8 +238,8 @@ class ExerciseAnalyzer:
         self._phase_name = None
         self._phase_start_time = None
 
-        # new
         self.target_count = 15
+        self.current_task_id = None
 
     def _now(self):
         return time.time()
@@ -336,13 +336,14 @@ class ExerciseAnalyzer:
             "rep_durations": self.repetition_durations[-20:], 
         }
 
-    def setup(self, exercise_type: str, style: str, target_count: int = None):
+    def setup(self, exercise_type: str, style: str, target_count: int = None, task_id: int = None):
         if exercise_type not in EXERCISE_CONFIG:
             raise ValueError(f"不支援的運動類型:{exercise_type}")
         
         self.config = EXERCISE_CONFIG[exercise_type]
         self.style = style if style in ['intermediate', 'beginner'] else 'intermediate'
         self.exercise_id = exercise_type
+        self.current_task_id = task_id
 
         # new
         if target_count is not None:

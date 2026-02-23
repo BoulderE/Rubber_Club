@@ -23,7 +23,71 @@
           </div>
         </div>
       </div>
-    </div>    
+    </div>
+
+    <!-- Assigned Tasks Section (New) -->
+    <div v-if="authStore.isLoggedIn && tasks.length > 0" class="tasks-section">
+      <div class="section-header">
+        <h2>📋 我的任務</h2>
+        <router-link to="/my-tasks" class="view-all-link">查看全部 →</router-link>
+      </div>
+      
+      <div class="tasks-grid">
+        <div 
+          v-for="task in tasks" 
+          :key="task.id" 
+          class="task-card"
+          :class="{ 'in-progress': task.status === 'in_progress', 'overdue': task.is_overdue }"
+        >
+          <div class="task-header">
+            <span class="task-exercise">{{ task.exercise_name }}</span>
+            <span class="task-difficulty" :class="task.difficulty">
+              {{ task.difficulty === 'beginner' ? '初級' : '中級' }}
+            </span>
+          </div>
+          
+          <div class="task-progress">
+            <div class="progress-text">
+              <span>進度</span>
+              <span>{{ task.completed_sets }} / {{ task.target_sets }} 組</span>
+            </div>
+            <div class="progress-bar">
+              <div 
+                class="progress-fill" 
+                :style="{ width: (task.completed_sets / task.target_sets * 100) + '%' }"
+              ></div>
+            </div>
+            <div class="reps-info">
+              每組 {{ task.target_reps }} 次
+            </div>
+          </div>
+          
+          <div class="task-footer">
+            <span v-if="task.due_date" class="task-due" :class="{ 'overdue': task.is_overdue }">
+              {{ task.is_overdue ? '已逾期' : '截止' }}: {{ formatDate(task.due_date) }}
+            </span>
+            <span v-else class="task-due">無截止日期</span>
+            
+            <button 
+              @click="startTask(task)" 
+              class="start-task-btn"
+              :class="{ 'continue': task.status === 'in_progress' }"
+            >
+              {{ task.status === 'in_progress' ? '繼續' : '開始' }}
+            </button>
+          </div>
+          
+          <div v-if="task.admin_notes" class="task-notes">
+            💬 {{ task.admin_notes }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- No Tasks Message -->
+    <div v-else-if="authStore.isLoggedIn && tasksLoaded && tasks.length === 0" class="no-tasks">
+      <p>✨ 目前沒有待完成的任務</p>
+    </div>
 
     <div v-if="showModal" class="modal-backdrop" @click.self="showModal = false">
       <div class="modal-content">
@@ -59,6 +123,7 @@
         class="chatbot-container"
       />
     </div>
+
     <div 
       v-if="showDetailModal"
       class="detail-modal-overlay"
@@ -104,6 +169,11 @@
       </div>
     </div>
 
+    <!-- Section Header for Free Training -->
+    <div class="section-header exercises-header">
+      <h2>🏋️ 自由訓練</h2>
+    </div>
+
     <div class="exercises-grid">
       <div 
         v-for="exercise in exercises" 
@@ -135,6 +205,7 @@
         </div>
       </div>
     </div>
+
     <div class="fab-group">
       <button @click="goToHistory" class="fab-btn history-fab" title="運動歷史">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -151,10 +222,12 @@
 
 <script setup>
 import ChatbotWindow from '@/components/ChatbotWindow.vue'; 
-import { ref, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useExerciseStore } from '@/stores/exercise'
 import { useAuthStore } from '@/stores/auth';
+import { fetchMyTasks, startTaskApi } from '@/api/tasks';
+
 const authStore = useAuthStore();
 const router = useRouter();
 
@@ -164,6 +237,10 @@ const showDetailModal = ref(false);
 const selectedExercise = ref(null); 
 const detailExercise = ref(null);
 const selectedLevel = ref('beginner');
+
+// Tasks state
+const tasks = ref([]);
+const tasksLoaded = ref(false);
 
 const videoRefs = ref({});
 
@@ -256,6 +333,64 @@ const exercises = ref([
   }
 ]);
 
+// Fetch tasks on mount
+onMounted(async () => {
+  if (authStore.isLoggedIn) {
+    await loadTasks();
+  }
+});
+
+async function loadTasks() {
+  try {
+    const res = await fetchMyTasks();
+    tasks.value = res || [];
+  } catch (err) {
+    console.error('Failed to load tasks:', err);
+  } finally {
+    tasksLoaded.value = true;
+  }
+}
+
+async function startTask(task) {
+  try {
+    // Mark task as in_progress if pending
+    if (task.status === 'pending') {
+      await startTaskApi(task.id);
+    }
+    
+    // Store active task info for the exercise view
+    const exerciseStore = useExerciseStore();
+    exerciseStore.setActiveTask({
+      id: task.id,
+      exercise_key: task.exercise_key,
+      target_reps: task.target_reps,
+      target_sets: task.target_sets,
+      completed_sets: task.completed_sets,
+      difficulty: task.difficulty
+    });
+    
+    // Navigate to exercise
+    router.push({
+      name: 'exercise',
+      params: { type: task.exercise_key },
+      query: {
+        style: task.difficulty,
+        taskId: task.id,
+        autoPlayVoice: 'true'
+      }
+    });
+  } catch (err) {
+    console.error('Failed to start task:', err);
+    alert('無法開始任務');
+  }
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
 const setVideoRef = (el, id) => {
   if (el) {
     videoRefs.value[id] = el;
@@ -316,7 +451,6 @@ function startExercise() {
     params: { type: selectedExercise.value.id },
     query: { 
       style: selectedLevel.value,
-      
       autoPlayVoice: 'true' 
     }
   });
@@ -333,8 +467,8 @@ onBeforeUnmount(() => {
   });
 });
 
-// new
 const exerciseStore = useExerciseStore()
+
 function startPlaylistMode() {
   const defaultPlaylist = ['bicep_curl', 'lateral_raise', 'front_raise', 'overhead_press', 'chest_pull', 'diagonal_lift']
   const firstExercise = exerciseStore.startPlaylist(defaultPlaylist)
@@ -355,6 +489,213 @@ function goToHistory() {
 </script>
 
 <style scoped>
+/* ... existing styles ... */
+
+/* Tasks Section Styles */
+.tasks-section {
+  margin-bottom: 40px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.exercises-header {
+  margin-top: 20px;
+}
+
+.view-all-link {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: color 0.2s ease;
+}
+
+.view-all-link:hover {
+  color: #764ba2;
+}
+
+.tasks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.task-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border-left: 4px solid #e5e7eb;
+}
+
+.task-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.task-card.in-progress {
+  border-left-color: #667eea;
+  background: linear-gradient(135deg, #f8f7ff 0%, #ffffff 100%);
+}
+
+.task-card.overdue {
+  border-left-color: #ef4444;
+}
+
+.task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.task-exercise {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.task-difficulty {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.task-difficulty.beginner {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.task-difficulty.intermediate {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.task-progress {
+  margin-bottom: 16px;
+}
+
+.progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  background: #e5e7eb;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+
+.reps-info {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  margin-top: 6px;
+  text-align: right;
+}
+
+.task-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.task-due {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.task-due.overdue {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.start-task-btn {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.start-task-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.start-task-btn.continue {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.start-task-btn.continue:hover {
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.task-notes {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.no-tasks {
+  text-align: center;
+  padding: 40px 20px;
+  background: white;
+  border-radius: 16px;
+  margin-bottom: 40px;
+}
+
+.no-tasks p {
+  font-size: 1.1rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .tasks-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* ... rest of existing styles ... */
 .home-view {
   max-width: 1400px;
   margin: 0 auto;
@@ -519,7 +860,6 @@ function goToHistory() {
   color: #111827;
   padding-right: 30px; 
 }
-
 
 .level-options { 
   display: grid;

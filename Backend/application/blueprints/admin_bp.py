@@ -290,6 +290,8 @@ def assign_exercise(admin_user):
         
         user_id = data.get('user_id')
         exercise_key = data.get('exercise_key')
+        difficulty = data.get('difficulty', 'beginner')
+        target_sets = data.get('target_sets', 1)
         
         if not user_id or not exercise_key:
             return jsonify({'error': '請選擇用戶和運動'}), 400
@@ -302,13 +304,16 @@ def assign_exercise(admin_user):
         if not exercise:
             return jsonify({'error': '運動類型不存在'}), 404
         
+        # Auto-calculate reps based on difficulty
+        reps_per_set = 10 if difficulty == 'beginner' else 15
+        
         assignment = AssignedExercise(
             user_id=user_id,
             exercise_key=exercise_key,
             exercise_name=exercise.name,
-            target_reps=data.get('target_reps', 10),
-            target_sets=data.get('target_sets', 3),
-            difficulty=data.get('difficulty', 'beginner'),
+            target_reps=reps_per_set,       # Auto-calculated, NOT from admin input
+            target_sets=target_sets,         # From admin input
+            difficulty=difficulty,
             due_date=datetime.strptime(data['due_date'], '%Y-%m-%d').date() if data.get('due_date') else None,
             admin_notes=data.get('notes', ''),
             assigned_date=date.today()
@@ -322,7 +327,10 @@ def assign_exercise(admin_user):
             'assignment': {
                 'id': assignment.id,
                 'user_name': user.name,
-                'exercise_name': exercise.name
+                'exercise_name': exercise.name,
+                'target_sets': target_sets,
+                'reps_per_set': reps_per_set,
+                'difficulty': difficulty
             }
         }), 201
         
@@ -378,7 +386,6 @@ def get_all_assignments(admin_user):
 @admin_bp.route('/assignments/<int:assignment_id>', methods=['PATCH'])
 @admin_required
 def update_assignment(assignment_id, admin_user):
-    """更新任務"""
     session = get_session()
     try:
         data = request.get_json()
@@ -393,14 +400,13 @@ def update_assignment(assignment_id, admin_user):
                 assignment.completed_at = datetime.utcnow()
         if 'admin_notes' in data:
             assignment.admin_notes = data['admin_notes']
-        if 'target_reps' in data:
-            assignment.target_reps = data['target_reps']
         if 'target_sets' in data:
             assignment.target_sets = data['target_sets']
         if 'due_date' in data:
             assignment.due_date = datetime.strptime(data['due_date'], '%Y-%m-%d').date() if data['due_date'] else None
         if 'difficulty' in data:
             assignment.difficulty = data['difficulty']
+            assignment.target_reps = 10 if data['difficulty'] == 'beginner' else 15
         
         session.commit()
         return jsonify({'message': '任務更新成功'})

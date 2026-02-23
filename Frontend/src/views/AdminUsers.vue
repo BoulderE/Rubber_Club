@@ -56,24 +56,36 @@
       </div>
     </div>
 
-    <!-- Assign Modal -->
+    <!-- Assign Modal (Updated) -->
     <div v-if="showAssign" class="modal" @click.self="showAssign = false">
       <div class="modal-content">
         <h3>Assign Exercise to {{ selectedUser?.name }}</h3>
         <form @submit.prevent="submitAssignment">
           <label>Exercise Type</label>
-          <select v-model="assignForm.exercise_type" required>
+          <select v-model="assignForm.exercise_key" required>
             <option value="bicep_curl">Bicep Curl</option>
             <option value="squat">Squat</option>
             <option value="pushup">Push-up</option>
             <option value="lunge">Lunge</option>
           </select>
 
-          <label>Target Reps</label>
-          <input v-model.number="assignForm.target_reps" type="number" min="1" required />
+          <label>Difficulty</label>
+          <select v-model="assignForm.difficulty">
+            <option value="beginner">Beginner (10 reps per set)</option>
+            <option value="intermediate">Intermediate (15 reps per set)</option>
+          </select>
 
-          <label>Due Date</label>
-          <input v-model="assignForm.due_date" type="date" required />
+          <label>Number of Sets</label>
+          <input v-model.number="assignForm.target_sets" type="number" min="1" max="10" required />
+
+          <!-- Preview (auto-calculated, read-only) -->
+          <div class="assignment-preview">
+            <p><strong>Preview:</strong></p>
+            <p>{{ repsPerSet }} reps × {{ assignForm.target_sets }} sets = {{ totalReps }} total reps</p>
+          </div>
+
+          <label>Due Date (optional)</label>
+          <input v-model="assignForm.due_date" type="date" />
 
           <label>Notes (optional)</label>
           <textarea v-model="assignForm.notes"></textarea>
@@ -91,7 +103,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
 
@@ -108,10 +120,21 @@ const historyLoading = ref(false)
 const assigning = ref(false)
 
 const assignForm = ref({
-  exercise_type: 'bicep_curl',
-  target_reps: 10,
+  exercise_key: 'bicep_curl',
+  difficulty: 'beginner',
+  target_sets: 3,
   due_date: '',
   notes: ''
+})
+
+// Auto-calculate reps based on difficulty
+const repsPerSet = computed(() => {
+  return assignForm.value.difficulty === 'beginner' ? 10 : 15
+})
+
+// Calculate total reps for preview
+const totalReps = computed(() => {
+  return repsPerSet.value * assignForm.value.target_sets
 })
 
 onMounted(async () => {
@@ -129,7 +152,6 @@ async function viewHistory(user) {
   showHistory.value = true
   historyLoading.value = true
   const res = await adminStore.fetchUserHistory(user.id)
-  console.log('History response:', res)
   history.value = res || []
   historyLoading.value = false
 }
@@ -137,8 +159,9 @@ async function viewHistory(user) {
 function openAssignModal(user) {
   selectedUser.value = user
   assignForm.value = {
-    exercise_type: 'bicep_curl',
-    target_reps: 10,
+    exercise_key: 'bicep_curl',
+    difficulty: 'beginner',
+    target_sets: 3,
     due_date: '',
     notes: ''
   }
@@ -147,10 +170,16 @@ function openAssignModal(user) {
 
 async function submitAssignment() {
   assigning.value = true
+  
   const res = await adminStore.assignExercise({
     user_id: selectedUser.value.id,
-    ...assignForm.value
+    exercise_key: assignForm.value.exercise_key,
+    difficulty: assignForm.value.difficulty,
+    target_sets: assignForm.value.target_sets,
+    due_date: assignForm.value.due_date || null,
+    notes: assignForm.value.notes
   })
+  
   if (res.success) {
     showAssign.value = false
     alert('Exercise assigned successfully!')
