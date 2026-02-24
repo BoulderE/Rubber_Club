@@ -63,10 +63,13 @@
         <form @submit.prevent="submitAssignment">
           <label>Exercise Type</label>
           <select v-model="assignForm.exercise_key" required>
-            <option value="bicep_curl">Bicep Curl</option>
-            <option value="squat">Squat</option>
-            <option value="pushup">Push-up</option>
-            <option value="lunge">Lunge</option>
+            <option 
+              v-for="ex in exercises" 
+              :key="ex.exercise_key" 
+              :value="ex.exercise_key"
+            >
+          {{ ex.name }}
+        </option>
           </select>
 
           <label>Difficulty</label>
@@ -112,6 +115,7 @@ const adminStore = useAdminStore()
 
 const loading = ref(true)
 const users = ref([])
+const exercises = ref([])
 const showHistory = ref(false)
 const showAssign = ref(false)
 const selectedUser = ref(null)
@@ -144,6 +148,15 @@ onMounted(async () => {
   } else {
     users.value = res.users || []
   }
+
+  const exerciseRes = await adminStore.fetchExercises()
+  exercises.value = exerciseRes || []
+  
+  // Set default selection
+  if (exercises.value.length > 0) {
+    assignForm.value.exercise_key = exercises.value[0].exercise_key
+  }
+
   loading.value = false
 })
 
@@ -159,9 +172,9 @@ async function viewHistory(user) {
 function openAssignModal(user) {
   selectedUser.value = user
   assignForm.value = {
-    exercise_key: 'bicep_curl',
+    exercise_key: exercises.value[0]?.exercise_key || '',
     difficulty: 'beginner',
-    target_sets: 3,
+    target_sets: 1,
     due_date: '',
     notes: ''
   }
