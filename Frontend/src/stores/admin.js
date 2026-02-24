@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import * as adminApi from '@/api/admin'
-import { API_BASE } from '@/api/base'
+import { getApiBase } from '@/api/base'
 
 export const useAdminStore = defineStore('admin', {
   state: () => ({
@@ -46,16 +46,12 @@ export const useAdminStore = defineStore('admin', {
     },
 
     async fetchExercises() {
-      try {
-        const response = await fetch(`${API_BASE}/api/admin/exercises`, {
-          headers: { 'X-Admin-Pin': this.token }
-        })
-        if (!response.ok) throw new Error('Failed to fetch exercises')
-        return await response.json()
-      } catch (error) {
-        console.error('fetchExercises error:', error)
-        return []
-      }
+      const API_BASE = getApiBase()
+      const res = await fetch(`${API_BASE}/api/admin/exercises`, {
+        headers: { 'X-Admin-Pin': this.token }
+      })
+      if (!res.ok) return []
+      return await res.json()
     },
 
     async assignExercise(data) {
