@@ -47,7 +47,7 @@ export async function assignExercise(token, data) {
     return { success: false, error: json.error || 'Failed to assign' }
   }
 
-  return res.json()
+  return {success: true, assignment: json.assignment }
 }
 
 export async function getAssignments(token, userId = null) {
