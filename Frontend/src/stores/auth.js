@@ -40,7 +40,8 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem('token', data.token)
         localStorage.setItem('userId', data.user_id)
         localStorage.setItem('userName', data.user_name)
-        localStorage.setItem('userRole', data.role || 'user')  
+        localStorage.setItem('userRole', data.role || 'user')
+        localStorage.setItem('userPin', pin)   
 
         console.log('[AuthStore] ✅ 登入成功:', userName.value, '角色:', userRole.value)
         return { success: true }
@@ -58,12 +59,13 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     userId.value = null
     userName.value = null
-    userRole.value = null  // Added
+    userRole.value = null 
 
     localStorage.removeItem('token')
     localStorage.removeItem('userId')
     localStorage.removeItem('userName')
-    localStorage.removeItem('userRole')  // Added
+    localStorage.removeItem('userRole')  
+    localStorage.removeItem('userPin')
 
     console.log('[AuthStore] 已登出')
   }
