@@ -33,7 +33,7 @@ export async function getUserHistory(token, userId) {
 }
 
 export async function assignExercise(token, data) {
-  const res = await fetch(`${base}/api/admin/assignments`, {
+  const res = await fetch(`${base}/api/admin/assign`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -41,6 +41,12 @@ export async function assignExercise(token, data) {
     },
     body: JSON.stringify(data)
   })
+    const json = await res.json()
+  
+  if (!res.ok) {
+    return { success: false, error: json.error || 'Failed to assign' }
+  }
+
   return res.json()
 }
 
