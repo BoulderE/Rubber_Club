@@ -76,5 +76,14 @@ export async function deleteAssignment(token, assignmentId) {
     method: 'DELETE',
     headers: { 'X-Admin-Pin': token }
   })
-  return res.json()
+  if (res.ok) {
+    return { success: true }
+  }
+  
+  try {
+    const data = await res.json()
+    return { success: false, error: data.message || 'Failed to delete' }
+  } catch {
+    return { success: false, error: 'Failed to delete' }
+  }
 }
