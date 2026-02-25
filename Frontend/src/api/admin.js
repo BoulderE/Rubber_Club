@@ -33,7 +33,7 @@ export async function getUserHistory(token, userId) {
 }
 
 export async function assignExercise(token, data) {
-  const res = await fetch(`${base}/api/admin/assign`, {
+  const res = await fetch(`${base}/api/admin/assignments`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
