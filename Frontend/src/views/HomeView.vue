@@ -42,7 +42,7 @@
       <div v-else-if="hasPlaylists" class="playlists-grid">
         <div 
           v-for="playlist in displayedPlaylists" 
-          :key="playlist.playlist_id"
+          :key="playlist.id"
           class="playlist-item-card"
           @click="startPlaylistSession(playlist)"
         >
@@ -271,8 +271,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useExerciseStore } from '@/stores/exercise'
 import { useAuthStore } from '@/stores/auth';
-import { fetchMyTasks, startTaskApi } from '@/api/tasks';
-import { playlistApi } from '@/services/api';
+import { fetchMyTasks, startTaskApi, fetchMyPlaylists } from '@/api/tasks';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -385,14 +384,10 @@ const exercises = ref([
 ]);
 
 // Computed properties for playlists
-const allPlaylists = computed(() => {
-  return [...(exerciseStore.routines || []), ...userPlaylists.value]
-})
-
-const hasPlaylists = computed(() => allPlaylists.value.length > 0)
+const hasPlaylists = computed(() => userPlaylists.value.length > 0)
 
 const displayedPlaylists = computed(() => {
-  return allPlaylists.value.slice(0, 3)
+  return userPlaylists.value.slice(0, 3)
 })
 
 // Fetch tasks and playlists on mount
@@ -400,7 +395,7 @@ onMounted(async () => {
   if (authStore.isLoggedIn) {
     await Promise.all([
       loadTasks(),
-      fetchPlaylists()
+      loadPlaylists()
     ]);
   }
 });
@@ -416,16 +411,13 @@ async function loadTasks() {
   }
 }
 
-async function fetchPlaylists() {
+async function loadPlaylists() {
   playlistLoading.value = true;
   try {
-    const response = await playlistApi.getAll();
-    userPlaylists.value = response.data || [];
-    if (exerciseStore.setPlaylists) {
-      exerciseStore.setPlaylists(response.data || []);
-    }
-  } catch (error) {
-    console.error('Failed to fetch playlists:', error);
+    const res = await fetchMyPlaylists();
+    userPlaylists.value = res || [];
+  } catch (err) {
+    console.error('Failed to load playlists:', err);
     userPlaylists.value = [];
   } finally {
     playlistLoading.value = false;
@@ -439,20 +431,18 @@ function startPlaylistSession(playlist) {
   }
 
   // Extract exercise IDs from playlist
-  const exerciseIds = playlist.exercises.map(e => e.exercise_type || e.id);
+  const exerciseIds = playlist.exercises.map(e => e.exercise_type || e.exercise_key || e.id);
   
   // Start playlist mode
   const firstExerciseId = exerciseStore.startPlaylist(exerciseIds);
-  if (exerciseStore.setCurrentPlaylist) {
-    exerciseStore.setCurrentPlaylist(playlist);
-  }
   
   router.push({
     name: 'exercise',
     params: { type: firstExerciseId },
     query: {
       style: 'beginner',
-      autoPlayVoice: 'true'
+      autoPlayVoice: 'true',
+      playlistId: playlist.id
     }
   });
 }
