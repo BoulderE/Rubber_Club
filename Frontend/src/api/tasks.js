@@ -38,7 +38,7 @@ export async function updateTaskProgress(taskId, data) {
 
 // playlist functions
 export async function fetchMyPlaylists() {
-  const response = await axios.get(`${API_BASE}/api/playlists/my-playlists`, {
+  const response = await axios.get(`${API_BASE}/api/tasks/my-playlists`, {
     headers: getAuthHeaders()
   })
   return response.data
