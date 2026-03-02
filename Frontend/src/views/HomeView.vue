@@ -14,64 +14,26 @@
           <div class="user-name">{{ authStore.userName || '用戶' }}</div>
         </div>
         <div class="hero-right">
-          <div class="playlist-card" @click="goToCreatePlaylist">
+          <div class="playlist-card" @click="togglePlaylistPanel">
             <div class="playlist-info">
-              <h3>建立清單</h3>
-              <p>自訂您的訓練組合</p>
+              <h3>訓練清單</h3>
+              <p>查看或建立訓練組合</p>
             </div>
-            <span class="playlist-arrow">+</span>
+            <span class="playlist-arrow">{{ showPlaylistPanel ? '✕' : '☰' }}</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- My Playlists Section -->
-    <div v-if="authStore.isLoggedIn" class="playlists-section">
-      <div class="section-header">
-        <h2>📋 我的訓練清單</h2>
-        <router-link v-if="hasPlaylists" to="/playlists" class="view-all-link">查看全部 →</router-link>
-      </div>
+    <PlaylistPanel 
+      ref="playlistPanelRef"
+      :visible="showPlaylistPanel" 
+      @close="showPlaylistPanel = false" 
+    /> 
 
-      <!-- Loading State -->
-      <div v-if="playlistLoading" class="playlist-loading">
-        <div class="loading-spinner"></div>
-        <span>載入中...</span>
-      </div>
-
-      <!-- Playlists List -->
-      <div v-else-if="hasPlaylists" class="playlists-grid">
-        <div 
-          v-for="playlist in displayedPlaylists" 
-          :key="playlist.id"
-          class="playlist-item-card"
-          @click="startPlaylistSession(playlist)"
-        >
-          <div class="playlist-item-info">
-            <h3 class="playlist-item-name">{{ playlist.name }}</h3>
-            <p class="playlist-item-meta">
-              {{ playlist.exercises?.length || 0 }} 個動作
-              <span v-if="playlist.is_routine" class="routine-badge">常用</span>
-            </p>
-          </div>
-          <div class="playlist-item-action">
-            <span class="play-icon">▶</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Empty State -->
-      <div v-else class="playlist-empty">
-        <p>✨ 尚未建立訓練清單</p>
-        <button class="create-first-btn" @click="goToCreatePlaylist">
-          建立第一個清單
-        </button>
-      </div>
-    </div>
-
-    <!-- Tasks Section -->
     <div v-if="authStore.isLoggedIn && tasks.length > 0" class="tasks-section">
       <div class="section-header">
-        <h2>📝 我的任務</h2>
+        <h2>我的任務</h2>
         <router-link to="/my-tasks" class="view-all-link">查看全部 →</router-link>
       </div>
       
@@ -131,7 +93,6 @@
       <p>✨ 目前沒有待完成的任務</p>
     </div>
 
-    <!-- Difficulty Selection Modal -->
     <div v-if="showModal" class="modal-backdrop" @click.self="showModal = false">
       <div class="modal-content">
         <button @click="showModal = false" class="close-button">&times;</button>
@@ -160,7 +121,6 @@
       </div>
     </div>
 
-    <!-- Chatbot Modal -->
     <div v-if="isChatbotVisible" class="modal-backdrop" @click.self="isChatbotVisible = false">
       <ChatbotWindow 
         @close="isChatbotVisible = false"
@@ -168,7 +128,6 @@
       />
     </div>
 
-    <!-- Exercise Detail Modal -->
     <div 
       v-if="showDetailModal"
       class="detail-modal-overlay"
@@ -214,9 +173,8 @@
       </div>
     </div>
 
-    <!-- Section Header for Free Training -->
     <div class="section-header exercises-header">
-      <h2>🏋️ 自由訓練</h2>
+      <h2>自由訓練</h2>
     </div>
 
     <div class="exercises-grid">
@@ -267,7 +225,7 @@
 
 <script setup>
 import ChatbotWindow from '@/components/ChatbotWindow.vue'; 
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useExerciseStore } from '@/stores/exercise'
 import { useAuthStore } from '@/stores/auth';
@@ -289,6 +247,7 @@ const tasks = ref([]);
 const tasksLoaded = ref(false);
 
 // Playlists state
+const showPlaylistPanel = ref(false);
 const playlistLoading = ref(false);
 const userPlaylists = ref([]);
 
@@ -383,20 +342,25 @@ const exercises = ref([
   }
 ]);
 
-// Computed properties for playlists
-const hasPlaylists = computed(() => userPlaylists.value.length > 0)
+// const hasPlaylists = computed(() => userPlaylists.value.length > 0)
 
-const displayedPlaylists = computed(() => {
-  return userPlaylists.value.slice(0, 3)
-})
+watch(showPlaylistPanel, async (isOpen) => {
+  if (isOpen && authStore.isLoggedIn && userPlaylists.value.length === 0) {
+    await loadPlaylists();
+  }
+});
 
-// Fetch tasks and playlists on mount
+function togglePlaylistPanel() {
+  if (!authStore.isLoggedIn) {
+    router.push('/login');
+    return;
+  }
+  showPlaylistPanel.value = !showPlaylistPanel.value;
+}
+
 onMounted(async () => {
   if (authStore.isLoggedIn) {
-    await Promise.all([
-      loadTasks(),
-      loadPlaylists()
-    ]);
+    await loadTasks();
   }
 });
 
@@ -424,41 +388,39 @@ async function loadPlaylists() {
   }
 }
 
-function startPlaylistSession(playlist) {
-  if (!playlist.exercises || playlist.exercises.length === 0) {
-    alert('此清單沒有動作');
-    return;
-  }
+// function startPlaylistSession(playlist) {
+//   if (!playlist.exercises || playlist.exercises.length === 0) {
+//     alert('此清單沒有動作');
+//     return;
+//   }
 
-  // Extract exercise IDs from playlist
-  const exerciseIds = playlist.exercises.map(e => e.exercise_type || e.exercise_key || e.id);
-  
-  // Start playlist mode
-  const firstExerciseId = exerciseStore.startPlaylist(exerciseIds);
-  
-  router.push({
-    name: 'exercise',
-    params: { type: firstExerciseId },
-    query: {
-      style: 'beginner',
-      autoPlayVoice: 'true',
-      playlistId: playlist.id
-    }
-  });
-}
+//   showPlaylistPanel.value = false;
 
-function goToCreatePlaylist() {
-  router.push({ name: 'playlist-create' });
-}
+//   const exerciseIds = playlist.exercises.map(e => e.exercise_type || e.exercise_key || e.id);
+//   const firstExerciseId = exerciseStore.startPlaylist(exerciseIds);
+  
+//   router.push({
+//     name: 'exercise',
+//     params: { type: firstExerciseId },
+//     query: {
+//       style: 'beginner',
+//       autoPlayVoice: 'true',
+//       playlistId: playlist.id
+//     }
+//   });
+// }
+
+// function goToCreatePlaylist() {
+//   showPlaylistPanel.value = false;
+//   router.push({ name: 'playlist-create' });
+// }
 
 async function startTask(task) {
   try {
-    // Mark task as in_progress if pending
     if (task.status === 'pending') {
       await startTaskApi(task.id);
     }
     
-    // Store active task info for the exercise view
     exerciseStore.setActiveTask({
       id: task.id,
       exercise_key: task.exercise_key,

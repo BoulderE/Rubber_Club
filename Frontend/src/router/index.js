@@ -32,7 +32,6 @@ const router = createRouter({
       name: 'History',
       component: () => import('../views/HistoryView.vue')
     },
-    // Admin routes (removed AdminLogin - using main LoginView instead)
     {
       path: '/admin/dashboard',
       name: 'adminDashboard',
@@ -50,6 +49,12 @@ const router = createRouter({
       name: 'adminAssignments',
       component: () => import('../views/AdminAssignments.vue'),
       meta: { requiresAdmin: true }
+    },
+    {
+      path: '/playlists',
+      name: 'playlists',
+      component: () => import('../views/PlaylistsView.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })
