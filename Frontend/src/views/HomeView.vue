@@ -14,21 +14,64 @@
           <div class="user-name">{{ authStore.userName || '用戶' }}</div>
         </div>
         <div class="hero-right">
-          <div class="playlist-card" @click="startPlaylistMode">
+          <div class="playlist-card" @click="goToCreatePlaylist">
             <div class="playlist-info">
-              <h3>整組訓練</h3>
-              <p>6 個動作完整鍛鍊</p>
+              <h3>建立清單</h3>
+              <p>自訂您的訓練組合</p>
             </div>
-            <span class="playlist-arrow">→</span>
+            <span class="playlist-arrow">+</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Assigned Tasks Section (New) -->
+    <!-- My Playlists Section -->
+    <div v-if="authStore.isLoggedIn" class="playlists-section">
+      <div class="section-header">
+        <h2>📋 我的訓練清單</h2>
+        <router-link v-if="hasPlaylists" to="/playlists" class="view-all-link">查看全部 →</router-link>
+      </div>
+
+      <!-- Loading State -->
+      <div v-if="playlistLoading" class="playlist-loading">
+        <div class="loading-spinner"></div>
+        <span>載入中...</span>
+      </div>
+
+      <!-- Playlists List -->
+      <div v-else-if="hasPlaylists" class="playlists-grid">
+        <div 
+          v-for="playlist in displayedPlaylists" 
+          :key="playlist.playlist_id"
+          class="playlist-item-card"
+          @click="startPlaylistSession(playlist)"
+        >
+          <div class="playlist-item-info">
+            <h3 class="playlist-item-name">{{ playlist.name }}</h3>
+            <p class="playlist-item-meta">
+              {{ playlist.exercises?.length || 0 }} 個動作
+              <span v-if="playlist.is_routine" class="routine-badge">常用</span>
+            </p>
+          </div>
+          <div class="playlist-item-action">
+            <span class="play-icon">▶</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else class="playlist-empty">
+        <p>✨ 尚未建立訓練清單</p>
+        <button class="create-first-btn" @click="goToCreatePlaylist">
+          建立第一個清單
+        </button>
+      </div>
+    </div>
+
+    <!-- Tasks Section -->
     <div v-if="authStore.isLoggedIn && tasks.length > 0" class="tasks-section">
       <div class="section-header">
-        <h2>📋 我的任務</h2>
+        <h2>📝 我的任務</h2>
         <router-link to="/my-tasks" class="view-all-link">查看全部 →</router-link>
       </div>
       
@@ -84,11 +127,11 @@
       </div>
     </div>
 
-    <!-- No Tasks Message -->
     <div v-else-if="authStore.isLoggedIn && tasksLoaded && tasks.length === 0" class="no-tasks">
       <p>✨ 目前沒有待完成的任務</p>
     </div>
 
+    <!-- Difficulty Selection Modal -->
     <div v-if="showModal" class="modal-backdrop" @click.self="showModal = false">
       <div class="modal-content">
         <button @click="showModal = false" class="close-button">&times;</button>
@@ -117,6 +160,7 @@
       </div>
     </div>
 
+    <!-- Chatbot Modal -->
     <div v-if="isChatbotVisible" class="modal-backdrop" @click.self="isChatbotVisible = false">
       <ChatbotWindow 
         @close="isChatbotVisible = false"
@@ -124,6 +168,7 @@
       />
     </div>
 
+    <!-- Exercise Detail Modal -->
     <div 
       v-if="showDetailModal"
       class="detail-modal-overlay"
@@ -222,14 +267,16 @@
 
 <script setup>
 import ChatbotWindow from '@/components/ChatbotWindow.vue'; 
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useExerciseStore } from '@/stores/exercise'
 import { useAuthStore } from '@/stores/auth';
 import { fetchMyTasks, startTaskApi } from '@/api/tasks';
+import { playlistApi } from '@/services/api';
 
 const authStore = useAuthStore();
 const router = useRouter();
+const exerciseStore = useExerciseStore()
 
 const isChatbotVisible = ref(false);
 const showModal = ref(false); 
@@ -241,6 +288,10 @@ const selectedLevel = ref('beginner');
 // Tasks state
 const tasks = ref([]);
 const tasksLoaded = ref(false);
+
+// Playlists state
+const playlistLoading = ref(false);
+const userPlaylists = ref([]);
 
 const videoRefs = ref({});
 
@@ -333,10 +384,24 @@ const exercises = ref([
   }
 ]);
 
-// Fetch tasks on mount
+// Computed properties for playlists
+const allPlaylists = computed(() => {
+  return [...(exerciseStore.routines || []), ...userPlaylists.value]
+})
+
+const hasPlaylists = computed(() => allPlaylists.value.length > 0)
+
+const displayedPlaylists = computed(() => {
+  return allPlaylists.value.slice(0, 3)
+})
+
+// Fetch tasks and playlists on mount
 onMounted(async () => {
   if (authStore.isLoggedIn) {
-    await loadTasks();
+    await Promise.all([
+      loadTasks(),
+      fetchPlaylists()
+    ]);
   }
 });
 
@@ -351,6 +416,51 @@ async function loadTasks() {
   }
 }
 
+async function fetchPlaylists() {
+  playlistLoading.value = true;
+  try {
+    const response = await playlistApi.getAll();
+    userPlaylists.value = response.data || [];
+    if (exerciseStore.setPlaylists) {
+      exerciseStore.setPlaylists(response.data || []);
+    }
+  } catch (error) {
+    console.error('Failed to fetch playlists:', error);
+    userPlaylists.value = [];
+  } finally {
+    playlistLoading.value = false;
+  }
+}
+
+function startPlaylistSession(playlist) {
+  if (!playlist.exercises || playlist.exercises.length === 0) {
+    alert('此清單沒有動作');
+    return;
+  }
+
+  // Extract exercise IDs from playlist
+  const exerciseIds = playlist.exercises.map(e => e.exercise_type || e.id);
+  
+  // Start playlist mode
+  const firstExerciseId = exerciseStore.startPlaylist(exerciseIds);
+  if (exerciseStore.setCurrentPlaylist) {
+    exerciseStore.setCurrentPlaylist(playlist);
+  }
+  
+  router.push({
+    name: 'exercise',
+    params: { type: firstExerciseId },
+    query: {
+      style: 'beginner',
+      autoPlayVoice: 'true'
+    }
+  });
+}
+
+function goToCreatePlaylist() {
+  router.push({ name: 'playlist-create' });
+}
+
 async function startTask(task) {
   try {
     // Mark task as in_progress if pending
@@ -359,7 +469,6 @@ async function startTask(task) {
     }
     
     // Store active task info for the exercise view
-    const exerciseStore = useExerciseStore();
     exerciseStore.setActiveTask({
       id: task.id,
       exercise_key: task.exercise_key,
@@ -467,35 +576,283 @@ onBeforeUnmount(() => {
   });
 });
 
-const exerciseStore = useExerciseStore()
-
-function startPlaylistMode() {
-  const defaultPlaylist = ['bicep_curl', 'lateral_raise', 'front_raise', 'overhead_press', 'chest_pull', 'diagonal_lift']
-  const firstExercise = exerciseStore.startPlaylist(defaultPlaylist)
-  
-  router.push({
-    name: 'exercise',
-    params: { type: firstExercise },
-    query: {
-      style: 'beginner',
-      autoPlayVoice: 'true'
-    }
-  })
-}
-
 function goToHistory() {
   router.push('/history')
 }
 </script>
 
 <style scoped>
-/* ... existing styles ... */
-
-/* Tasks Section Styles */
-.tasks-section {
-  margin-bottom: 40px;
+.home-view {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f0f2f5;
+  padding-bottom: 100px;
 }
 
+.hero-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 60px 24px;
+  text-align: left;
+  border-radius: 20px;
+  margin-bottom: 40px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.hero-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 40px;
+}
+
+.hero-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  min-height: 120px;
+  background: transparent;
+  border: none;
+}
+
+.hero-left h1 {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 16px 0;
+}
+
+.hero-left p {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 16px 0;
+}
+
+.hero-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 24px 48px;
+  gap: 8px;
+}
+
+.hero-center .welcome-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 36px;
+  font-weight: 700;
+  color: white;
+}
+
+.hero-center .welcome-icon {
+  font-size: 36px;
+  animation: wave 1.5s ease-in-out infinite;
+}
+
+.hero-center .user-name {
+  font-size: 36px;
+  font-weight: 700;
+  color: white;
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(20deg); }
+  75% { transform: rotate(-10deg); }
+}
+
+.hero-right {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.playlist-card {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 300px;
+}
+
+.playlist-card:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+.playlist-info h3 {
+  font-size: 36px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 4px 0;
+}
+
+.playlist-info p {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+
+.playlist-arrow {
+  font-size: 2.5rem;
+  color: white;
+  margin-left: auto;
+  transition: transform 0.3s ease;
+  font-weight: 300;
+}
+
+.playlist-card:hover .playlist-arrow {
+  transform: scale(1.2);
+}
+
+/* Playlists Section */
+.playlists-section {
+  background: white;
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.playlist-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  color: #666;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.playlists-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.playlist-item-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8f9ff;
+  border: 2px solid #e8ebff;
+  border-radius: 14px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.playlist-item-card:hover {
+  border-color: #667eea;
+  background: #f0f3ff;
+  transform: translateX(4px);
+}
+
+.playlist-item-info {
+  flex: 1;
+}
+
+.playlist-item-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 6px 0;
+}
+
+.playlist-item-meta {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.routine-badge {
+  background: #667eea;
+  color: white;
+  font-size: 0.75rem;
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+
+.playlist-item-action {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.play-icon {
+  color: white;
+  font-size: 14px;
+  margin-left: 2px;
+}
+
+.playlist-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #888;
+}
+
+.playlist-empty p {
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+}
+
+.create-first-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.create-first-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* Section Header */
 .section-header {
   display: flex;
   align-items: center;
@@ -524,6 +881,11 @@ function goToHistory() {
 
 .view-all-link:hover {
   color: #764ba2;
+}
+
+/* Tasks Section Styles */
+.tasks-section {
+  margin-bottom: 40px;
 }
 
 .tasks-grid {
@@ -683,48 +1045,7 @@ function goToHistory() {
   margin: 0;
 }
 
-@media (max-width: 640px) {
-  .tasks-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .section-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-}
-
-/* ... rest of existing styles ... */
-.home-view {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 20px;
-  background-color: #f0f2f5;
-  padding-bottom: 100px;
-}
-
-.hero-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 40px 24px;
-  text-align: left;
-  border-radius: 20px;
-  margin-bottom: 40px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-}
-
-.hero-section h1 {
-  font-size: 48px;
-  margin-bottom: 16px;
-  font-weight: 700;
-}
-
-.hero-section p {
-  font-size: 20px;
-  opacity: 0.9;
-  margin: 0;
-}
-
+/* Exercise Grid */
 .exercises-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -800,6 +1121,7 @@ function goToHistory() {
   color: #764ba2;
 }
 
+/* Modal Styles */
 .modal-backdrop {
   position: fixed;
   top: 0;
@@ -924,6 +1246,7 @@ function goToHistory() {
   z-index: 1;
 }
 
+/* Detail Modal */
 .detail-modal-overlay {
   position: fixed;
   top: 0;
@@ -1032,12 +1355,6 @@ function goToHistory() {
   letter-spacing: 0.5px;
 }
 
-.field-value {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: #1f2937;
-}
-
 .field-description {
   font-size: 1.15rem;
   color: #4b5563;
@@ -1098,6 +1415,7 @@ function goToHistory() {
   box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
 }
 
+/* FAB Buttons */
 .fab-group {
   position: fixed;
   bottom: 30px;
@@ -1143,23 +1461,7 @@ function goToHistory() {
   box-shadow: 0 8px 24px rgba(106, 90, 249, 0.5);
 }
 
-@media (max-width: 640px) {
-  .fab-group {
-    bottom: 24px;
-    right: 24px;
-    gap: 12px;
-  }
-
-  .fab-btn {
-    width: 56px;
-    height: 56px;
-  }
-
-  .help-fab {
-    font-size: 20px;
-  }
-}
-
+/* Animations */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -1176,6 +1478,7 @@ function goToHistory() {
   }
 }
 
+/* Responsive Styles */
 @media (max-width: 1200px) {
   .exercises-grid {
     grid-template-columns: repeat(3, 1fr);
@@ -1224,222 +1527,6 @@ function goToHistory() {
   }
 }
 
-@media (max-width: 640px) {
-  .exercises-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-  }
-
-  .hero-section {
-    padding: 30px 20px;
-  }
-
-  .hero-section h1 {
-    font-size: 28px;
-  }
-
-  .hero-section p {
-    font-size: 16px;
-  }
-
-  .exercise-name {
-    font-size: 0.9rem;
-  }
-
-  #need-help-fab {
-    width: 56px;
-    height: 56px;
-    bottom: 24px;
-    right: 24px;
-    font-size: 20px;
-  }
-
-  .level-options {
-    grid-template-columns: 1fr;
-  }
-
-  .modal-content {
-    padding: 32px 24px;
-  }
-
-  .detail-title {
-    font-size: 1.6rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .exercises-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.hero-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 60px 24px;
-}
-
-.hero-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 40px;
-}
-
-.hero-left {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 24px;
-  min-height: 120px;
-  background: transparent;
-  border: none;
-}
-
-.hero-left h1 {
-  font-size: 3.5rem;
-  font-weight: 800;
-  color: white;
-  margin: 0 0 16px 0;
-}
-
-.hero-title {
-  font-size: 3rem;
-  font-weight: 800;
-  color: white;
-  margin: 0 0 8px 0;
-}
-
-.hero-left p {
-  font-size: 1.25rem;
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0 0 16px 0;
-}
-
-.hero-desc {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.7);
-  margin: 0;
-}
-
-.hero-right {
-  flex: 1;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.playlist-card {
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 16px;
-  padding: 24px 32px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  min-width: 300px;
-}
-
-.playlist-card:hover {
-  background: #ffffff40;
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
-}
-
-.playlist-icon {
-  font-size: 2.5rem;
-}
-
-.playlist-info h3 {
-  font-size: 36px;
-  font-weight: 700;
-  color: white;
-  margin: 0 0 4px 0;
-}
-
-.playlist-info p {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.8);
-  margin: 0;
-}
-
-.playlist-arrow {
-  font-size: 1.5rem;
-  color: white;
-  margin-left: auto;
-  transition: transform 0.3s ease;
-}
-
-.playlist-card:hover .playlist-arrow {
-  transform: translateX(4px);
-}
-
-@media (max-width: 768px) {
-  .hero-container {
-    flex-direction: column;
-    text-align: center;
-  }
-  
-  .hero-right {
-    justify-content: center;
-    width: 100%;
-  }
-  
-  .playlist-card {
-    width: 100%;
-    max-width: 320px;
-  }
-  
-  .hero-title {
-    font-size: 2rem;
-  }
-}
-
-.hero-center {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 24px;
-  padding: 24px 48px;
-  gap: 8px;
-}
-
-.hero-center .welcome-line {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 36px;
-  font-weight: 700;
-  color: white;
-}
-
-.hero-center .welcome-icon {
-  font-size: 36px;
-  animation: wave 1.5s ease-in-out infinite;
-}
-
-.hero-center .user-name {
-  font-size: 36px;
-  font-weight: 700;
-  color: white;
-}
-
-@keyframes wave {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(20deg); }
-  75% { transform: rotate(-10deg); }
-}
-
 @media (max-width: 768px) {
   .hero-container {
     flex-direction: column;
@@ -1462,9 +1549,75 @@ function goToHistory() {
     width: 100%;
     max-width: 320px;
   }
+
+  .playlists-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .exercises-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .hero-section {
+    padding: 30px 20px;
+  }
+
+  .hero-left h1 {
+    font-size: 28px;
+  }
+
+  .hero-left p {
+    font-size: 16px;
+  }
+
+  .exercise-name {
+    font-size: 0.9rem;
+  }
+
+  .fab-group {
+    bottom: 24px;
+    right: 24px;
+    gap: 12px;
+  }
+
+  .fab-btn {
+    width: 56px;
+    height: 56px;
+  }
+
+  .help-fab {
+    font-size: 20px;
+  }
+
+  .level-options {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content {
+    padding: 32px 24px;
+  }
+
+  .detail-title {
+    font-size: 1.6rem;
+  }
+
+  .tasks-grid {
+    grid-template-columns: 1fr;
+  }
   
-  .hero-title {
-    font-size: 2rem;
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .exercises-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

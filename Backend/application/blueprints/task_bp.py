@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.db_models import get_session, User, AssignedExercise, ExerciseRecord
 from datetime import datetime
-from sqlalchemy import desc
+from sqlalchemy import desc, func, case
 
 task_bp = Blueprint('tasks', __name__)
 
@@ -232,6 +232,231 @@ def update_task_progress(task_id):
             }
         })
         
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+@task_bp.route('/my-playlists', methods=['GET'])
+def get_my_playlists():
+    """Get user's playlists (grouped tasks)"""
+    user_pin = request.headers.get('X-User-Pin')
+    if not user_pin:
+        return jsonify({'error': '需要用戶認證'}), 401
+    
+    session = get_session()
+    try:
+        user = session.query(User).filter_by(pin=user_pin).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        playlists = session.query(
+            AssignedExercise.playlist_id,
+            AssignedExercise.playlist_name,
+            AssignedExercise.is_routine,
+            func.count(AssignedExercise.id).label('exercise_count'),
+            func.sum(case((AssignedExercise.status == 'completed', 1), else_=0)).label('completed_count')
+        ).filter(
+            AssignedExercise.user_id == user.id,
+            AssignedExercise.playlist_id.isnot(None)
+        ).group_by(
+            AssignedExercise.playlist_id,
+            AssignedExercise.playlist_name,
+            AssignedExercise.is_routine
+        ).all()
+        
+        return jsonify([{
+            'playlist_id': p.playlist_id,
+            'playlist_name': p.playlist_name,
+            'is_routine': p.is_routine,
+            'exercise_count': p.exercise_count,
+            'completed_count': p.completed_count,
+            'progress': round(p.completed_count / p.exercise_count * 100) if p.exercise_count > 0 else 0
+        } for p in playlists])
+    finally:
+        session.close()
+
+
+@task_bp.route('/my-playlists/<int:playlist_id>', methods=['GET'])
+def get_playlist_tasks(playlist_id):
+    """Get all tasks in a playlist, ordered"""
+    user_pin = request.headers.get('X-User-Pin')
+    if not user_pin:
+        return jsonify({'error': '需要用戶認證'}), 401
+    
+    session = get_session()
+    try:
+        user = session.query(User).filter_by(pin=user_pin).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        tasks = session.query(AssignedExercise).filter(
+            AssignedExercise.user_id == user.id,
+            AssignedExercise.playlist_id == playlist_id
+        ).order_by(AssignedExercise.sort_order).all()
+        
+        if not tasks:
+            return jsonify({'error': '播放列表不存在'}), 404
+        
+        return jsonify({
+            'playlist_id': playlist_id,
+            'playlist_name': tasks[0].playlist_name,
+            'is_routine': tasks[0].is_routine,
+            'exercises': [{
+                'id': t.id,
+                'exercise_key': t.exercise_key,
+                'exercise_name': t.exercise_name,
+                'sort_order': t.sort_order,
+                'target_reps': t.target_reps,
+                'target_sets': t.target_sets,
+                'completed_sets': t.completed_sets,
+                'status': t.status
+            } for t in tasks]
+        })
+    finally:
+        session.close()
+
+
+@task_bp.route('/my-playlists', methods=['POST'])
+def create_playlist():
+    """User creates a new playlist"""
+    user_pin = request.headers.get('X-User-Pin')
+    if not user_pin:
+        return jsonify({'error': '需要用戶認證'}), 401
+    
+    session = get_session()
+    try:
+        user = session.query(User).filter_by(pin=user_pin).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        data = request.get_json()
+        playlist_name = data.get('name')
+        exercises = data.get('exercises', [])  # [{exercise_key, exercise_name, target_reps, target_sets, sort_order}]
+        is_routine = data.get('is_routine', False)
+        
+        if not playlist_name or not exercises:
+            return jsonify({'error': '需要播放列表名稱和運動項目'}), 400
+        
+        # Generate playlist_id (simple approach: timestamp-based)
+        import time
+        playlist_id = int(time.time() * 1000) % 2147483647
+        
+        for ex in exercises:
+            task = AssignedExercise(
+                user_id=user.id,
+                playlist_id=playlist_id,
+                playlist_name=playlist_name,
+                exercise_key=ex.get('exercise_key'),
+                exercise_name=ex.get('exercise_name'),
+                target_reps=ex.get('target_reps', 10),
+                target_sets=ex.get('target_sets', 3),
+                sort_order=ex.get('sort_order', 0),
+                is_routine=is_routine,
+                status='pending',
+                assigned_date=datetime.now().date()
+            )
+            session.add(task)
+        
+        session.commit()
+        
+        return jsonify({
+            'message': '播放列表已創建',
+            'playlist_id': playlist_id,
+            'playlist_name': playlist_name,
+            'exercise_count': len(exercises)
+        })
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@task_bp.route('/my-playlists/<int:playlist_id>/save-routine', methods=['POST'])
+def save_as_routine(playlist_id):
+    """Save a playlist as a reusable routine"""
+    user_pin = request.headers.get('X-User-Pin')
+    if not user_pin:
+        return jsonify({'error': '需要用戶認證'}), 401
+    
+    session = get_session()
+    try:
+        user = session.query(User).filter_by(pin=user_pin).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        tasks = session.query(AssignedExercise).filter(
+            AssignedExercise.user_id == user.id,
+            AssignedExercise.playlist_id == playlist_id
+        ).all()
+        
+        if not tasks:
+            return jsonify({'error': '播放列表不存在'}), 404
+        
+        for task in tasks:
+            task.is_routine = True
+        
+        session.commit()
+        
+        return jsonify({'message': '已保存為常規訓練'})
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+@task_bp.route('/my-routines/<int:playlist_id>/start', methods=['POST'])
+def start_routine(playlist_id):
+    """Start a saved routine (creates new active tasks from routine)"""
+    user_pin = request.headers.get('X-User-Pin')
+    if not user_pin:
+        return jsonify({'error': '需要用戶認證'}), 401
+    
+    session = get_session()
+    try:
+        user = session.query(User).filter_by(pin=user_pin).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        # Get routine template
+        routine_tasks = session.query(AssignedExercise).filter(
+            AssignedExercise.user_id == user.id,
+            AssignedExercise.playlist_id == playlist_id,
+            AssignedExercise.is_routine == True
+        ).all()
+        
+        if not routine_tasks:
+            return jsonify({'error': '常規訓練不存在'}), 404
+        
+        # Create new playlist from routine
+        import time
+        new_playlist_id = int(time.time() * 1000) % 2147483647
+        
+        for rt in routine_tasks:
+            new_task = AssignedExercise(
+                user_id=user.id,
+                playlist_id=new_playlist_id,
+                playlist_name=rt.playlist_name,
+                exercise_key=rt.exercise_key,
+                exercise_name=rt.exercise_name,
+                target_reps=rt.target_reps,
+                target_sets=rt.target_sets,
+                sort_order=rt.sort_order,
+                is_routine=False, 
+                status='pending',
+                assigned_date=datetime.now().date()
+            )
+            session.add(new_task)
+        
+        session.commit()
+        
+        return jsonify({
+            'message': '常規訓練已開始',
+            'new_playlist_id': new_playlist_id
+        })
     except Exception as e:
         session.rollback()
         return jsonify({'error': str(e)}), 500

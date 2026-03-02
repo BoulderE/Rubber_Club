@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, Text, DateTime, Date, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, Text, DateTime, Date, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
 from datetime import datetime
@@ -19,8 +19,8 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     exercise_records = relationship("ExerciseRecord", back_populates="user")
-
     assigned_exercises = relationship("AssignedExercise", back_populates="user")
+
 
 class ExerciseRecord(Base):
     __tablename__ = 'exercise_records'
@@ -75,6 +75,12 @@ class AssignedExercise(Base):
     
     admin_notes = Column(Text, nullable=True)  
     user_notes = Column(Text, nullable=True)   
+    
+    playlist_id = Column(Integer, nullable=True)
+    playlist_name = Column(String(100), nullable=True)
+    sort_order = Column(Integer, default=0)
+    is_routine = Column(Boolean, default=False)
+    created_by = Column(String(20), default='user')  
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -67,7 +67,7 @@ export const useExerciseStore = defineStore('exercise', () => {
   const startTime = ref(null) 
   const endTime = ref(null) 
 
-  // Playlist mode
+  // ==================== Playlist Mode ====================
   const playlist = ref([])
   const currentPlaylistIndex = ref(-1)
   const isPlaylistMode = computed(() => playlist.value.length > 0 && currentPlaylistIndex.value >= 0)
@@ -109,7 +109,7 @@ export const useExerciseStore = defineStore('exercise', () => {
     return playlist.value.map(id => exerciseTypes.value.find(ex => ex.id === id)).filter(Boolean)
   })
 
-  // ==================== Active Task (New) ====================
+  // ==================== Active Task ====================
   const activeTask = ref(null)
 
   const isTaskMode = computed(() => activeTask.value !== null)
@@ -136,7 +136,6 @@ export const useExerciseStore = defineStore('exercise', () => {
     return activeTask.value
   }
 
-  // Call this after completing a set to update local state
   const incrementTaskProgress = () => {
     if (activeTask.value) {
       activeTask.value.completed_sets += 1
@@ -147,7 +146,34 @@ export const useExerciseStore = defineStore('exercise', () => {
     if (!activeTask.value) return false
     return activeTask.value.completed_sets >= activeTask.value.target_sets
   })
-  // ==================== End Active Task ====================
+
+  // user playlists and routines
+  const playlists = ref([])           
+  const routines = ref([])            
+  const currentPlaylistDetail = ref(null)  
+  const playlistLoading = ref(false)
+
+  const setPlaylists = (data) => {
+    playlists.value = data.filter(p => !p.is_routine)
+    routines.value = data.filter(p => p.is_routine)
+  }
+
+  const setCurrentPlaylist = (playlist) => {
+    currentPlaylistDetail.value = playlist
+  }
+
+  const clearCurrentPlaylist = () => {
+    currentPlaylistDetail.value = null
+  }
+
+  const setPlaylistLoading = (val) => {
+    playlistLoading.value = val
+  }
+
+  const getPlaylistById = (playlistId) => {
+    return playlists.value.find(p => p.playlist_id === playlistId) ||
+           routines.value.find(p => p.playlist_id === playlistId)
+  }
 
   const selectExercise = (exerciseId) => {
     selectedExercise.value = exerciseId
@@ -188,7 +214,7 @@ export const useExerciseStore = defineStore('exercise', () => {
     startExercise,
     endExercise,
 
-    // Playlist mode
+    // Playlist mode (for active exercise session)
     playlist,
     currentPlaylistIndex,
     isPlaylistMode,
@@ -200,7 +226,7 @@ export const useExerciseStore = defineStore('exercise', () => {
     nextInPlaylist,
     clearPlaylist,
 
-    // Active task mode (New)
+    // Active task mode
     activeTask,
     isTaskMode,
     taskProgress,
@@ -208,6 +234,17 @@ export const useExerciseStore = defineStore('exercise', () => {
     clearActiveTask,
     getActiveTask,
     incrementTaskProgress,
-    isTaskComplete
+    isTaskComplete,
+
+    // User playlists (NEW - for saved playlists from backend)
+    playlists,
+    routines,
+    currentPlaylistDetail,
+    playlistLoading,
+    setPlaylists,
+    setCurrentPlaylist,
+    clearCurrentPlaylist,
+    setPlaylistLoading,
+    getPlaylistById
   }
 })

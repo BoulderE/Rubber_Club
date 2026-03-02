@@ -35,3 +35,45 @@ export async function updateTaskProgress(taskId, data) {
   )
   return response.data
 }
+
+// playlist functions
+export async function fetchMyPlaylists() {
+  const response = await axios.get(`${API_BASE}/api/playlists/my-playlists`, {
+    headers: getAuthHeaders()
+  })
+  return response.data
+}
+
+export async function fetchPlaylistDetail(playlistId) {
+  const response = await axios.get(`${API_BASE}/api/tasks/my-playlists/${playlistId}`, {
+    headers: getAuthHeaders()
+  })
+  return response.data
+}
+
+export async function createPlaylist(data) {
+  const response = await axios.post(
+    `${API_BASE}/api/tasks/my-playlists`,
+    data,
+    { headers: getAuthHeaders() }
+  )
+  return response.data
+}
+
+export async function savePlaylistAsRoutine(playlistId) {
+  const response = await axios.post(
+    `${API_BASE}/api/tasks/my-playlists/${playlistId}/save-routine`,
+    {},
+    { headers: getAuthHeaders() }
+  )
+  return response.data
+}
+
+export async function startRoutine(playlistId) {
+  const response = await axios.post(
+    `${API_BASE}/api/tasks/my-routines/${playlistId}/start`,
+    {},
+    { headers: getAuthHeaders() }
+  )
+  return response.data
+}
