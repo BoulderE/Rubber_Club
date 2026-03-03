@@ -98,9 +98,9 @@ import { useRouter } from 'vue-router'
 import { useExerciseStore } from '@/stores/exercise'
 import { fetchMyPlaylists, fetchPlaylistDetail, createPlaylist, deletePlaylist, startRoutine} from '@/api/tasks'
 import PlaylistCard from '@/components/PlaylistCard.vue'
-import PlaylistCreateModal from '@/components/PlaylistCreateModal.vue'
-import PlaylistEditModal from '@/components/PlaylistEditModal.vue'
-import PlaylistDetailModal from '@/components/PlaylistDetailModal.vue'
+import PlaylistCreateModal from '@/components/PlaylistCreate.vue'
+import PlaylistEditModal from '@/components/PlaylistEdit.vue'
+import PlaylistDetailModal from '@/components/PlaylistDetail.vue'
 
 const router = useRouter()
 const exerciseStore = useExerciseStore()
