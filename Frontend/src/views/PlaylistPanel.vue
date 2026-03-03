@@ -1,94 +1,8 @@
 <template>
-  <div class="playlist-view">
-    <header class="view-header">
-      <button class="back-btn" @click="$router.back()">← 返回</button>
-      <h1>我的訓練清單</h1>
-      <button class="create-btn" @click="showCreateModal = true">
-        + 新增清單
-      </button>
-    </header>
-
-    <div v-if="loading" class="loading-state">
-      <div class="spinner"></div>
-      <p>載入中...</p>
-    </div>
-
-    <div v-else-if="playlists.length === 0" class="empty-state">
-      <div class="empty-icon">📋</div>
-      <h2>尚未建立訓練清單</h2>
-      <p>建立您的第一個清單，輕鬆安排運動計畫</p>
-      <button class="primary-btn" @click="showCreateModal = true">
-        建立清單
-      </button>
-    </div>
-
-    <div v-else class="playlists-container">
-      <section v-if="routines.length > 0" class="playlist-section">
-        <h2 class="section-title">⭐ 常用訓練</h2>
-        <div class="playlist-grid">
-          <PlaylistCard
-            v-for="playlist in routines"
-            :key="playlist.playlist_id"
-            :playlist="playlist"
-            @click="openPlaylistDetail(playlist)"
-            @start="startPlaylist(playlist)"
-            @edit="openEditModal(playlist)"
-            @delete="confirmDelete(playlist)"
-          />
-        </div>
-      </section>
-
-      <section v-if="regularPlaylists.length > 0" class="playlist-section">
-        <h2 class="section-title">📋 所有清單</h2>
-        <div class="playlist-grid">
-          <PlaylistCard
-            v-for="playlist in regularPlaylists"
-            :key="playlist.playlist_id"
-            :playlist="playlist"
-            @click="openPlaylistDetail(playlist)"
-            @start="startPlaylist(playlist)"
-            @edit="openEditModal(playlist)"
-            @delete="confirmDelete(playlist)"
-          />
-        </div>
-      </section>
-    </div>
-
-    <PlaylistCreateModal
-      v-if="showCreateModal"
-      :available-exercises="availableExercises"
-      @close="showCreateModal = false"
-      @created="onPlaylistCreated"
-    />
-
-    <PlaylistEditModal
-      v-if="showEditModal"
-      :playlist="selectedPlaylist"
-      :playlist-exercises="selectedPlaylistExercises"
-      :available-exercises="availableExercises"
-      @close="closeEditModal"
-      @updated="onPlaylistUpdated"
-    />
-
-    <PlaylistDetailModal
-      v-if="showDetailModal"
-      :playlist="selectedPlaylist"
-      :exercises="selectedPlaylistExercises"
-      @close="showDetailModal = false"
-      @start="startPlaylist(selectedPlaylist)"
-      @edit="openEditFromDetail"
-    />
-
-    <div v-if="showDeleteConfirm" class="delete-confirm-overlay">
-      <div class="delete-confirm-modal">
-        <h3>確認刪除</h3>
-        <p>確定要刪除清單「{{ playlistToDelete?.playlist_name }}」嗎？此操作無法復原。</p>
-        <div class="confirm-actions">
-          <button class="cancel-btn" @click="showDeleteConfirm = false">取消</button>
-          <button class="delete-btn" @click="executeDelete">刪除</button>
-        </div>
-      </div>
-    </div>
+  <div style="background: red; padding: 50px; color: white;">
+    <h1>TEST - Does this show?</h1>
+    <p>Loading: {{ loading }}</p>
+    <p>Playlists count: {{ playlists.length }}</p>
   </div>
 </template>
 
@@ -126,7 +40,6 @@ const availableExercises = ref([
   { exercise_key: 'ankle_dorsiflexion', exercise_name: '踝部背屈' }
 ])
 
-// Computed
 const routines = computed(() => 
   playlists.value.filter(p => p.is_routine)
 )
@@ -135,12 +48,10 @@ const regularPlaylists = computed(() =>
   playlists.value.filter(p => !p.is_routine)
 )
 
-// Lifecycle
 onMounted(async () => {
   await loadPlaylists()
 })
 
-// Methods
 async function loadPlaylists() {
   loading.value = true
   try {
