@@ -565,13 +565,12 @@ def start_routine(playlist_id):
 
 @task_bp.route('/exercises', methods=['GET'])
 def get_available_exercises():
-    """Get all available exercise types"""
     session = get_session()
     try:
         exercises = session.query(ExerciseRule).all()
         return jsonify([{
             'exercise_key': e.exercise_key,
-            'exercise_name': e.name,  # DB column is "name", map to "exercise_name"
+            'exercise_name': e.name, 
             'description': e.description
         } for e in exercises])
     finally:

@@ -96,7 +96,7 @@ export async function deletePlaylist(playlistId) {
 }
 
 export async function fetchAvailableExercises() {
-  const response = await fetch(`${API_BASE}/exercises`, {
+  const response = await fetch(`${API_BASE}/tasks/exercises`, {
     headers: {
       'X-User-Pin': localStorage.getItem('userPin')
     }
