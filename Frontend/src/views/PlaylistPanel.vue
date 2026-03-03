@@ -96,7 +96,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useExerciseStore } from '@/stores/exercise'
-import { fetchMyPlaylists, fetchPlaylistDetail, createPlaylist, deletePlaylist, startRoutine} from '@/api/tasks'
+import { fetchMyPlaylists, fetchPlaylistDetail, createPlaylist, deletePlaylist, startRoutine, fetchAvailableExercises } from '@/api/tasks'
 import PlaylistCard from '@/components/PlaylistCard.vue'
 import PlaylistCreateModal from '@/components/PlaylistCreate.vue'
 import PlaylistEditModal from '@/components/PlaylistEdit.vue'
@@ -115,16 +115,7 @@ const selectedPlaylist = ref(null)
 const selectedPlaylistExercises = ref([])
 const playlistToDelete = ref(null)
 
-const availableExercises = ref([
-  { exercise_key: 'shoulder_flexion', exercise_name: '肩部屈曲' },
-  { exercise_key: 'shoulder_abduction', exercise_name: '肩部外展' },
-  { exercise_key: 'elbow_flexion', exercise_name: '肘部屈曲' },
-  { exercise_key: 'wrist_extension', exercise_name: '腕部伸展' },
-  { exercise_key: 'finger_spread', exercise_name: '手指張開' },
-  { exercise_key: 'hip_flexion', exercise_name: '髖部屈曲' },
-  { exercise_key: 'knee_extension', exercise_name: '膝部伸展' },
-  { exercise_key: 'ankle_dorsiflexion', exercise_name: '踝部背屈' }
-])
+const availableExercises = ref([])
 
 const routines = computed(() => 
   playlists.value.filter(p => p.is_routine)
@@ -135,8 +126,20 @@ const regularPlaylists = computed(() =>
 )
 
 onMounted(async () => {
-  await loadPlaylists()
+  await Promise.all([
+    loadPlaylists(),
+    loadExercises()
+  ])
 })
+
+async function loadExercises() {
+  try {
+    const exercises = await fetchAvailableExercises()
+    availableExercises.value = exercises || []
+  } catch (err) {
+    console.error('Failed to load available exercises:', err)
+  }
+}
 
 async function loadPlaylists() {
   loading.value = true

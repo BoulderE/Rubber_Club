@@ -94,3 +94,13 @@ export async function deletePlaylist(playlistId) {
   )
   return response.data
 }
+
+export async function fetchAvailableExercises() {
+  const response = await fetch(`${API_BASE}/exercises`, {
+    headers: {
+      'X-User-Pin': localStorage.getItem('userPin')
+    }
+  })
+  if (!response.ok) throw new Error('Failed to fetch exercises')
+  return response.json()
+}

@@ -139,7 +139,7 @@ function toggleExercise(exercise) {
     selectedExercises.value.push({
       ...exercise,
       target_reps: 10,
-      target_sets: 3
+      target_sets: 1
     })
   }
 }
