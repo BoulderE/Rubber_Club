@@ -77,3 +77,20 @@ export async function startRoutine(playlistId) {
   )
   return response.data
 }
+
+export async function updatePlaylist(playlistId, data) {
+  const response = await axios.put(
+    `${API_BASE}/api/tasks/my-playlists/${playlistId}`,
+    data,
+    { headers: getAuthHeaders() }
+  )
+  return response.data
+}
+
+export async function deletePlaylist(playlistId) {
+  const response = await axios.delete(
+    `${API_BASE}/api/tasks/my-playlists/${playlistId}`,
+    { headers: getAuthHeaders() }
+  )
+  return response.data
+}

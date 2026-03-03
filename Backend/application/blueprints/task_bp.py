@@ -339,7 +339,6 @@ def create_playlist():
         if not playlist_name or not exercises:
             return jsonify({'error': '需要播放列表名稱和運動項目'}), 400
         
-        # Generate playlist_id (simple approach: timestamp-based)
         import time
         playlist_id = int(time.time() * 1000) % 2147483647
         
@@ -366,6 +365,107 @@ def create_playlist():
             'playlist_id': playlist_id,
             'playlist_name': playlist_name,
             'exercise_count': len(exercises)
+        })
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+@task_bp.route('/my-playlists/<int:playlist_id>', methods=['PUT'])
+def update_playlist(playlist_id):
+    """Update a playlist's name, routine status, and exercises"""
+    user_pin = request.headers.get('X-User-Pin')
+    if not user_pin:
+        return jsonify({'error': '需要用戶認證'}), 401
+    
+    session = get_session()
+    try:
+        user = session.query(User).filter_by(pin=user_pin).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        data = request.get_json()
+        new_name = data.get('name')
+        is_routine = data.get('is_routine')
+        exercises = data.get('exercises', [])
+        
+        # Get existing tasks in playlist
+        existing_tasks = session.query(AssignedExercise).filter(
+            AssignedExercise.user_id == user.id,
+            AssignedExercise.playlist_id == playlist_id
+        ).all()
+        
+        if not existing_tasks:
+            return jsonify({'error': '播放列表不存在'}), 404
+        
+        # Update playlist name and routine status on all tasks
+        for task in existing_tasks:
+            if new_name:
+                task.playlist_name = new_name
+            if is_routine is not None:
+                task.is_routine = is_routine
+        
+        # If exercises provided, update them
+        if exercises:
+            existing_ids = {t.id for t in existing_tasks}
+            incoming_ids = {ex.get('id') for ex in exercises if ex.get('id')}
+            
+            # Delete removed exercises
+            for task in existing_tasks:
+                if task.id not in incoming_ids:
+                    session.delete(task)
+            
+            # Update existing and add new exercises
+            for ex in exercises:
+                if ex.get('id') and ex['id'] in existing_ids:
+                    # Update existing
+                    task = session.query(AssignedExercise).get(ex['id'])
+                    if task:
+                        task.exercise_key = ex.get('exercise_key', task.exercise_key)
+                        task.exercise_name = ex.get('exercise_name', task.exercise_name)
+                        task.target_reps = ex.get('target_reps', task.target_reps)
+                        task.target_sets = ex.get('target_sets', task.target_sets)
+                        task.sort_order = ex.get('sort_order', task.sort_order)
+                else:
+                    # Add new exercise
+                    new_task = AssignedExercise(
+                        user_id=user.id,
+                        playlist_id=playlist_id,
+                        playlist_name=new_name or existing_tasks[0].playlist_name,
+                        exercise_key=ex.get('exercise_key'),
+                        exercise_name=ex.get('exercise_name'),
+                        target_reps=ex.get('target_reps', 10),
+                        target_sets=ex.get('target_sets', 3),
+                        sort_order=ex.get('sort_order', 0),
+                        is_routine=is_routine if is_routine is not None else existing_tasks[0].is_routine,
+                        status='pending',
+                        assigned_date=datetime.now().date()
+                    )
+                    session.add(new_task)
+        
+        session.commit()
+        
+        # Fetch updated playlist to return
+        updated_tasks = session.query(AssignedExercise).filter(
+            AssignedExercise.user_id == user.id,
+            AssignedExercise.playlist_id == playlist_id
+        ).order_by(AssignedExercise.sort_order).all()
+        
+        return jsonify({
+            'playlist_id': playlist_id,
+            'playlist_name': updated_tasks[0].playlist_name if updated_tasks else new_name,
+            'is_routine': updated_tasks[0].is_routine if updated_tasks else is_routine,
+            'exercises': [{
+                'id': t.id,
+                'exercise_key': t.exercise_key,
+                'exercise_name': t.exercise_name,
+                'sort_order': t.sort_order,
+                'target_reps': t.target_reps,
+                'target_sets': t.target_sets,
+                'completed_sets': t.completed_sets,
+                'status': t.status
+            } for t in updated_tasks]
         })
     except Exception as e:
         session.rollback()
