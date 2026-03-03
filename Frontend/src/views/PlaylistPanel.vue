@@ -97,10 +97,10 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useExerciseStore } from '@/stores/exercise'
 import { fetchMyPlaylists, fetchPlaylistDetail, createPlaylist, deletePlaylist, startRoutine} from '@/api/tasks'
-import PlaylistCard from '@/components/playlist/PlaylistCard.vue'
-import PlaylistCreateModal from '@/components/playlist/PlaylistCreateModal.vue'
-import PlaylistEditModal from '@/components/playlist/PlaylistEditModal.vue'
-import PlaylistDetailModal from '@/components/playlist/PlaylistDetailModal.vue'
+import PlaylistCard from '@/components/PlaylistCard.vue'
+import PlaylistCreateModal from '@/components/PlaylistCreateModal.vue'
+import PlaylistEditModal from '@/components/PlaylistEditModal.vue'
+import PlaylistDetailModal from '@/components/PlaylistDetailModal.vue'
 
 const router = useRouter()
 const exerciseStore = useExerciseStore()
