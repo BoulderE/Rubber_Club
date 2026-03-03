@@ -351,7 +351,7 @@ watch(showPlaylistPanel, async (isOpen) => {
 });
 
 function togglePlaylistPanel() {
-    router.push('/playlist');
+    router.push('/playlists');
 }
 
 onMounted(async () => {
