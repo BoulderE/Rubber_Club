@@ -352,7 +352,7 @@ watch(showPlaylistPanel, async (isOpen) => {
 
 function togglePlaylistPanel() {
   if (!authStore.isLoggedIn) {
-    router.push('/login');
+    router.push('/my-playlists');
     return;
   }
   showPlaylistPanel.value = !showPlaylistPanel.value;
