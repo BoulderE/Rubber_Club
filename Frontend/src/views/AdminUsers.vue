@@ -313,7 +313,6 @@ h1 { margin: 0; color: #1a1a2e; }
   color: #fff;
 }
 
-/* Modal */
 .modal {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
