@@ -34,7 +34,7 @@
     <div v-if="authStore.isLoggedIn && tasks.length > 0" class="tasks-section">
       <div class="section-header">
         <h2>我的任務</h2>
-        <router-link to="/my-tasks" class="view-all-link">查看全部 →</router-link>
+        <!-- <router-link to="/my-tasks" class="view-all-link">查看全部 →</router-link> -->
       </div>
       
       <div class="tasks-grid">

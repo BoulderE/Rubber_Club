@@ -105,12 +105,12 @@
 import { ref, computed } from 'vue'
 import { createPlaylist } from '@/api/tasks'
 
-const props = defineProps({
-  availableExercises: {
-    type: Array,
-    default: () => []
-  }
-})
+// const props = defineProps({
+//   availableExercises: {
+//     type: Array,
+//     default: () => []
+//   }
+// })
 
 const emit = defineEmits(['close', 'created'])
 
