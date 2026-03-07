@@ -280,7 +280,7 @@ async function loadUsers() {
   } else {
     users.value = res || []
   }
-  loading.value = false
+  // loading.value = false
 }
 
 // === CREATE ===
