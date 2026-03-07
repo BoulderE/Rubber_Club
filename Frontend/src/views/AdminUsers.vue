@@ -259,6 +259,8 @@ const totalReps = computed(() => {
 })
 
 onMounted(async () => {
+  await loadUsers()
+  
   const exerciseRes = await adminStore.fetchExercises()
   exercises.value = exerciseRes || []
   
