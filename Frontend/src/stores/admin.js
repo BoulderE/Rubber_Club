@@ -70,6 +70,21 @@ export const useAdminStore = defineStore('admin', {
 
     async deleteAssignment(id) {
       return await adminApi.deleteAssignment(this.token, id)
+    },
+
+    async createUser(data) {
+      const res = await adminApi.createUser(this.token, data)
+      return res
+    },
+
+    async updateUser(userId, data) {
+      const res = await adminApi.updateUser(this.token, userId, data)
+      return res
+    },
+
+    async deleteUser(userId) {
+      const res = await adminApi.deleteUser(this.token, userId)
+      return res
     }
   }
 })

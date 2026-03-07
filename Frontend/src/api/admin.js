@@ -25,6 +25,60 @@ export async function getUsers(token) {
   return res.json()
 }
 
+export async function createUser(token, data) {
+  const res = await fetch(`${base}/api/admin/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Pin': token
+    },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json()
+  
+  if (!res.ok) {
+    return { success: false, error: json.error || 'Failed to create user' }
+  }
+  
+  return { success: true, user: json.user }
+}
+
+export async function updateUser(token, userId, data) {
+  const res = await fetch(`${base}/api/admin/users/${userId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Pin': token
+    },
+    body: JSON.stringify(data)
+  })
+  const json = await res.json()
+  
+  if (!res.ok) {
+    return { success: false, error: json.error || 'Failed to update user' }
+  }
+  
+  return { success: true, user: json.user }
+}
+
+export async function deleteUser(token, userId) {
+  const res = await fetch(`${base}/api/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: { 'X-Admin-Pin': token }
+  })
+
+  if (res.ok) {
+    return { success: true }
+  }
+  
+  try {
+    const data = await res.json()
+    return { success: false, error: data.message || 'Failed to delete user' }
+  } catch {
+    return { success: false, error: 'Failed to delete user' }
+  }
+}
+
 export async function getUserHistory(token, userId) {
   const res = await fetch(`${base}/api/admin/users/${userId}/history`, {
     headers: { 'X-Admin-Pin': token }

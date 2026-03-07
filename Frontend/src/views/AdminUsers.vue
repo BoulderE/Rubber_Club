@@ -12,7 +12,7 @@
 
     <div class="content">
       <h2>Users</h2>
-      
+      <button @click="openCreateModal" class="create-btn">+ Add User</button>
       <div v-if="loading" class="loading">Loading...</div>
 
       <div v-else class="users-list">
@@ -29,7 +29,98 @@
           <div class="user-actions">
             <button @click="viewHistory(user)">History</button>
             <button @click="openAssignModal(user)" class="assign-btn">Assign</button>
+            <button @click="openEditModal(user)" class="edit-btn">Edit</button>
+            <button @click="confirmDelete(user)" class="delete-btn">Delete</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div v-if="showCreate" class="modal" @click.self="showCreate = false">
+      <div class="modal-content">
+        <h3>Create New User</h3>
+        <form @submit.prevent="submitCreate">
+          <label>Name</label>
+          <input v-model="createForm.name" type="text" required placeholder="Enter user name" />
+
+          <label>PIN Code (4-6 digits)</label>
+          <input 
+            v-model="createForm.pin" 
+            type="text" 
+            required 
+            pattern="\d{4,6}" 
+            placeholder="e.g. 1234"
+            maxlength="6"
+          />
+
+          <label>Role</label>
+          <select v-model="createForm.role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+
+          <p v-if="createError" class="error">{{ createError }}</p>
+
+          <div class="modal-actions">
+            <button type="button" @click="showCreate = false">Cancel</button>
+            <button type="submit" :disabled="creating">
+              {{ creating ? 'Creating...' : 'Create User' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div v-if="showEdit" class="modal" @click.self="showEdit = false">
+      <div class="modal-content">
+        <h3>Edit User: {{ selectedUser?.name }}</h3>
+        <form @submit.prevent="submitEdit">
+          <label>Name</label>
+          <input v-model="editForm.name" type="text" required />
+
+          <label>PIN Code (4-6 digits)</label>
+          <input 
+            v-model="editForm.pin" 
+            type="text" 
+            required 
+            pattern="\d{4,6}"
+            maxlength="6"
+          />
+
+          <label>Role</label>
+          <select v-model="editForm.role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+
+          <p v-if="editError" class="error">{{ editError }}</p>
+
+          <div class="modal-actions">
+            <button type="button" @click="showEdit = false">Cancel</button>
+            <button type="submit" :disabled="editing">
+              {{ editing ? 'Saving...' : 'Save Changes' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div v-if="showDeleteConfirm" class="modal" @click.self="showDeleteConfirm = false">
+      <div class="modal-content delete-confirm">
+        <h3>Delete User</h3>
+        <p>Are you sure you want to delete <strong>{{ selectedUser?.name }}</strong>?</p>
+        <p class="warning">This action cannot be undone.</p>
+        
+        <p v-if="deleteError" class="error">{{ deleteError }}</p>
+
+        <div class="modal-actions">
+          <button type="button" @click="showDeleteConfirm = false">Cancel</button>
+          <button @click="submitDelete" :disabled="deleting" class="delete-btn">
+            {{ deleting ? 'Deleting...' : 'Delete' }}
+          </button>
         </div>
       </div>
     </div>
@@ -123,6 +214,7 @@ const history = ref([])
 const historyLoading = ref(false)
 const assigning = ref(false)
 
+
 const assignForm = ref({
   exercise_key: 'bicep_curl',
   difficulty: 'beginner',
@@ -130,6 +222,31 @@ const assignForm = ref({
   due_date: '',
   notes: ''
 })
+
+// Create modal
+const showCreate = ref(false)
+const creating = ref(false)
+const createError = ref('')
+const createForm = ref({
+  name: '',
+  pin: '',
+  role: 'user'
+})
+
+// Edit modal
+const showEdit = ref(false)
+const editing = ref(false)
+const editError = ref('')
+const editForm = ref({
+  name: '',
+  pin: '',
+  role: 'user'
+})
+
+// Delete modal
+const showDeleteConfirm = ref(false)
+const deleting = ref(false)
+const deleteError = ref('')
 
 // Auto-calculate reps based on difficulty
 const repsPerSet = computed(() => {
@@ -142,13 +259,6 @@ const totalReps = computed(() => {
 })
 
 onMounted(async () => {
-  const res = await adminStore.fetchUsers()
-  if (res.error) {
-    router.push('/admin/login')
-  } else {
-    users.value = res.users || []
-  }
-
   const exerciseRes = await adminStore.fetchExercises()
   exercises.value = exerciseRes || []
   
@@ -159,6 +269,113 @@ onMounted(async () => {
 
   loading.value = false
 })
+
+async function loadUsers() {
+  loading.value = true
+  const res = await adminStore.fetchUsers()
+  if (res.error) {
+    router.push('/admin/login')
+  } else {
+    users.value = res || []
+  }
+  loading.value = false
+}
+
+// === CREATE ===
+function openCreateModal() {
+  createForm.value = { name: '', pin: '', role: 'user' }
+  createError.value = ''
+  showCreate.value = true
+}
+
+async function submitCreate() {
+  createError.value = ''
+  
+  // Validate PIN format
+  if (!/^\d{4,6}$/.test(createForm.value.pin)) {
+    createError.value = 'PIN must be 4-6 digits'
+    return
+  }
+  
+  creating.value = true
+  
+  const res = await adminStore.createUser({
+    name: createForm.value.name,
+    pin: createForm.value.pin,
+    role: createForm.value.role
+  })
+  
+  if (res.success) {
+    showCreate.value = false
+    await loadUsers() // Refresh list
+  } else {
+    createError.value = res.error || 'Failed to create user'
+  }
+  
+  creating.value = false
+}
+
+// === EDIT ===
+function openEditModal(user) {
+  selectedUser.value = user
+  editForm.value = {
+    name: user.name,
+    pin: user.pin,
+    role: user.role || 'user'
+  }
+  editError.value = ''
+  showEdit.value = true
+}
+
+async function submitEdit() {
+  editError.value = ''
+  
+  // Validate PIN format
+  if (!/^\d{4,6}$/.test(editForm.value.pin)) {
+    editError.value = 'PIN must be 4-6 digits'
+    return
+  }
+  
+  editing.value = true
+  
+  const res = await adminStore.updateUser(selectedUser.value.id, {
+    name: editForm.value.name,
+    pin: editForm.value.pin,
+    role: editForm.value.role
+  })
+  
+  if (res.success) {
+    showEdit.value = false
+    await loadUsers() // Refresh list
+  } else {
+    editError.value = res.error || 'Failed to update user'
+  }
+  
+  editing.value = false
+}
+
+// === DELETE ===
+function confirmDelete(user) {
+  selectedUser.value = user
+  deleteError.value = ''
+  showDeleteConfirm.value = true
+}
+
+async function submitDelete() {
+  deleting.value = true
+  deleteError.value = ''
+  
+  const res = await adminStore.deleteUser(selectedUser.value.id)
+  
+  if (res.success) {
+    showDeleteConfirm.value = false
+    await loadUsers() // Refresh list
+  } else {
+    deleteError.value = res.error || 'Failed to delete user'
+  }
+  
+  deleting.value = false
+}
 
 async function viewHistory(user) {
   selectedUser.value = user

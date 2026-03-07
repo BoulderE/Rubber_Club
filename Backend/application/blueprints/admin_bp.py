@@ -139,7 +139,6 @@ def get_all_users(admin_user):
                 'pending_tasks': pending
             })
         
-        # Changed: wrap in object
         return jsonify({'users': result})
     finally:
         session.close()
@@ -260,9 +259,136 @@ def get_user_summary(user_id, admin_user):
     finally:
         session.close()
 
+# Admin User Management Endpoints
+@admin_bp.route('/users', methods=['POST'])
+@admin_required
+def create_user(admin_user):
+    session = get_session()
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        pin = data.get('pin')
+        
+        if not name or not pin:
+            return jsonify({'error': '請輸入用戶名稱和 PIN 碼'}), 400
+        
+        if not pin.isdigit() or not (4 <= len(pin) <= 6):
+            return jsonify({'error': 'PIN 碼必須是 4-6 位數字'}), 400
+        
+        existing_user = session.query(User).filter_by(pin=pin).first()
+        if existing_user:
+            return jsonify({'error': 'PIN 碼已存在'}), 400
+        
+        new_user = User(name=name, pin=pin, role='user', created_at=datetime.utcnow())
+        session.add(new_user)
+        session.commit()
+        
+        return jsonify({
+            'message': '用戶創建成功',
+            'user': {
+                'id': new_user.id,
+                'name': new_user.name,
+                'pin': new_user.pin,
+                'role': new_user.role,
+                'created_at': new_user.created_at.isoformat() if new_user.created_at else None
+            }
+        }), 201
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
 
-# ==================== 任務分配 ====================
+@admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(user_id, admin_user):
+    """刪除用戶"""
+    session = get_session()
+    try:
+        user = session.query(User).filter_by(id=user_id).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        # Delete associated records first
+        session.query(ExerciseRecord).filter_by(user_id=user_id).delete()
+        session.query(AssignedExercise).filter_by(user_id=user_id).delete()
+        
+        # Delete the user
+        session.delete(user)
+        session.commit()
+        
+        return jsonify({'message': '用戶已刪除'})
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
 
+@admin_bp.route('/users/<int:user_id>', methods=['PATCH'])
+@admin_required
+def update_user(user_id, admin_user):
+    """更新用戶資訊"""
+    session = get_session()
+    try:
+        data = request.get_json()
+        
+        user = session.query(User).filter_by(id=user_id).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        if 'name' in data:
+            user.name = data['name'].strip()
+        
+        # Update PIN if provided
+        if 'pin' in data:
+            new_pin = data['pin']
+            
+            # Validate PIN format
+            if not new_pin.isdigit() or not (4 <= len(new_pin) <= 6):
+                return jsonify({'error': 'PIN 碼必須是 4-6 位數字'}), 400
+            
+            # Check for duplicate PIN (excluding current user)
+            existing = session.query(User).filter(
+                User.pin == new_pin,
+                User.id != user_id
+            ).first()
+            if existing:
+                return jsonify({'error': '此 PIN 碼已被使用'}), 400
+            
+            user.pin = new_pin
+        
+        # Update role if provided
+        if 'role' in data:
+            if data['role'] not in ['user', 'admin']:
+                return jsonify({'error': '無效的角色'}), 400
+            
+            # Prevent demoting yourself
+            if user.id == admin_user.id and data['role'] != 'admin':
+                return jsonify({'error': '無法降級自己的管理員權限'}), 400
+            
+            user.role = data['role']
+        
+        session.commit()
+        
+        return jsonify({
+            'message': '用戶更新成功',
+            'user': {
+                'id': user.id,
+                'name': user.name,
+                'pin': user.pin,
+                'role': user.role,
+                'created_at': user.created_at.isoformat() if user.created_at else None
+            }
+        })
+        
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
+
+
+# Admin Exercise Management Endpoints
 @admin_bp.route('/exercises', methods=['GET'])
 @admin_required
 def get_available_exercises(admin_user):
