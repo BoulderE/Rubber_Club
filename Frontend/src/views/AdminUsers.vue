@@ -278,7 +278,7 @@ async function loadUsers() {
   if (res.error) {
     router.push('/admin/login')
   } else {
-    users.value = res || []
+    users.value = res.users || []
   }
   // loading.value = false
 }
