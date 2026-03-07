@@ -20,7 +20,10 @@ export async function getStats(token) {
 
 export async function getUsers(token) {
   const res = await fetch(`${base}/api/admin/users`, {
-    headers: { 'X-Admin-Pin': token }
+    method: 'GET',
+    headers: { 
+      'Content-Type': 'application/json',
+      'X-Admin-Pin': token }
   })
   return res.json()
 }
