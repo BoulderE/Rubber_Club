@@ -406,7 +406,12 @@ onMounted(async () => {
 async function loadTasks() {
   try {
     const res = await fetchMyTasks();
-    tasks.value = res || [];
+    tasks.value = (res || []).map(item => {
+      if (item.type === 'playlist') {
+        item._expanded = false;
+      }
+      return item;
+    });
   } catch (err) {
     console.error('Failed to load tasks:', err);
   } finally {
@@ -464,11 +469,6 @@ const nextEx = playlist.exercises.find(
   }
 
 }
-
-// function goToCreatePlaylist() {
-//   showPlaylistPanel.value = false;
-//   router.push({ name: 'playlist-create' });
-// }
 
 async function startTask(task) {
   try {
