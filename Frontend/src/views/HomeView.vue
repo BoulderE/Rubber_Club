@@ -123,12 +123,12 @@
           </button>
         </div>
         
-        <div v-if="item.admin_notes" class="task-notes">
-          💬 {{ item.admin_notes }}
+          <div v-if="item.admin_notes" class="task-notes">
+            💬 {{ item.admin_notes }}
+          </div>
         </div>
-      </div>
 
-    </template>
+      </template>
       </div>
     </div>
 
@@ -467,10 +467,18 @@ async function loadPlaylists() {
 }
 
 async function startPlaylistExercise(playlist) {
+  console.log('playlist:', playlist)
+  console.log('exercises:', playlist.exercises)
 const nextEx = playlist.exercises.find(
     ex => ex.status === 'in_progress' || ex.status === 'pending'
   );
-  if (!nextEx) return;
+
+  console.log('nextEx:', nextEx)
+
+  if (!nextEx) {
+    console.log('No next exercise found — returning early')
+    return;
+  }
 
   try {
     if (nextEx.status === 'pending') {
