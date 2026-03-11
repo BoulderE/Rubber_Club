@@ -43,7 +43,7 @@
       <!-- Playlist card -->
       <div v-if="item.type === 'playlist'" class="task-card playlist-group-card">
         <div class="task-header" @click="item._expanded = !item._expanded" style="cursor: pointer;">
-          <span class="task-exercise">🎵 {{ item.playlist_name }}</span>
+          <span class="task-exercise">🧾 {{ item.playlist_name }}</span>
           <span class="task-difficulty">
             {{ item.exercises.length }} 個動作 · {{ item.progress }}%
           </span>
@@ -51,7 +51,7 @@
         
         <div class="task-progress">
           <div class="progress-text">
-            <span>播放清單進度</span>
+            <span>進度</span>
             <span>{{ item.progress }}%</span>
           </div>
           <div class="progress-bar">
@@ -72,7 +72,7 @@
         </div>
 
         <div class="task-footer">
-          <span class="task-due">{{ item.is_routine ? '常規訓練' : '播放清單' }}</span>
+          <span class="task-due">{{ item.is_routine ? '單項訓練' : '清單訓練' }}</span>
           <button @click="startPlaylistExercise(item)" class="start-task-btn">
             {{ item.progress > 0 ? '繼續' : '開始' }}
           </button>
@@ -92,7 +92,7 @@
           </span>
         </div>
         
-        <div class="task-progress">
+        <!-- <div class="task-progress">
           <div class="progress-text">
             <span>進度</span>
             <span>{{ item.completed_sets }} / {{ item.target_sets }} 組</span>
@@ -106,7 +106,7 @@
           <div class="reps-info">
             每組 {{ item.target_reps }} 次
           </div>
-        </div>
+        </div> -->
         
         <div class="task-footer">
           <span v-if="item.due_date" class="task-due" :class="{ 'overdue': item.is_overdue }">
@@ -407,9 +407,6 @@ async function loadTasks() {
   try {
     const res = await fetchMyTasks();
     const raw = res || [];
-    console.log('=== DEBUG loadTasks ===');
-    console.log('raw count:', raw.length);
-    console.log('first task:', JSON.stringify(raw[0], null, 2));
     const singles = [];
     const playlistMap = new Map();
 
