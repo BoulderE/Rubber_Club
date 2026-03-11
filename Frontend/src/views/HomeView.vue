@@ -406,12 +406,44 @@ onMounted(async () => {
 async function loadTasks() {
   try {
     const res = await fetchMyTasks();
-    tasks.value = (res || []).map(item => {
-      if (item.type === 'playlist') {
-        item._expanded = false;
+    const raw = res || [];
+
+    const singles = [];
+    const playlistMap = new Map();
+
+    for (const item of raw) {
+      if (item.playlist_id) {
+        // Group by playlist_id
+        if (!playlistMap.has(item.playlist_id)) {
+          playlistMap.set(item.playlist_id, {
+            type: 'playlist',
+            playlist_id: item.playlist_id,
+            playlist_name: item.playlist_name || '訓練清單',
+            is_routine: item.is_routine || false,
+            exercises: [],
+            _expanded: false
+          });
+        }
+        playlistMap.get(item.playlist_id).exercises.push(item);
+      } else {
+        singles.push(item);
       }
-      return item;
+    }
+
+    // Calculate progress for each playlist group
+    const playlists = [...playlistMap.values()].map(pl => {
+      // Sort exercises by sort_order if available
+      pl.exercises.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+      const total = pl.exercises.length;
+      const completed = pl.exercises.filter(e => e.status === 'completed').length;
+      pl.progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      return pl;
     });
+
+    // Playlists first, then individual tasks
+    tasks.value = [...playlists, ...singles];
   } catch (err) {
     console.error('Failed to load tasks:', err);
   } finally {
