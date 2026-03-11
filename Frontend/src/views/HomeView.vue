@@ -469,6 +469,7 @@ async function loadPlaylists() {
 async function startPlaylistExercise(playlist) {
   console.log('playlist:', playlist)
   console.log('exercises:', playlist.exercises)
+  console.log('exercise statuses:', playlist.exercises.map(ex => ({ name: ex.exercise_name, status: ex.status })))
 const nextEx = playlist.exercises.find(
     ex => ex.status === 'in_progress' || ex.status === 'pending'
   );
@@ -480,7 +481,7 @@ const nextEx = playlist.exercises.find(
     return;
   }
 
-  try {
+    try {
     if (nextEx.status === 'pending') {
       await startTaskApi(nextEx.id);
     }
