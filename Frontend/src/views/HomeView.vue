@@ -407,7 +407,9 @@ async function loadTasks() {
   try {
     const res = await fetchMyTasks();
     const raw = res || [];
-
+    console.log('=== DEBUG loadTasks ===');
+    console.log('raw count:', raw.length);
+    console.log('first task:', JSON.stringify(raw[0], null, 2));
     const singles = [];
     const playlistMap = new Map();
 
