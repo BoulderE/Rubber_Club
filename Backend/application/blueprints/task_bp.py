@@ -526,6 +526,38 @@ def update_playlist(playlist_id):
     finally:
         session.close()
 
+@task_bp.route('/my-playlists/<int:playlist_id>', methods=['DELETE'])
+def delete_playlist(playlist_id):
+    """Delete a playlist and all its exercises"""
+    user_pin = request.headers.get('X-User-Pin')
+    if not user_pin:
+        return jsonify({'error': '需要用戶認證'}), 401
+    
+    session = get_session()
+    try:
+        user = session.query(User).filter_by(pin=user_pin).first()
+        if not user:
+            return jsonify({'error': '用戶不存在'}), 404
+        
+        tasks = session.query(AssignedExercise).filter(
+            AssignedExercise.user_id == user.id,
+            AssignedExercise.playlist_id == playlist_id
+        ).all()
+        
+        if not tasks:
+            return jsonify({'error': '播放列表不存在'}), 404
+        
+        for task in tasks:
+            session.delete(task)
+        
+        session.commit()
+        
+        return jsonify({'message': '播放列表已刪除'})
+    except Exception as e:
+        session.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        session.close()
 
 @task_bp.route('/my-playlists/<int:playlist_id>/save-routine', methods=['POST'])
 def save_as_routine(playlist_id):
