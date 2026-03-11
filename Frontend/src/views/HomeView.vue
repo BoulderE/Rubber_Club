@@ -414,8 +414,16 @@ async function loadTasks() {
     const playlistMap = new Map();
 
     for (const item of raw) {
-      if (item.playlist_id) {
-        // Group by playlist_id
+      if (item.type === 'playlist' && Array.isArray(item.exercises)) {
+        playlistMap.set(item.playlist_id, {
+          type: 'playlist',
+          playlist_id: item.playlist_id,
+          playlist_name: item.playlist_name || '訓練清單',
+          is_routine: item.is_routine || false,
+          exercises: item.exercises,   
+          _expanded: false
+        });
+      } else if (item.playlist_id) {
         if (!playlistMap.has(item.playlist_id)) {
           playlistMap.set(item.playlist_id, {
             type: 'playlist',
@@ -432,9 +440,7 @@ async function loadTasks() {
       }
     }
 
-    // Calculate progress for each playlist group
     const playlists = [...playlistMap.values()].map(pl => {
-      // Sort exercises by sort_order if available
       pl.exercises.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
       const total = pl.exercises.length;
