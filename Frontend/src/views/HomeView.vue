@@ -92,7 +92,7 @@
           </span>
         </div>
         
-        <!-- <div class="task-progress">
+        <div class="task-progress">
           <div class="progress-text">
             <span>進度</span>
             <span>{{ item.completed_sets }} / {{ item.target_sets }} 組</span>
@@ -106,7 +106,7 @@
           <div class="reps-info">
             每組 {{ item.target_reps }} 次
           </div>
-        </div> -->
+        </div>
         
         <div class="task-footer">
           <span v-if="item.due_date" class="task-due" :class="{ 'overdue': item.is_overdue }">
