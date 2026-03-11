@@ -38,54 +38,97 @@
       </div>
       
       <div class="tasks-grid">
-        <div 
-          v-for="task in tasks" 
-          :key="task.id" 
-          class="task-card"
-          :class="{ 'in-progress': task.status === 'in_progress', 'overdue': task.is_overdue }"
-        >
-          <div class="task-header">
-            <span class="task-exercise">{{ task.exercise_name }}</span>
-            <span class="task-difficulty" :class="task.difficulty">
-              {{ task.difficulty === 'beginner' ? '初級' : '中級' }}
-            </span>
+        <template v-for="item in tasks" :key="item.type === 'playlist' ? 'pl-' + item.playlist_id : item.id">
+      
+      <!-- Playlist card -->
+      <div v-if="item.type === 'playlist'" class="task-card playlist-group-card">
+        <div class="task-header" @click="item._expanded = !item._expanded" style="cursor: pointer;">
+          <span class="task-exercise">🎵 {{ item.playlist_name }}</span>
+          <span class="task-difficulty">
+            {{ item.exercises.length }} 個動作 · {{ item.progress }}%
+          </span>
+        </div>
+        
+        <div class="task-progress">
+          <div class="progress-text">
+            <span>播放清單進度</span>
+            <span>{{ item.progress }}%</span>
           </div>
-          
-          <div class="task-progress">
-            <div class="progress-text">
-              <span>進度</span>
-              <span>{{ task.completed_sets }} / {{ task.target_sets }} 組</span>
-            </div>
-            <div class="progress-bar">
-              <div 
-                class="progress-fill" 
-                :style="{ width: (task.completed_sets / task.target_sets * 100) + '%' }"
-              ></div>
-            </div>
-            <div class="reps-info">
-              每組 {{ task.target_reps }} 次
-            </div>
-          </div>
-          
-          <div class="task-footer">
-            <span v-if="task.due_date" class="task-due" :class="{ 'overdue': task.is_overdue }">
-              {{ task.is_overdue ? '已逾期' : '截止' }}: {{ formatDate(task.due_date) }}
-            </span>
-            <span v-else class="task-due">無截止日期</span>
-            
-            <button 
-              @click="startTask(task)" 
-              class="start-task-btn"
-              :class="{ 'continue': task.status === 'in_progress' }"
-            >
-              {{ task.status === 'in_progress' ? '繼續' : '開始' }}
-            </button>
-          </div>
-          
-          <div v-if="task.admin_notes" class="task-notes">
-            💬 {{ task.admin_notes }}
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: item.progress + '%' }"></div>
           </div>
         </div>
+
+        <div v-if="item._expanded" class="playlist-exercises">
+          <div 
+            v-for="ex in item.exercises" 
+            :key="ex.id" 
+            class="playlist-exercise-row"
+            :class="{ 'completed': ex.status === 'completed', 'active': ex.status === 'in_progress' }"
+          >
+            <span>{{ ex.exercise_name }}</span>
+            <span>{{ ex.completed_sets }}/{{ ex.target_sets }} 組</span>
+          </div>
+        </div>
+
+        <div class="task-footer">
+          <span class="task-due">{{ item.is_routine ? '常規訓練' : '播放清單' }}</span>
+          <button @click="startPlaylistExercise(item)" class="start-task-btn">
+            {{ item.progress > 0 ? '繼續' : '開始' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Single task card (your existing template, unchanged) -->
+      <div 
+        v-else
+        class="task-card"
+        :class="{ 'in-progress': item.status === 'in_progress', 'overdue': item.is_overdue }"
+      >
+        <div class="task-header">
+          <span class="task-exercise">{{ item.exercise_name }}</span>
+          <span class="task-difficulty" :class="item.difficulty">
+            {{ item.difficulty === 'beginner' ? '初級' : '中級' }}
+          </span>
+        </div>
+        
+        <div class="task-progress">
+          <div class="progress-text">
+            <span>進度</span>
+            <span>{{ item.completed_sets }} / {{ item.target_sets }} 組</span>
+          </div>
+          <div class="progress-bar">
+            <div 
+              class="progress-fill" 
+              :style="{ width: (item.completed_sets / item.target_sets * 100) + '%' }"
+            ></div>
+          </div>
+          <div class="reps-info">
+            每組 {{ item.target_reps }} 次
+          </div>
+        </div>
+        
+        <div class="task-footer">
+          <span v-if="item.due_date" class="task-due" :class="{ 'overdue': item.is_overdue }">
+            {{ item.is_overdue ? '已逾期' : '截止' }}: {{ formatDate(item.due_date) }}
+          </span>
+          <span v-else class="task-due">無截止日期</span>
+          
+          <button 
+            @click="startTask(item)" 
+            class="start-task-btn"
+            :class="{ 'continue': item.status === 'in_progress' }"
+          >
+            {{ item.status === 'in_progress' ? '繼續' : '開始' }}
+          </button>
+        </div>
+        
+        <div v-if="item.admin_notes" class="task-notes">
+          💬 {{ item.admin_notes }}
+        </div>
+      </div>
+
+    </template>
       </div>
     </div>
 
@@ -384,27 +427,43 @@ async function loadPlaylists() {
   }
 }
 
-// function startPlaylistSession(playlist) {
-//   if (!playlist.exercises || playlist.exercises.length === 0) {
-//     alert('此清單沒有動作');
-//     return;
-//   }
+async function startPlaylistExercise(playlist) {
+const nextEx = playlist.exercises.find(
+    ex => ex.status === 'in_progress' || ex.status === 'pending'
+  );
+  if (!nextEx) return;
 
-//   showPlaylistPanel.value = false;
+  try {
+    if (nextEx.status === 'pending') {
+      await startTaskApi(nextEx.id);
+    }
 
-//   const exerciseIds = playlist.exercises.map(e => e.exercise_type || e.exercise_key || e.id);
-//   const firstExerciseId = exerciseStore.startPlaylist(exerciseIds);
-  
-//   router.push({
-//     name: 'exercise',
-//     params: { type: firstExerciseId },
-//     query: {
-//       style: 'beginner',
-//       autoPlayVoice: 'true',
-//       playlistId: playlist.id
-//     }
-//   });
-// }
+    exerciseStore.setActiveTask({
+      id: nextEx.id,
+      exercise_key: nextEx.exercise_key,
+      target_reps: nextEx.target_reps,
+      target_sets: nextEx.target_sets,
+      completed_sets: nextEx.completed_sets,
+      difficulty: nextEx.difficulty,
+      playlist_id: playlist.playlist_id,
+      playlist_name: playlist.playlist_name
+    });
+
+    router.push({
+      name: 'exercise',
+      params: { type: nextEx.exercise_key },
+      query: {
+        style: nextEx.difficulty,
+        taskId: nextEx.id,
+        playlistId: playlist.playlist_id,
+        autoPlayVoice: 'true'
+      }
+    });
+  } catch (err) {
+    console.error('Failed to start playlist exercise:', err);
+  }
+
+}
 
 // function goToCreatePlaylist() {
 //   showPlaylistPanel.value = false;

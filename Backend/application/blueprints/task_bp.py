@@ -22,24 +22,54 @@ def get_my_tasks():
             AssignedExercise.user_id == user.id,
             AssignedExercise.status.in_(['pending', 'in_progress'])
         ).order_by(
+            AssignedExercise.playlist_id.asc().nullslast(),
+            AssignedExercise.sort_order.asc(),
             desc(AssignedExercise.status == 'in_progress'),
             AssignedExercise.due_date.asc().nullslast()
         ).all()
+
+        playlists = {}
+        standalone = []
         
-        return jsonify([{
-            'id': t.id,
-            'exercise_key': t.exercise_key,
-            'exercise_name': t.exercise_name,
-            'target_reps': t.target_reps,
-            'target_sets': t.target_sets,
-            'completed_sets': t.completed_sets,
-            'completed_reps_total': t.completed_reps_total,
-            'status': t.status,
-            'difficulty': t.difficulty,
-            'due_date': t.due_date.isoformat() if t.due_date else None,
-            'admin_notes': t.admin_notes,
-            'is_overdue': t.due_date < datetime.now().date() if t.due_date else False
-        } for t in tasks])
+        for t in tasks:
+            task_data = {
+                'id': t.id,
+                'exercise_key': t.exercise_key,
+                'exercise_name': t.exercise_name,
+                'target_reps': t.target_reps,
+                'target_sets': t.target_sets,
+                'completed_sets': t.completed_sets,
+                'completed_reps_total': t.completed_reps_total,
+                'status': t.status,
+                'difficulty': t.difficulty,
+                'sort_order': t.sort_order,
+                'due_date': t.due_date.isoformat() if t.due_date else None,
+                'admin_notes': t.admin_notes,
+                'is_overdue': t.due_date < datetime.now().date() if t.due_date else False
+            }
+            
+            if t.playlist_id:
+                if t.playlist_id not in playlists:
+                    playlists[t.playlist_id] = {
+                        'type': 'playlist',
+                        'playlist_id': t.playlist_id,
+                        'playlist_name': t.playlist_name,
+                        'is_routine': t.is_routine,
+                        'exercises': []
+                    }
+                playlists[t.playlist_id]['exercises'].append(task_data)
+            else:
+                task_data['type'] = 'single'
+                standalone.append(task_data)
+        
+        # Calculate playlist-level progress
+        for p in playlists.values():
+            total = len(p['exercises'])
+            completed = sum(1 for e in p['exercises'] if e['status'] == 'completed')
+            p['progress'] = round(completed / total * 100) if total > 0 else 0
+        
+        result = list(playlists.values()) + standalone
+        return jsonify(result)
     finally:
         session.close()
 
@@ -218,6 +248,27 @@ def update_task_progress(task_id):
         session.add(record)
         
         session.commit()
+
+        next_exercise = None
+        if is_complete and task.playlist_id:
+            next_task = session.query(AssignedExercise).filter(
+                AssignedExercise.user_id == user.id,
+                AssignedExercise.playlist_id == task.playlist_id,
+                AssignedExercise.status.in_(['pending', 'in_progress']),
+                AssignedExercise.sort_order > task.sort_order
+            ).order_by(AssignedExercise.sort_order.asc()).first()
+            
+            if next_task:
+                next_task.status = 'in_progress'
+                session.commit()
+                next_exercise = {
+                    'id': next_task.id,
+                    'exercise_key': next_task.exercise_key,
+                    'exercise_name': next_task.exercise_name,
+                    'target_reps': next_task.target_reps,
+                    'target_sets': next_task.target_sets,
+                    'sort_order': next_task.sort_order
+                }
         
         return jsonify({
             'message': '進度已更新',
@@ -229,7 +280,9 @@ def update_task_progress(task_id):
                 'avg_smoothness': round(task.avg_smoothness, 1),
                 'status': task.status,
                 'is_complete': is_complete
-            }
+            },
+            'next_exercise': next_exercise,
+            'playlist_complete': is_complete and next_exercise is None and task.playlist_id is not None
         })
         
     except Exception as e:
