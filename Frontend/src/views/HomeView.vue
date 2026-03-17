@@ -218,12 +218,28 @@
 
     <div class="section-header exercises-header">
       <h2>自由訓練</h2>
+      <div class="gender-toggle">
+        <button
+          :class="['gender-btn', { active: selectedGender === 'male' }]"
+          @click="selectedGender = 'male'"
+        >
+          <span class="gender-icon">👨</span>
+          <span class="gender-label">男性示範</span>
+        </button>
+        <button
+          :class="['gender-btn', { active: selectedGender === 'female' }]"
+          @click="selectedGender = 'female'"
+        >
+          <span class="gender-icon">👩</span>
+          <span class="gender-label">女性示範</span>
+        </button>
+      </div>
     </div>
 
     <div class="exercises-grid">
       <div 
         v-for="exercise in exercises" 
-        :key="exercise.id"
+        :key="exercise.id + '-' + selectedGender"
         class="exercise-card"
         @mouseenter="handleMouseEnter(exercise.id)"
         @mouseleave="handleMouseLeave(exercise.id)"
@@ -284,6 +300,7 @@ const showDetailModal = ref(false);
 const selectedExercise = ref(null); 
 const detailExercise = ref(null);
 const selectedLevel = ref('beginner');
+const selectedGender = ref('male');
 
 // Tasks state
 const tasks = ref([]);
@@ -303,7 +320,10 @@ const exercises = ref([
     displayName: '二頭肌彎舉',
     description: '通過該動作增強肩膀穩定度與肌群，幫助長者改善肩膀穩定與受控能力。溫和啟動胸背與肩部穩定肌群，改善肩帶穩定與姿勢控制。', 
     imageUrl: '/images/bicep_curl_image_1.png',
-    videoUrl: '/videos/bicep_curl_demo.mp4',
+    videoUrl: {
+      male: '/videos/bicep_curl_demo.mp4',
+      female: '/videos/bicep_curl_demo_w.mp4'
+    },
     orientation: 'portrait',
     tips: [
       '保持核心穩定，避免身體搖晃',
@@ -317,7 +337,10 @@ const exercises = ref([
     displayName: '側平舉',
     description: '針對三角肌外側的輕量訓練，協助長者提升抬臂與側向拿取物品的能力。', 
     imageUrl: '/images/lateral_raise_image_1.png',
-    videoUrl: '/videos/lateral_raise_demo.mp4',
+    videoUrl: {
+      male: '/videos/lateral_raise_demo.mp4',
+      female: '/videos/lateral_raise_demo_w.mp4'
+    },
     orientation: 'portrait',
     tips: [
       '手臂微彎，避免完全伸直',
@@ -331,7 +354,10 @@ const exercises = ref([
     displayName: '胸部側拉',
     description: '強化上背與肩後肌群的穩健訓練，協助長者改善肩胛後收與挺胸姿勢。', 
     imageUrl: '/images/chest_pull_image_1.png',
-    videoUrl: '/videos/chest_pull_demo.mp4',
+    videoUrl: {
+      male: '/videos/chest_pull_demo.mp4',
+      female: '/videos/chest_pull_demo_w.mp4'
+    },
     orientation: 'landscape',
     tips: [
       '挺胸收腹，保持良好姿勢',
@@ -345,7 +371,10 @@ const exercises = ref([
     displayName: '前平舉',
     description: '強化前三角肌與肩前穩定度，幫助長者安全抬手至胸前/眼前高度。', 
     imageUrl: '/images/front_raise_image_1.png',
-    videoUrl: '/videos/front_raise_demo.mp4',
+    videoUrl: {
+      male: '/videos/front_raise_demo.mp4',
+      female: '/videos/front_raise_demo_w.mp4'
+    },
     orientation: 'portrait',
     tips: [
       '保持手臂伸直但不鎖死',
@@ -359,7 +388,10 @@ const exercises = ref([
     displayName: '過頭推舉',
     description: '逐步訓練肩部與上背推舉能力，協助長者改善頭上取物與伸手動作。', 
     imageUrl: '/images/overhead_press_image_1.png',
-    videoUrl: '/videos/overhead_press_demo.mp4',
+    videoUrl: {
+      male: '/videos/overhead_press_demo.mp4',
+      female: '/videos/overhead_press_demo_w.mp4'
+    },
     orientation: 'portrait',
     tips: [
       '核心收緊，避免腰部過度後仰',
@@ -373,7 +405,10 @@ const exercises = ref([
     displayName: '對角線推舉',
     description: '進階肩部與核心穩定訓練,強化單側肩部力量與身體協調性,改善日常生活中斜向抬舉物品的能力。', 
     imageUrl: '/images/diagonal_lift_image_1.png',
-    videoUrl: '/videos/diagonal_lift_demo.mp4',
+    videoUrl: {
+      male: '/videos/diagonal_lift_demo.mp4',
+      female: '/videos/diagonal_lift_demo_w.mp4'
+    },
     orientation: 'landscape',
     tips: [
       '單手持啞鈴,從肩膀斜向推至對側上方',
@@ -921,7 +956,54 @@ function goToHistory() {
 }
 
 .exercises-header {
-  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.gender-toggle {
+  display: flex;
+  gap: 8px;
+  background: #f0f0f0;
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.gender-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.25s ease;
+  font-weight: 500;
+}
+
+.gender-btn:hover {
+  background: rgba(255, 255, 255, 0.6);
+  color: #333;
+}
+
+.gender-btn.active {
+  background: #fff;
+  color: #7c3aed;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-weight: 600;
+}
+
+.gender-icon {
+  font-size: 18px;
+}
+
+.gender-label {
+  white-space: nowrap;
 }
 
 .view-all-link {
@@ -1535,6 +1617,16 @@ function goToHistory() {
 @media (max-width: 1200px) {
   .exercises-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .gender-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .gender-label {
+    display: none;
   }
 }
 
