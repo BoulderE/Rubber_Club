@@ -211,6 +211,10 @@
                 開始訓練
               </button>
             </div>
+            <details>
+              <summary>內容來源與免責聲明</summary>
+              <p style="white-space: pre-line;">{{ disclaimer }}</p>
+            </details>
           </div>
         </div>
       </div>
@@ -312,6 +316,12 @@ const playlistLoading = ref(false);
 const userPlaylists = ref([]);
 
 const videoRefs = ref({});
+
+const disclaimer = `本應用程式所展示之阻力帶及啞鈴運動內容，係參考加拿大 Lifeline Canada（www.lifeline.ca）所發布之《Dumbbell & Resistance Band Exercises For Seniors》資源編製而成。Lifeline Canada 為加拿大具有逾五十年歷史之醫療警報及長者健康服務機構。
+
+本應用程式所提供之運動資訊僅供一般參考用途，不構成任何專業醫療建議、診斷或治療方案。使用者在開始任何新的運動計畫前，應先諮詢合格之醫療專業人員。對於因使用本應用程式內容而直接或間接導致之任何損害或傷害，本公司概不承擔任何責任。
+
+資料來源：https://www.lifeline.ca/en/resources/dumbbell-and-resistance-band-exercises-for-seniors/`
 
 const exercises = ref([
   { 
