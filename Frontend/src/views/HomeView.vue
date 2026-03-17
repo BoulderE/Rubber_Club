@@ -248,7 +248,7 @@
         <div class="video-container">
           <video
             :ref="el => setVideoRef(el, exercise.id)"
-            :src="exercise.videoUrl"
+            :src="exercise.videoUrl[selectedGender]"
             class="exercise-video"
             muted
             loop
