@@ -2,6 +2,9 @@ import mediapipe as mp
 import numpy as np
 import time, math
 from statistics import mean, pstdev
+from .quality_checker import QualityChecker
+import os
+from .lstm_scorer import LSTMScorer
 
 def load_exercise_config():
     try:
@@ -155,27 +158,17 @@ def get_default_config():
             }
         }
     },
-    'squat': {
-        'name': '深蹲',
-        'landmarks_to_use': ['right_hip', 'right_knee', 'right_ankle'],
-        'logic_function': '_analyze_squat_logic',
-        'params': {
-            'intermediate': {
-                'up_threshold_angle': 165.0,
-                'down_threshold_angle': 95.0
-            },
-            'beginner': {
-                'up_threshold_angle': 160.0,
-                'down_threshold_angle': 110.0
-            }
-        }
-    },
 }
 
 EXERCISE_CONFIG = load_exercise_config()
 
 class WorkoutState:
     def __init__(self):
+        self.lstm_scorer = LSTMScorer(
+            models_dir=os.path.join(os.path.dirname(__file__), '..', 'lstm_models'),
+            score_every_n=5
+        )
+        self.reset()
         self.reset()
 
     def reset(self):
@@ -240,6 +233,11 @@ class ExerciseAnalyzer:
 
         self.target_count = 15
         self.current_task_id = None
+        
+        # new
+        self.quality_checker = QualityChecker()
+        self._last_angles = None
+        self._last_quality = {'is_bad': False, 'error_type': None, 'message': None, 'violations': []}
 
     def _now(self):
         return time.time()
@@ -398,6 +396,14 @@ class ExerciseAnalyzer:
             return self._build_result(paused=True)
 
         if landmarks:
+            # new
+            if results.pose_landmarks and self.exercise_id:
+                self._last_angles = self.quality_checker.compute_angles(results.pose_landmarks)
+                self._last_quality = self.quality_checker.check(self.exercise_id, self._last_angles)
+                if self._last_quality['is_bad']:
+                    self.state._overextension_detected = True
+                    self.state._overextension_type = self._last_quality['error_type']
+
             logic_function = getattr(self, self.config['logic_function'])
             logic_function(landmarks)
         else:
@@ -422,6 +428,10 @@ class ExerciseAnalyzer:
             'phase_timings': self.phase_timings[-20:],
             'up_durations': self.state.up_durations[-10:],
             'down_durations': self.state.down_durations[-10:],
+
+            #new
+            'quality_angles': self._last_angles,
+            'quality_violations': self._last_quality.get('violations', []),
         }
     
     def _calculate_angle(self, a, b, c):
@@ -592,25 +602,6 @@ class ExerciseAnalyzer:
             current_pos=wrist,
             min_dist=params.get('min_distance', 0.01),
             debounce_time=0.3
-        )
-
-    def _analyze_squat_logic(self, landmarks):
-        params = self.config['params'][self.style]
-        hip = landmarks['right_hip']
-        knee = landmarks['right_knee']
-        ankle = landmarks['right_ankle']
-        
-        angle = self._calculate_angle(hip, knee, ankle)
-        
-        is_up = angle > params['up_threshold_angle']
-        is_down = angle < params['down_threshold_angle']
-
-        self._process_state_machine(
-            self.state._exercise_states['squat'],
-            is_up, is_down,
-            current_pos=hip,
-            min_dist=0.1,
-            debounce_time=0.5
         )
 
     def _analyze_diagonal_lift_logic(self, landmarks):
@@ -795,3 +786,16 @@ class ExerciseAnalyzer:
                 self.state.feedback = "加油！再來一個！"
             else:
                 self.state.feedback = "你已準備好，隨時開始運動"
+
+        if self.state._overextension_detected:
+            if self.state._overextension_type == 'over_extension':
+                self.state.feedback = "動作過度伸展，請減小幅度！"
+            elif self.state._overextension_type == 'out_of_range':
+                self.state.feedback = "動作偏離標準範圍，請注意姿勢！"
+            elif self.state._overextension_type == 'height_up':
+                self.state.feedback = "手臂舉得太高了，請放低一些！"
+            elif self.state._overextension_type == 'depth':
+                self.state.feedback = "手臂太靠後了，請往前一些！"
+            else:
+                self.state.feedback = "動作幅度過大，請小心一點！"
+            return

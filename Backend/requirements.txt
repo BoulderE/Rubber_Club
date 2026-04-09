@@ -57,3 +57,4 @@ typing-extensions
 urllib3
 werkzeug
 gunicorn
+joblib
