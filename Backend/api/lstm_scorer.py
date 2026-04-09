@@ -26,11 +26,10 @@ class LSTMScorer:
             return
 
         try:
-            import tensorflow as tf
-            tf.get_logger().setLevel('ERROR')
-            self._tf = tf
+            import tf_keras
+            self._tf_keras = tf_keras
         except ImportError:
-            print("[LSTMScorer] TensorFlow 未安裝，LSTM 評分不可用")
+            print("[LSTMScorer] tf_keras 未安裝，LSTM 評分不可用")
             return
 
         for name in sorted(os.listdir(models_dir)):
