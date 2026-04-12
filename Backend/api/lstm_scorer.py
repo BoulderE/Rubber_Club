@@ -33,9 +33,18 @@ class LSTMScorer:
             return
 
         for name in sorted(os.listdir(models_dir)):
-            model_path = os.path.join(models_dir, name, 'model.keras')
             meta_path  = os.path.join(models_dir, name, 'metadata.json')
-            if not (os.path.isfile(model_path) and os.path.isfile(meta_path)):
+            h5_path    = os.path.join(models_dir, name, 'model.h5')
+            keras_path = os.path.join(models_dir, name, 'model.keras')
+
+            if os.path.isfile(h5_path):
+                model_path = h5_path
+            elif os.path.isfile(keras_path):
+                model_path = keras_path
+            else:
+                continue
+
+            if not os.path.isfile(meta_path):
                 continue
             try:
                 with open(meta_path) as f:
