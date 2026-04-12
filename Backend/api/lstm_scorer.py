@@ -20,6 +20,18 @@ class LSTMScorer:
         self._cached_scores = {}
         self._load_all(models_dir)
 
+    def _build_model(self, n_features, seq_len):
+        inp = self._tf_keras.Input(shape=(seq_len, n_features))
+        x = self._tf_keras.layers.LSTM(64, return_sequences=True)(inp)
+        x = self._tf_keras.layers.LSTM(16)(x)
+        x = self._tf_keras.layers.RepeatVector(seq_len)(x)
+        x = self._tf_keras.layers.LSTM(16, return_sequences=True)(x)
+        x = self._tf_keras.layers.LSTM(64, return_sequences=True)(x)
+        out = self._tf_keras.layers.TimeDistributed(
+            self._tf_keras.layers.Dense(n_features)
+        )(x)
+        return self._tf_keras.Model(inp, out)
+
     def _load_all(self, models_dir):
         if not os.path.isdir(models_dir):
             print(f"[LSTMScorer] 模型目錄不存在: {models_dir}")
@@ -33,7 +45,7 @@ class LSTMScorer:
             return
 
         for name in sorted(os.listdir(models_dir)):
-            meta_path  = os.path.join(models_dir, name, 'metadata.json')
+            meta_path = os.path.join(models_dir, name, 'metadata.json')
             npz_path  = os.path.join(models_dir, name, 'weights.npz')
 
             if not os.path.isfile(meta_path) or not os.path.isfile(npz_path):
@@ -46,10 +58,8 @@ class LSTMScorer:
                 seq_len = meta['sequence_len']
                 n_features = len(meta['angles'])
 
-                # 用代碼重建模型
                 model = self._build_model(n_features, seq_len)
 
-                # 載入 npz 權重
                 data = np.load(npz_path)
                 weights = [data[f'w{i}'] for i in range(len(data.files))]
                 model.set_weights(weights)
@@ -91,10 +101,10 @@ class LSTMScorer:
         lh, rh = xyz('left_hip'),       xyz('right_hip')
 
         angles = {
-            'r_elbow_ang':    self._angle_3pt(rs, re, rw),   
-            'l_elbow_ang':    self._angle_3pt(ls, le, lw),   
-            'r_shoulder_ang': self._angle_3pt(rh, rs, re),  
-            'l_shoulder_ang': self._angle_3pt(lh, ls, le),   
+            'r_elbow_ang':    self._angle_3pt(rs, re, rw),
+            'l_elbow_ang':    self._angle_3pt(ls, le, lw),
+            'r_shoulder_ang': self._angle_3pt(rh, rs, re),
+            'l_shoulder_ang': self._angle_3pt(lh, ls, le),
         }
 
         mid_hip = (lh + rh) / 2
@@ -127,15 +137,15 @@ class LSTMScorer:
 
         buf.append(frame)
         if len(buf) < info['seq_len']:
-            return None   
-        
+            return None
+
         self._frame_counts[key] = self._frame_counts.get(key, 0) + 1
         if self._frame_counts[key] % self._score_every_n != 0:
-            return self._cached_scores.get(key)  
+            return self._cached_scores.get(key)
 
-        seq = np.array(buf, dtype=np.float32)                
+        seq = np.array(buf, dtype=np.float32)
         seq_norm = (seq - info['scaler_mean']) / info['scaler_scale']
-        x = seq_norm[np.newaxis, ...]                        
+        x = seq_norm[np.newaxis, ...]
 
         pred = info['model'](x, training=False).numpy()
 
@@ -143,7 +153,7 @@ class LSTMScorer:
         result = self._mse_to_score(mse, info)
         self._cached_scores[key] = result
         return result
-    
+
     @staticmethod
     def _mse_to_score(mse, info):
         z = (mse - info['error_mean']) / (info['error_std'] + 1e-8)
