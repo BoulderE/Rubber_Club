@@ -10,13 +10,11 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
     
-    # 啟用 CORS
     CORS(app, resources={
         r"/api/*": {"origins": "*"},
         r"/mediapipe/*": {"origins": "*"}
     })
     
-    # 註冊藍圖
     app.register_blueprint(mediapipe_bp, url_prefix='/mediapipe')
     app.register_blueprint(auth_bp, url_prefix='/api')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
@@ -27,7 +25,6 @@ def create_app(config_class=Config):
     return app
 
 def register_error_handlers(app):
-    """註冊全局錯誤處理器，返回JSON格式錯誤"""
     @app.errorhandler(400)
     def bad_request(e):
         return {'error': 'Bad request', 'message': str(e)}, 400

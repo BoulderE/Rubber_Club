@@ -184,6 +184,10 @@ class WorkoutState:
         self._last_completion_category = 'standard'
         self._completed_this_frame = False
         self._completed_hold_frames = 0
+
+        # ── LSTM session scoring ──
+        self.lstm_scores = []
+        self.current_lstm_score = None
         
         self._exercise_states = {
             'bicep_curl':  {'movement_state': 'down', 'start_pos': None, 'last_count_time': 0},
@@ -354,6 +358,7 @@ class ExerciseAnalyzer:
 
     def reset(self):
         self.state.reset()
+        self.state.lstm_scorer.reset()         
         self.last_rep_start = None
         self.repetition_durations = []
         self.smoothness_score = 100
@@ -404,6 +409,19 @@ class ExerciseAnalyzer:
                     self.state._overextension_detected = True
                     self.state._overextension_type = self._last_quality['error_type']
 
+                # ── LSTM realtime scoring ──
+                active_side = None
+                if self.exercise_id == 'diagonal_lift':
+                    active_side = self.state._diag_active_side
+                lstm_score = self.state.lstm_scorer.score(
+                    self.exercise_id,
+                    results.pose_landmarks,
+                    active_side=active_side,
+                )
+                if lstm_score is not None:
+                    self.state.lstm_scores.append(lstm_score)
+                    self.state.current_lstm_score = lstm_score
+
             logic_function = getattr(self, self.config['logic_function'])
             logic_function(landmarks)
         else:
@@ -429,9 +447,12 @@ class ExerciseAnalyzer:
             'up_durations': self.state.up_durations[-10:],
             'down_durations': self.state.down_durations[-10:],
 
-            #new
+            # quality
             'quality_angles': self._last_angles,
             'quality_violations': self._last_quality.get('violations', []),
+
+            # LSTM
+            'lstm_score': self.state.current_lstm_score,
         }
     
     def _calculate_angle(self, a, b, c):
@@ -799,3 +820,60 @@ class ExerciseAnalyzer:
             else:
                 self.state.feedback = "動作幅度過大，請小心一點！"
             return
+
+    # ── Session 結束時取得最終 LSTM 分數 ──────────────────────────
+    def get_final_score(self) -> dict:
+        """
+        session 結束時呼叫，回傳 LSTM 模型對整段運動的評分。
+        
+        Returns:
+            {
+                "exercise": "bicep_curl",
+                "total_frames_scored": 120,
+                "final_lstm_score": 82,        # 0-100, trimmed mean
+                "avg_lstm_score": 81.3,
+                "min_lstm_score": 65,
+                "max_lstm_score": 95,
+                "smoothness_score": 88,
+                "rep_count": 12,
+                "total_energy": 234.5,
+                "scores_over_time": [80, 82, ...],  # 可畫曲線
+            }
+        """
+        scores = self.state.lstm_scores
+
+        if not scores:
+            lstm_final = None
+            lstm_avg = None
+            lstm_min = None
+            lstm_max = None
+        else:
+            arr = np.array(scores, dtype=np.float32)
+            n = len(arr)
+            # trimmed mean: 去掉最高最低各 10%
+            if n >= 10:
+                trim = max(1, n // 10)
+                trimmed = np.sort(arr)[trim:-trim]
+                lstm_final = int(round(float(np.mean(trimmed))))
+            else:
+                lstm_final = int(round(float(np.mean(arr))))
+            lstm_avg = round(float(np.mean(arr)), 1)
+            lstm_min = int(np.min(arr))
+            lstm_max = int(np.max(arr))
+
+        result = {
+            "exercise": self.exercise_id,
+            "rep_count": self.state.count,
+            "total_frames_scored": len(scores),
+            "final_lstm_score": lstm_final,
+            "avg_lstm_score": lstm_avg,
+            "min_lstm_score": lstm_min,
+            "max_lstm_score": lstm_max,
+            "smoothness_score": self.smoothness_score,
+            "total_energy": round(self.state.total_energy, 2),
+            "scores_over_time": scores,
+        }
+
+        # 重置，準備下一輪
+        self.reset()
+        return result

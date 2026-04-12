@@ -33,14 +33,14 @@ def control_workout():
         exercise_id = data.get('exercise')
         style = data.get('style', 'intermediate')
         target_count = data.get('target_count')
-        task_id = data.get('task_id')  # NEW: track assigned task
+        task_id = data.get('task_id')
         
         if not exercise_id:
             return jsonify({"error": "Exercise type is required"}), 400
             
         try:
             analyzer.setup(exercise_id, style, target_count, task_id)
-            session_start_time = time.time()  # Track when session started
+            session_start_time = time.time()
             
             return jsonify({
                 "status": "started", 
@@ -65,10 +65,38 @@ def control_workout():
         })
     
     elif action == 'stop':
-        # NEW: Stop session and return results
-        results = get_session_results()
-        analyzer.reset()
+        # ── 改動：取得 LSTM 最終評分 ──
+        duration = 0
+        if session_start_time:
+            duration = round(time.time() - session_start_time, 1)
+        
+        # 先拿 LSTM 分數（在 reset 之前）
+        lstm_results = analyzer.get_final_score()
+        
+        results = {
+            'task_id': analyzer.current_task_id,
+            'exercise_key': analyzer.exercise_id,
+            'exercise_name': analyzer.config['name'] if analyzer.config else None,
+            'completed_reps': lstm_results['rep_count'],
+            'target_reps': analyzer.target_count,
+            'smoothness': lstm_results['smoothness_score'],
+            'total_energy': lstm_results['total_energy'],
+            'duration': duration,
+            'is_complete': lstm_results['rep_count'] >= analyzer.target_count,
+            'style': analyzer.style,
+            
+            # ── LSTM 新增欄位 ──
+            'lstm_score': lstm_results['final_lstm_score'],
+            'lstm_avg': lstm_results['avg_lstm_score'],
+            'lstm_min': lstm_results['min_lstm_score'],
+            'lstm_max': lstm_results['max_lstm_score'],
+            'lstm_frames_scored': lstm_results['total_frames_scored'],
+            'scores_over_time': lstm_results['scores_over_time'],
+        }
+        
+        # get_final_score() 內部已經 reset，這裡再確保
         session_start_time = None
+        
         return jsonify({
             "status": "stopped",
             "results": results
@@ -124,15 +152,16 @@ def analyze_stream():
             'paused': True,
             'energy': analyzer.state.total_energy,
             'target_count': analyzer.target_count,
-            'task_id': analyzer.current_task_id
+            'task_id': analyzer.current_task_id,
+            'lstm_score': None,  # ← 新增：暫停時沒有分數
         }
     else:
         analysis_results = analyzer.process(image_rgb)
+        # process() 回傳的 dict 已經包含 lstm_score
         analysis_results['paused'] = False
         analysis_results['target_count'] = analyzer.target_count
         analysis_results['task_id'] = analyzer.current_task_id
         
-        # Check if target reached
         analysis_results['target_reached'] = analyzer.state.count >= analyzer.target_count
 
     response_data = {
@@ -164,7 +193,8 @@ def get_status():
         "current_feedback": analyzer.state.feedback,
         "total_energy": analyzer.state.total_energy,
         "task_id": analyzer.current_task_id,
-        "smoothness": analyzer.smoothness_score
+        "smoothness": analyzer.smoothness_score,
+        "lstm_score": analyzer.state.current_lstm_score,  # ← 新增
     })
 
 
@@ -198,12 +228,26 @@ def get_device_info():
 
 
 def get_session_results():
-    """Helper function to build session results"""
+    """Helper function to build session results (不 reset，只讀取)"""
     global session_start_time
     
     duration = 0
     if session_start_time:
         duration = round(time.time() - session_start_time, 1)
+    
+    # ── 計算當前 LSTM 分數快照 ──
+    scores = analyzer.state.lstm_scores
+    if scores:
+        arr = np.array(scores, dtype=np.float32)
+        n = len(arr)
+        if n >= 10:
+            trim = max(1, n // 10)
+            trimmed = np.sort(arr)[trim:-trim]
+            lstm_final = int(round(float(np.mean(trimmed))))
+        else:
+            lstm_final = int(round(float(np.mean(arr))))
+    else:
+        lstm_final = None
     
     return {
         'task_id': analyzer.current_task_id,
@@ -215,5 +259,7 @@ def get_session_results():
         'total_energy': round(analyzer.state.total_energy, 2),
         'duration': duration,
         'is_complete': analyzer.state.count >= analyzer.target_count,
-        'style': analyzer.style
+        'style': analyzer.style,
+        'lstm_score': lstm_final,                    # ← 新增
+        'lstm_realtime': analyzer.state.current_lstm_score,  # ← 新增
     }

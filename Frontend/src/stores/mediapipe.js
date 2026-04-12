@@ -4,7 +4,6 @@ import { useExerciseStore } from './exercise'
 import { getApiBase } from '@/api/base';
 const API_URL = getApiBase();
 
-// ===== 新增：请求序号（放在 store 外面）=====
 let requestSequence = 0
 
 export const useMediapipeStore = defineStore('mediapipe', () => {
@@ -27,13 +26,21 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   const smoothness = ref(100)   
   const repDurations = ref([])
 
+  // ===== new: LSTM scores =====
+  const lstmScore = ref(0)           // 最新一幀的 LSTM 分數
+  const lstmScores = ref([])         // 整組運動期間所有 LSTM 分數
+  const lstmScoreAvg = computed(() => {
+    if (lstmScores.value.length === 0) return 0
+    const sum = lstmScores.value.reduce((a, b) => a + b, 0)
+    return Math.round(sum / lstmScores.value.length)
+  })
+
   const lastGesture = ref(null)           
   const gestureMessage = ref('')          
   const waitingForGesture = ref(false)    
 
   const completedThisFrame = ref(false)
 
-  // ===== 暂停防抖动 =====
   const lastPauseChangeTime = ref(0)
   const PAUSE_DEBOUNCE_MS = 1500
 
@@ -60,7 +67,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   async function analyzeFrame(imageData) {
     if (isAnalyzing.value) return null
 
-    // ===== 新增：记录当前请求序号 =====
     const thisRequestId = ++requestSequence
 
     try {
@@ -89,7 +95,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
 
       const result = await response.json()
 
-      // ===== 新增：检查是否过期 =====
       if (thisRequestId !== requestSequence) {
         console.log(`[analyzeFrame] 丢弃过期响应 #${thisRequestId}，当前最新 #${requestSequence}`)
         return null
@@ -112,7 +117,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   async function startExercise(exerciseType, style) {
-    // ===== 新增：切换运动时重置序号，丢弃所有旧请求 =====
     requestSequence = 0
 
     const success = await controlBackend({
@@ -137,6 +141,11 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       analysisResults.value = null
       smoothness.value = 100          
       repDurations.value = []
+
+      // ===== new: reset LSTM =====
+      lstmScore.value = 0
+      lstmScores.value = []
+
       lastPauseChangeTime.value = 0
       console.log(`Exercise '${exerciseType}' started with style '${style}'. max reps: ${repetitionLimit.value}`);
     } else {
@@ -145,7 +154,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
   }
 
   function stopExercise() {
-    // ===== 新增：停止时也重置序号 =====
     requestSequence = 0
     status.value = 'ready'
     isAnalyzing.value = false
@@ -180,6 +188,16 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
     }                                                               
     if (Array.isArray(analysisData.rep_durations)) {               
       repDurations.value = analysisData.rep_durations.slice()       
+    }
+
+    // ===== new: fetch LSTM scores =====
+    if (typeof analysisData.lstm_score !== 'undefined' && analysisData.lstm_score !== null) {
+      const score = Number(analysisData.lstm_score)
+      lstmScore.value = score
+      if (!isPaused.value && score > 0) {
+        lstmScores.value.push(score)
+      }
+      console.log('[updateAnalysisData] lstm_score=', score, 'avg=', lstmScoreAvg.value)
     }
     
     if (isPaused.value) {
@@ -225,6 +243,8 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       'count=', count.value,
       'accurateCount=', accurateCount.value,
       'accuracy=', accuracy.value,
+      'lstmScore=', lstmScore.value,
+      'lstmScoreAvg=', lstmScoreAvg.value,
       'paused=', isPaused.value
     )
   }
@@ -250,6 +270,10 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       smoothness.value = 100
       repDurations.value = []
 
+      // ===== new: reset LSTM =====
+      lstmScore.value = 0
+      lstmScores.value = []
+
       lastGesture.value = null
       gestureMessage.value = '請做 👍 手勢開始運動'
       waitingForGesture.value = true
@@ -258,7 +282,6 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
       lastPauseChangeTime.value = 0
 
       completedThisFrame.value = false
-  
   }
   
   return {
@@ -278,6 +301,11 @@ export const useMediapipeStore = defineStore('mediapipe', () => {
 
     smoothness,   
     repDurations,
+
+    // ===== new: export LSTM =====
+    lstmScore,
+    lstmScores,
+    lstmScoreAvg,
 
     lastGesture,
     gestureMessage,

@@ -23,6 +23,14 @@
           </div>
         </div>
 
+        <!-- ===== new: LSTM score ===== -->
+        <div class="stat-card">
+          <div class="stat-info">
+            <div class="stat-value" :class="lstmScoreClass">{{ lstmScoreDisplay }}%</div>
+            <div class="stat-label">AI 動作評分</div>
+          </div>
+        </div>
+
         <div class="stat-card">
           <div class="stat-info">
             <div class="stat-value">{{ smoothnessPercent }}%</div>
@@ -141,6 +149,16 @@ const duration = computed(() => {
 const accuracy = computed(() => Number(mediapipeStore.accuracy) || 0)
 const smoothnessPercent = computed(() => Number(mediapipeStore.smoothness) || 0)
 
+// ===== new: LSTM scores =====
+const lstmScoreDisplay = computed(() => mediapipeStore.lstmScoreAvg)
+
+const lstmScoreClass = computed(() => {
+  const score = mediapipeStore.lstmScoreAvg
+  if (score >= 80) return 'score-good'
+  if (score >= 60) return 'score-ok'
+  return 'score-low'
+})
+
 const tips = computed(() => {
   const t = []
 
@@ -150,6 +168,18 @@ const tips = computed(() => {
     t.push('準確度可再提升：注意核心穩定，保持關節角度在提示範圍內。')
   } else {
     t.push('準確度良好：維持當前節奏，逐步增加組數或阻力。')
+  }
+
+  // ===== new: LSTM score suggestions =====
+  const lstm = mediapipeStore.lstmScoreAvg
+  if (lstm > 0) {
+    if (lstm < 60) {
+      t.push('AI 評分偏低：動作模式與標準差距較大，建議對照示範影片逐步校正姿勢。')
+    } else if (lstm < 80) {
+      t.push('AI 評分中等：整體動作模式尚可，可針對薄弱環節（如肩胛穩定、肘部軌跡）加強。')
+    } else {
+      t.push('AI 評分優秀：動作模式接近標準，繼續保持並可嘗試進階變化。')
+    }
   }
 
   if (smoothnessPercent.value < 50) {
@@ -179,6 +209,16 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.score-good {
+  color: #22c55e;
+}
+.score-ok {
+  color: #f59e0b;
+}
+.score-low {
+  color: #ef4444;
+}
+
 .workout-summary-overlay {
   position: fixed;
   top: 0;

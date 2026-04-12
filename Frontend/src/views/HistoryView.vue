@@ -569,7 +569,6 @@ h1 {
   margin-bottom: 20px;
 }
 
-/* 時間標籤切換 */
 .time-tabs {
   display: flex;
   background: #e5e5ea;
