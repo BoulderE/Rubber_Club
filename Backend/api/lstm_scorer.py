@@ -40,7 +40,7 @@ class LSTMScorer:
             try:
                 with open(meta_path) as f:
                     meta = json.load(f)
-                model = self._tf.keras.models.load_model(model_path, compile=False)
+                model = self._tf_keras.models.load_model(model_path, compile=False)
 
                 seq_len = meta['sequence_len']
                 self.models[name] = {
