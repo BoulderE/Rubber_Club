@@ -34,24 +34,26 @@ class LSTMScorer:
 
         for name in sorted(os.listdir(models_dir)):
             meta_path  = os.path.join(models_dir, name, 'metadata.json')
-            h5_path    = os.path.join(models_dir, name, 'model.h5')
-            keras_path = os.path.join(models_dir, name, 'model.keras')
+            npz_path  = os.path.join(models_dir, name, 'weights.npz')
 
-            if os.path.isfile(h5_path):
-                model_path = h5_path
-            elif os.path.isfile(keras_path):
-                model_path = keras_path
-            else:
+            if not os.path.isfile(meta_path) or not os.path.isfile(npz_path):
                 continue
 
-            if not os.path.isfile(meta_path):
-                continue
             try:
                 with open(meta_path) as f:
                     meta = json.load(f)
-                model = self._tf_keras.models.load_model(model_path, compile=False)
 
                 seq_len = meta['sequence_len']
+                n_features = len(meta['angles'])
+
+                # 用代碼重建模型
+                model = self._build_model(n_features, seq_len)
+
+                # 載入 npz 權重
+                data = np.load(npz_path)
+                weights = [data[f'w{i}'] for i in range(len(data.files))]
+                model.set_weights(weights)
+
                 self.models[name] = {
                     'model':        model,
                     'angles':       meta['angles'],
@@ -63,7 +65,7 @@ class LSTMScorer:
                     'error_p95':    meta['error_p95'],
                 }
                 self.buffers[name] = deque(maxlen=seq_len)
-                print(f"[LSTMScorer] {name}  angles={meta['angles']}  seq={seq_len}")
+                print(f"[LSTMScorer] {name}  features={n_features}  seq={seq_len}")
             except Exception as e:
                 print(f"[LSTMScorer] {name}: {e}")
 
