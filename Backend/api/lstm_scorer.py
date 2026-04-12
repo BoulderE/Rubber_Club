@@ -1,4 +1,3 @@
-# api/lstm_scorer.py
 import os, json
 import numpy as np
 from collections import deque
@@ -41,19 +40,6 @@ def _lstm_forward(x_seq, kernel, rec_kernel, bias, return_sequences=True):
 
 
 def _autoencoder_forward(seq, w):
-    """
-    Architecture (matches _build_model that was used for training):
-        LSTM(64, return_sequences=True)
-        LSTM(16, return_sequences=False)   ← bottleneck
-        RepeatVector(seq_len)
-        LSTM(16, return_sequences=True)
-        LSTM(64, return_sequences=True)
-        TimeDistributed(Dense(n_features))
-
-    w: list of 14 numpy arrays  [w0 … w13]
-    seq: (seq_len, n_features)
-    Returns: (seq_len, n_features)
-    """
     # Encoder
     x = _lstm_forward(seq, w[0], w[1], w[2], return_sequences=True)
     x = _lstm_forward(x,   w[3], w[4], w[5], return_sequences=False)
@@ -69,9 +55,6 @@ def _autoencoder_forward(seq, w):
     x = x @ w[12] + w[13]
 
     return x
-
-
-# ── Scorer ─────────────────────────────────────────────────────
 
 class LSTMScorer:
 
@@ -90,7 +73,6 @@ class LSTMScorer:
         self._cached_scores = {}
         self._load_all(models_dir)
 
-    # ── load ───────────────────────────────────────────────────
     def _load_all(self, models_dir):
         if not os.path.isdir(models_dir):
             print(f"[LSTMScorer] 模型目錄不存在: {models_dir}")
@@ -130,7 +112,6 @@ class LSTMScorer:
 
         print(f"[LSTMScorer] 共載入 {len(self.models)} 個模型 (pure numpy, 無需 tensorflow)")
 
-    # ── angle helpers ──────────────────────────────────────────
     @staticmethod
     def _angle_3pt(a, b, c):
         ba = a - b
@@ -165,7 +146,6 @@ class LSTMScorer:
 
         return angles
 
-    # ── scoring ────────────────────────────────────────────────
     def _resolve_key(self, exercise_key, active_side=None):
         if exercise_key == 'diagonal_lift' and active_side:
             return f'diagonal_lift_{active_side}'
@@ -197,9 +177,23 @@ class LSTMScorer:
         seq = np.array(buf, dtype=np.float32)
         seq_norm = (seq - info['scaler_mean']) / info['scaler_scale']
 
+        print(f"[DEBUG] seq raw  mean={seq.mean():.2f}  std={seq.std():.2f}  "
+          f"min={seq.min():.2f}  max={seq.max():.2f}")
+        print(f"[DEBUG] scaler_mean={info['scaler_mean']}")
+        print(f"[DEBUG] scaler_scale={info['scaler_scale']}")
+        print(f"[DEBUG] seq_norm mean={seq_norm.mean():.2f}  std={seq_norm.std():.2f}  "
+            f"min={seq_norm.min():.2f}  max={seq_norm.max():.2f}")
+
         pred = _autoencoder_forward(seq_norm, info['weights'])
 
         mse = float(np.mean((seq_norm - pred) ** 2))
+
+        print(f"[DEBUG] pred mean={pred.mean():.4f}  std={pred.std():.4f}")
+        print(f"[DEBUG] MSE={mse:.6f}  error_mean={info['error_mean']:.6f}  "
+            f"error_std={info['error_std']:.6f}  error_p95={info['error_p95']:.6f}")
+        z = (mse - info['error_mean']) / (info['error_std'] + 1e-8)
+        print(f"[DEBUG] z={z:.2f}  → score={max(0, min(100, int(round(100 - z * 25))))}")
+        
         result = self._mse_to_score(mse, info)
         self._cached_scores[key] = result
         return result
