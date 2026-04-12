@@ -1,7 +1,77 @@
+# api/lstm_scorer.py
 import os, json
 import numpy as np
 from collections import deque
 
+
+# ── Pure-numpy LSTM helpers ────────────────────────────────────
+
+def _sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-np.clip(x, -500, 500)))
+
+
+def _lstm_forward(x_seq, kernel, rec_kernel, bias, return_sequences=True):
+    """
+    x_seq:      (seq_len, input_dim)
+    kernel:     (input_dim, 4*units)
+    rec_kernel: (units, 4*units)
+    bias:       (4*units,)
+    Keras gate order: i, f, g, o
+    """
+    units = rec_kernel.shape[0]
+    seq_len = x_seq.shape[0]
+    h = np.zeros(units, dtype=np.float32)
+    c = np.zeros(units, dtype=np.float32)
+    outputs = []
+
+    for t in range(seq_len):
+        z = x_seq[t] @ kernel + h @ rec_kernel + bias
+        i = _sigmoid(z[:units])
+        f = _sigmoid(z[units:2 * units])
+        g = np.tanh(z[2 * units:3 * units])
+        o = _sigmoid(z[3 * units:])
+        c = f * c + i * g
+        h = o * np.tanh(c)
+        if return_sequences:
+            outputs.append(h.copy())
+
+    if return_sequences:
+        return np.array(outputs, dtype=np.float32)   # (seq_len, units)
+    return h                                           # (units,)
+
+
+def _autoencoder_forward(seq, w):
+    """
+    Architecture (matches _build_model that was used for training):
+        LSTM(64, return_sequences=True)
+        LSTM(16, return_sequences=False)   ← bottleneck
+        RepeatVector(seq_len)
+        LSTM(16, return_sequences=True)
+        LSTM(64, return_sequences=True)
+        TimeDistributed(Dense(n_features))
+
+    w: list of 14 numpy arrays  [w0 … w13]
+    seq: (seq_len, n_features)
+    Returns: (seq_len, n_features)
+    """
+    # Encoder
+    x = _lstm_forward(seq, w[0], w[1], w[2], return_sequences=True)
+    x = _lstm_forward(x,   w[3], w[4], w[5], return_sequences=False)
+
+    # RepeatVector
+    x = np.tile(x[np.newaxis, :], (seq.shape[0], 1))   # (seq_len, 16)
+
+    # Decoder
+    x = _lstm_forward(x, w[6],  w[7],  w[8],  return_sequences=True)
+    x = _lstm_forward(x, w[9],  w[10], w[11], return_sequences=True)
+
+    # TimeDistributed Dense
+    x = x @ w[12] + w[13]
+
+    return x
+
+
+# ── Scorer ─────────────────────────────────────────────────────
 
 class LSTMScorer:
 
@@ -20,28 +90,10 @@ class LSTMScorer:
         self._cached_scores = {}
         self._load_all(models_dir)
 
-    def _build_model(self, n_features, seq_len):
-        inp = self._tf_keras.Input(shape=(seq_len, n_features))
-        x = self._tf_keras.layers.LSTM(64, return_sequences=True)(inp)
-        x = self._tf_keras.layers.LSTM(16)(x)
-        x = self._tf_keras.layers.RepeatVector(seq_len)(x)
-        x = self._tf_keras.layers.LSTM(16, return_sequences=True)(x)
-        x = self._tf_keras.layers.LSTM(64, return_sequences=True)(x)
-        out = self._tf_keras.layers.TimeDistributed(
-            self._tf_keras.layers.Dense(n_features)
-        )(x)
-        return self._tf_keras.Model(inp, out)
-
+    # ── load ───────────────────────────────────────────────────
     def _load_all(self, models_dir):
         if not os.path.isdir(models_dir):
             print(f"[LSTMScorer] 模型目錄不存在: {models_dir}")
-            return
-
-        try:
-            import tf_keras
-            self._tf_keras = tf_keras
-        except ImportError:
-            print("[LSTMScorer] tf_keras 未安裝，LSTM 評分不可用")
             return
 
         for name in sorted(os.listdir(models_dir)):
@@ -55,17 +107,14 @@ class LSTMScorer:
                 with open(meta_path) as f:
                     meta = json.load(f)
 
-                seq_len = meta['sequence_len']
+                seq_len    = meta['sequence_len']
                 n_features = len(meta['angles'])
 
-                model = self._build_model(n_features, seq_len)
-
                 data = np.load(npz_path)
-                weights = [data[f'w{i}'] for i in range(len(data.files))]
-                model.set_weights(weights)
+                weights = [data[f'w{i}'].astype(np.float32) for i in range(14)]
 
                 self.models[name] = {
-                    'model':        model,
+                    'weights':      weights,
                     'angles':       meta['angles'],
                     'seq_len':      seq_len,
                     'scaler_mean':  np.array(meta['scaler_mean'],  dtype=np.float32),
@@ -79,8 +128,9 @@ class LSTMScorer:
             except Exception as e:
                 print(f"[LSTMScorer] {name}: {e}")
 
-        print(f"[LSTMScorer] 共載入 {len(self.models)} 個模型")
+        print(f"[LSTMScorer] 共載入 {len(self.models)} 個模型 (pure numpy, 無需 tensorflow)")
 
+    # ── angle helpers ──────────────────────────────────────────
     @staticmethod
     def _angle_3pt(a, b, c):
         ba = a - b
@@ -115,6 +165,7 @@ class LSTMScorer:
 
         return angles
 
+    # ── scoring ────────────────────────────────────────────────
     def _resolve_key(self, exercise_key, active_side=None):
         if exercise_key == 'diagonal_lift' and active_side:
             return f'diagonal_lift_{active_side}'
@@ -145,11 +196,10 @@ class LSTMScorer:
 
         seq = np.array(buf, dtype=np.float32)
         seq_norm = (seq - info['scaler_mean']) / info['scaler_scale']
-        x = seq_norm[np.newaxis, ...]
 
-        pred = info['model'](x, training=False).numpy()
+        pred = _autoencoder_forward(seq_norm, info['weights'])
 
-        mse = float(np.mean((x - pred) ** 2))
+        mse = float(np.mean((seq_norm - pred) ** 2))
         result = self._mse_to_score(mse, info)
         self._cached_scores[key] = result
         return result
