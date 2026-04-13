@@ -2,10 +2,6 @@ import os, json
 import numpy as np
 from collections import deque
 
-
-# ── Pure-numpy LSTM helpers ────────────────────────────────────
-
-
 def _sigmoid(x):
     return 1.0 / (1.0 + np.exp(-np.clip(x, -500, 500)))
 
