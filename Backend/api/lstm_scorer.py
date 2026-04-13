@@ -5,6 +5,7 @@ from collections import deque
 
 # ── Pure-numpy LSTM helpers ────────────────────────────────────
 
+
 def _sigmoid(x):
     return 1.0 / (1.0 + np.exp(-np.clip(x, -500, 500)))
 
@@ -35,8 +36,8 @@ def _lstm_forward(x_seq, kernel, rec_kernel, bias, return_sequences=True):
             outputs.append(h.copy())
 
     if return_sequences:
-        return np.array(outputs, dtype=np.float32)   # (seq_len, units)
-    return h                                           # (units,)
+        return np.array(outputs, dtype=np.float32)
+    return h
 
 
 def _autoencoder_forward(seq, w):
@@ -45,7 +46,7 @@ def _autoencoder_forward(seq, w):
     x = _lstm_forward(x,   w[3], w[4], w[5], return_sequences=False)
 
     # RepeatVector
-    x = np.tile(x[np.newaxis, :], (seq.shape[0], 1))   # (seq_len, 16)
+    x = np.tile(x[np.newaxis, :], (seq.shape[0], 1))
 
     # Decoder
     x = _lstm_forward(x, w[6],  w[7],  w[8],  return_sequences=True)
@@ -55,6 +56,7 @@ def _autoencoder_forward(seq, w):
     x = x @ w[12] + w[13]
 
     return x
+
 
 class LSTMScorer:
 
@@ -176,6 +178,7 @@ class LSTMScorer:
 
         seq = np.array(buf, dtype=np.float32)
         seq_norm = (seq - info['scaler_mean']) / info['scaler_scale']
+        seq_norm = np.clip(seq_norm, -2.0, 2.0)
 
         print(f"[DEBUG] seq raw  mean={seq.mean():.2f}  std={seq.std():.2f}  "
           f"min={seq.min():.2f}  max={seq.max():.2f}")
@@ -194,16 +197,39 @@ class LSTMScorer:
         z = (mse - info['error_mean']) / (info['error_std'] + 1e-8)
         print(f"[DEBUG] z={z:.2f}  → score={max(0, min(100, int(round(100 - z * 25))))}")
         
-        result = self._mse_to_score(mse, info)
+        result = self._mse_to_score(mse, info, key)
         self._cached_scores[key] = result
         return result
 
     @staticmethod
-    def _mse_to_score(mse, info):
-        z = (mse - info['error_mean']) / (info['error_std'] + 1e-8)
-        if z <= 0:
+    def _mse_to_score(mse, info, exercise_key=''):
+        import math, sys
+        # Per-exercise calibration (accounts for differences in training data distribution)
+        _PARAMS = {
+            'bicep_curl':     {'mse_scale': 0.35, 'coeff': 9,  'min_w': 0.55},
+            'front_raise':    {'mse_scale': 0.65, 'coeff': 10, 'min_w': 0.50},
+            'overhead_press': {'mse_scale': 0.65, 'coeff': 10, 'min_w': 0.50},
+        }
+        params = None
+        for pk in _PARAMS:
+            if exercise_key.startswith(pk):
+                params = _PARAMS[pk]
+                break
+        scale  = params['mse_scale'] if params else 1.0
+        coeff  = params['coeff']     if params else 15
+        min_w  = params['min_w']     if params else 0.3
+        mse_adj = mse * scale
+        p95 = info['error_p95']
+        em  = info['error_mean']
+        if mse_adj <= em:
+            print(f"[LSTM_DEBUG] {exercise_key} mse={mse:.4f} s={scale} adj={mse_adj:.4f} <= em={em:.4f} -> 100", file=sys.stderr)
             return 100
-        return max(0, min(100, int(round(100 - z * 25))))
+        width = max(p95 - em, min_w)
+        ratio = (mse_adj - em) / width
+        score = 100 - coeff * math.log2(1 + ratio)
+        final = max(30, min(100, int(round(score))))
+        print(f"[LSTM_DEBUG] {exercise_key} mse={mse:.4f} s={scale} adj={mse_adj:.4f} em={em:.4f} w={width:.4f} c={coeff} ratio={ratio:.2f} raw={score:.1f} final={final}", file=sys.stderr)
+        return final
 
     def reset(self, exercise_key=None, active_side=None):
         if exercise_key:
