@@ -16,12 +16,12 @@
       </div>
 
       <div class="summary-stats">
-        <div class="stat-card">
+        <!-- <div class="stat-card">
           <div class="stat-info">
             <div class="stat-value">{{ accuracy }}%</div>
             <div class="stat-label">動作質素指數</div>
           </div>
-        </div>
+        </div> -->
 
         <!-- ===== new: LSTM score ===== -->
         <div class="stat-card">
