@@ -205,6 +205,7 @@ class LSTMScorer:
             'bicep_curl':     {'mse_scale': 0.35, 'coeff': 9,  'min_w': 0.55},
             'front_raise':    {'mse_scale': 0.65, 'coeff': 10, 'min_w': 0.50},
             'overhead_press': {'mse_scale': 0.65, 'coeff': 10, 'min_w': 0.50},
+            'diagonal_lift':  {'mse_scale': 0.30, 'coeff': 8,  'min_w': 0.50},
         }
         params = None
         for pk in _PARAMS:

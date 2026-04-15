@@ -409,24 +409,25 @@ class ExerciseAnalyzer:
                     self.state._overextension_detected = True
                     self.state._overextension_type = self._last_quality['error_type']
 
-                # ── LSTM realtime scoring ──
-                active_side = None
-                if self.exercise_id == 'diagonal_lift':
-                    active_side = self.state._diag_active_side
-                lstm_score = self.state.lstm_scorer.score(
-                    self.exercise_id,
-                    results.pose_landmarks,
-                    active_side=active_side,
-                )
-                if lstm_score is not None:
-                    self.state.lstm_scores.append(lstm_score)
-                    self.state.current_lstm_score = lstm_score
+                logic_function = getattr(self, self.config['logic_function'])
+                logic_function(landmarks)
 
-            logic_function = getattr(self, self.config['logic_function'])
-            logic_function(landmarks)
-        else:
-            self._finalize_open_phase()
-            self.state.feedback = "請確保身體關鍵部位在鏡頭內"
+                # ── LSTM realtime scoring ──
+                if results.pose_landmarks and self.exercise_id:
+                    active_side = None
+                    if self.exercise_id == 'diagonal_lift':
+                        active_side = self.state._diag_active_side
+                    lstm_score = self.state.lstm_scorer.score(
+                        self.exercise_id,
+                        results.pose_landmarks,
+                        active_side=active_side,
+                    )
+                    if lstm_score is not None:
+                        self.state.lstm_scores.append(lstm_score)
+                        self.state.current_lstm_score = lstm_score
+            else:
+                self._finalize_open_phase()
+                self.state.feedback = "請確保身體關鍵部位在鏡頭內"
 
         self._generate_feedback()
         return self._build_result(paused=False)
